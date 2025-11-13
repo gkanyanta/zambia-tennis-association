@@ -1,0 +1,12 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- ZTA Logo Placeholder -->
+  <circle cx="100" cy="100" r="95" fill="#2D7A3E" stroke="#1A4D2E" stroke-width="3"/>
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#FFB347" stroke-width="4"/>
+
+  <!-- Tennis Ball Lines -->
+  <path d="M 60 100 Q 80 80, 100 80 Q 120 80, 140 100" fill="none" stroke="#FFB347" stroke-width="3"/>
+  <path d="M 60 100 Q 80 120, 100 120 Q 120 120, 140 100" fill="none" stroke="#FFB347" stroke-width="3"/>
+
+  <!-- Text ZTA -->
+  <text x="100" y="110" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#FFFFFF" text-anchor="middle">ZTA</text>
+</svg>

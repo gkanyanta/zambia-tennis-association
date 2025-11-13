@@ -1,0 +1,197 @@
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Hero } from '@/components/Hero';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  LayoutDashboard,
+  Newspaper,
+  Trophy,
+  Calendar,
+  DollarSign,
+  Users,
+  BarChart3,
+  Settings
+} from 'lucide-react';
+
+export function Admin() {
+  const { isAdmin, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    } else if (!isAdmin) {
+      navigate('/');
+    }
+  }, [isAuthenticated, isAdmin, navigate]);
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  const adminSections = [
+    {
+      title: 'Manage News',
+      description: 'Create, edit, and delete news articles',
+      icon: Newspaper,
+      action: () => navigate('/news'),
+      color: 'text-blue-500'
+    },
+    {
+      title: 'Manage Tournaments',
+      description: 'Create and manage tournament registrations',
+      icon: Trophy,
+      action: () => navigate('/tournaments'),
+      color: 'text-yellow-500'
+    },
+    {
+      title: 'Manage Rankings',
+      description: 'Update player rankings and standings',
+      icon: BarChart3,
+      action: () => navigate('/rankings'),
+      color: 'text-green-500'
+    },
+    {
+      title: 'Court Bookings',
+      description: 'View and manage court bookings',
+      icon: Calendar,
+      action: () => navigate('/play'),
+      color: 'text-purple-500'
+    },
+    {
+      title: 'Players & Clubs',
+      description: 'Manage player and club registrations',
+      icon: Users,
+      action: () => navigate('/players'),
+      color: 'text-pink-500'
+    },
+    {
+      title: 'Payments',
+      description: 'View membership and tournament payments',
+      icon: DollarSign,
+      action: () => navigate('/membership'),
+      color: 'text-emerald-500'
+    }
+  ];
+
+  return (
+    <div className="flex flex-col">
+      <Hero
+        title="Admin Dashboard"
+        description="Manage all aspects of the Zambia Tennis Association"
+        gradient
+      />
+
+      <section className="py-16">
+        <div className="container-custom">
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">245</div>
+                <p className="text-xs text-muted-foreground">+12 from last month</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Active Tournaments</CardTitle>
+                <Trophy className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">5</div>
+                <p className="text-xs text-muted-foreground">2 with open registration</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Revenue (Month)</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">K 45,200</div>
+                <p className="text-xs text-muted-foreground">+8% from last month</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Court Bookings</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">128</div>
+                <p className="text-xs text-muted-foreground">This week</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Admin Sections */}
+          <h2 className="text-2xl font-bold text-foreground mb-6">Management Tools</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {adminSections.map((section) => (
+              <Card key={section.title} className="card-elevated-hover cursor-pointer" onClick={section.action}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 mb-2">
+                        <section.icon className={`h-5 w-5 ${section.color}`} />
+                        {section.title}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {section.description}
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Button variant="outline" className="w-full" onClick={section.action}>
+                    Open
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Recent Activity */}
+          <div className="mt-12">
+            <h3 className="text-xl font-bold text-foreground mb-4">Recent Activity</h3>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="text-muted-foreground">10 minutes ago</span>
+                    <span className="flex-1">New tournament registration by John Banda</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                    <span className="text-muted-foreground">1 hour ago</span>
+                    <span className="flex-1">Court booking confirmed at Lusaka Tennis Club</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <span className="text-muted-foreground">2 hours ago</span>
+                    <span className="flex-1">New membership payment received</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span className="text-muted-foreground">3 hours ago</span>
+                    <span className="flex-1">Rankings updated for Men's Singles</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
