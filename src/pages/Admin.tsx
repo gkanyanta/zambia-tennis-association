@@ -5,14 +5,12 @@ import { Hero } from '@/components/Hero';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  LayoutDashboard,
   Newspaper,
   Trophy,
   Calendar,
   DollarSign,
   Users,
-  BarChart3,
-  Settings
+  BarChart3
 } from 'lucide-react';
 
 export function Admin() {

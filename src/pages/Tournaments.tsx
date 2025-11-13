@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
 import { tournamentService, Tournament } from '@/services/tournamentService';
-import { Plus, Edit, Trash2, Calendar } from 'lucide-react';
+import { Plus, Edit, Trash2 } from 'lucide-react';
 
 export function Tournaments() {
   const { isAuthenticated, isAdmin } = useAuth();
@@ -279,6 +279,7 @@ export function Tournaments() {
                   <div key={tournament._id}>
                     <TournamentCard
                       {...tournament}
+                      status={tournament.status as 'upcoming' | 'registration-open' | 'in-progress' | 'completed'}
                       participants={tournament.registrations?.length || 0}
                       onRegister={() => handleRegister(tournament._id, tournament.name)}
                     />
@@ -352,7 +353,7 @@ export function Tournaments() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {completedTournaments.map((tournament) => (
                   <div key={tournament._id}>
-                    <TournamentCard {...tournament} participants={tournament.registrations?.length || 0} />
+                    <TournamentCard {...tournament} status={tournament.status as 'upcoming' | 'registration-open' | 'in-progress' | 'completed'} participants={tournament.registrations?.length || 0} />
                     {isAdmin && (
                       <div className="flex gap-2 mt-2">
                         <Button size="sm" variant="outline" onClick={() => handleEdit(tournament)} className="flex-1">

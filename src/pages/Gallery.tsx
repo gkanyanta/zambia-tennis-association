@@ -7,7 +7,8 @@ import { galleryService, GalleryImage } from '@/services/galleryService'
 import { useAuth } from '@/context/AuthContext'
 import { Link } from 'react-router-dom'
 
-const oldGalleryImages: any[] = [
+// Placeholder images for reference only - not used in production
+/* const oldGalleryImages: any[] = [
   {
     id: 1,
     src: 'https://images.unsplash.com/photo-1554068865-24ceef4997b8?w=800&auto=format&fit=crop',
@@ -93,6 +94,7 @@ const oldGalleryImages: any[] = [
     date: 'February 2024',
   },
 ]
+*/
 
 const categories = ['All', 'Tournaments', 'Juniors', 'Infrastructure', 'Education', 'Development', 'Madalas', 'Training']
 

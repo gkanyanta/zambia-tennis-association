@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
-import { RefreshCw, Plus, Edit, Trash2 } from 'lucide-react';
+import { RefreshCw, Plus, Trash2 } from 'lucide-react';
 
 type RankingCategory = 'mens-singles' | 'womens-singles' | 'juniors-boys' | 'juniors-girls';
 
