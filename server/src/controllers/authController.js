@@ -7,7 +7,7 @@ import sendEmail from '../utils/sendEmail.js';
 // @access  Public
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone } = req.body;
+    const { firstName, lastName, email, password, phone, role } = req.body;
 
     // Check if user exists
     const userExists = await User.findOne({ email });
@@ -24,7 +24,8 @@ export const register = async (req, res) => {
       lastName,
       email,
       password,
-      phone
+      phone,
+      role: role || 'player' // Default to 'player' if no role specified
     });
 
     // Send welcome email

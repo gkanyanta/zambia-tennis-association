@@ -34,6 +34,33 @@ export interface Player {
   zpinPayments: ZPINPayment[]
 }
 
+export type CourtType = 'Hard Court' | 'Clay' | 'Grass' | 'Synthetic Grass'
+export type CourtCondition = 'Indoor' | 'Outdoor' | 'Lit'
+
+export interface Court {
+  id: number
+  type: CourtType
+  condition: CourtCondition[]
+  isPlayable: boolean
+  notes?: string
+}
+
+export interface ClubExecutive {
+  chairman: string
+  viceChairman?: string
+  secretary: string
+  treasurer?: string
+  clubCaptain?: string
+  committeeMembers?: { name: string; position: string }[]
+}
+
+export interface ClubFacilities {
+  courts: Court[]
+  totalCourts: number
+  playableCourts: number
+  amenities: string[] // e.g., 'Clubhouse', 'Pro Shop', 'Changing Rooms', 'Restaurant/Café', 'Parking', 'Practice Wall', 'Gym'
+}
+
 export interface Club {
   id: number
   name: string
@@ -42,9 +69,8 @@ export interface Club {
   address: string
   email: string
   phone: string
-  president: string
-  secretary: string
-  numberOfCourts: number
+  executives: ClubExecutive
+  facilities: ClubFacilities
   numberOfMembers: number
   affiliationStatus: 'active' | 'inactive' | 'suspended'
   affiliationFees: AffiliationFee[]

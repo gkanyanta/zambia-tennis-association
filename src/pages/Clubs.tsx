@@ -39,8 +39,8 @@ export function Clubs() {
     const matchesSearch =
       club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       club.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      club.president.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      club.secretary.toLowerCase().includes(searchTerm.toLowerCase())
+      club.executives.chairman.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      club.executives.secretary.toLowerCase().includes(searchTerm.toLowerCase())
 
     const matchesProvince = selectedProvince === 'all' || club.province === selectedProvince
 
@@ -148,7 +148,7 @@ export function Clubs() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by club name, city, president, or secretary..."
+                placeholder="Search by club name, city, chairman, or secretary..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -219,12 +219,13 @@ export function Clubs() {
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div>
-                              <div><span className="font-medium">Pres:</span> {club.president}</div>
-                              <div className="text-muted-foreground"><span className="font-medium">Sec:</span> {club.secretary}</div>
+                              <div><span className="font-medium">Chair:</span> {club.executives.chairman}</div>
+                              <div className="text-muted-foreground"><span className="font-medium">Sec:</span> {club.executives.secretary}</div>
                             </div>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="font-medium">{club.numberOfCourts}</span>
+                            <div className="font-medium">{club.facilities.playableCourts}/{club.facilities.totalCourts}</div>
+                            <div className="text-xs text-muted-foreground">playable</div>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className="font-medium">{club.numberOfMembers}</span>
@@ -308,18 +309,6 @@ export function Clubs() {
                     <p className="font-medium">{selectedClub.phone}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">President:</span>
-                    <p className="font-medium">{selectedClub.president}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Secretary:</span>
-                    <p className="font-medium">{selectedClub.secretary}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Number of Courts:</span>
-                    <p className="font-medium">{selectedClub.numberOfCourts}</p>
-                  </div>
-                  <div>
                     <span className="text-muted-foreground">Number of Members:</span>
                     <p className="font-medium">{selectedClub.numberOfMembers}</p>
                   </div>
@@ -330,6 +319,100 @@ export function Clubs() {
                   <div>
                     <span className="text-muted-foreground">Affiliation Status:</span>
                     <p className="font-medium capitalize">{selectedClub.affiliationStatus}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Club Executives */}
+              <div>
+                <h4 className="font-semibold mb-3">Club Executives</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Chairman:</span>
+                    <p className="font-medium">{selectedClub.executives.chairman}</p>
+                  </div>
+                  {selectedClub.executives.viceChairman && (
+                    <div>
+                      <span className="text-muted-foreground">Vice Chairman:</span>
+                      <p className="font-medium">{selectedClub.executives.viceChairman}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Secretary:</span>
+                    <p className="font-medium">{selectedClub.executives.secretary}</p>
+                  </div>
+                  {selectedClub.executives.treasurer && (
+                    <div>
+                      <span className="text-muted-foreground">Treasurer:</span>
+                      <p className="font-medium">{selectedClub.executives.treasurer}</p>
+                    </div>
+                  )}
+                  {selectedClub.executives.clubCaptain && (
+                    <div>
+                      <span className="text-muted-foreground">Club Captain:</span>
+                      <p className="font-medium">{selectedClub.executives.clubCaptain}</p>
+                    </div>
+                  )}
+                </div>
+                {selectedClub.executives.committeeMembers && selectedClub.executives.committeeMembers.length > 0 && (
+                  <div className="mt-3">
+                    <span className="text-muted-foreground text-sm">Committee Members:</span>
+                    <div className="mt-2 space-y-1">
+                      {selectedClub.executives.committeeMembers.map((member, idx) => (
+                        <div key={idx} className="text-sm">
+                          <span className="font-medium">{member.name}</span>
+                          <span className="text-muted-foreground"> - {member.position}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Facilities & Courts */}
+              <div>
+                <h4 className="font-semibold mb-3">Facilities & Courts</h4>
+                <div className="mb-3">
+                  <span className="text-muted-foreground text-sm">Courts:</span>
+                  <p className="font-medium text-lg">{selectedClub.facilities.playableCourts} of {selectedClub.facilities.totalCourts} courts playable</p>
+                </div>
+                <div className="space-y-2">
+                  {selectedClub.facilities.courts.map((court) => (
+                    <div
+                      key={court.id}
+                      className={`flex items-center justify-between p-2 rounded ${
+                        court.isPlayable ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium text-sm">Court {court.id}</span>
+                        <span className="text-muted-foreground text-sm"> - {court.type}</span>
+                        <div className="text-xs text-muted-foreground">
+                          {court.condition.join(', ')}
+                        </div>
+                        {court.notes && (
+                          <div className="text-xs text-muted-foreground italic">
+                            {court.notes}
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant={court.isPlayable ? 'default' : 'destructive'}>
+                        {court.isPlayable ? 'Playable' : 'Not Playable'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <span className="text-muted-foreground text-sm">Amenities:</span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedClub.facilities.amenities.map((amenity, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs bg-muted px-2 py-1 rounded"
+                      >
+                        {amenity}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>

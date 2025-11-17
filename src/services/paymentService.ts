@@ -27,12 +27,5 @@ export const paymentService = {
       method: 'POST',
     });
     return response.data;
-  },
-
-  async createBookingPayment(bookingId: string): Promise<PaymentIntent> {
-    const response = await apiFetch(`/payments/booking/${bookingId}`, {
-      method: 'POST',
-    });
-    return response.data;
   }
 };

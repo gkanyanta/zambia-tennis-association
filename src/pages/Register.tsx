@@ -13,14 +13,15 @@ export function Register() {
     email: '',
     password: '',
     confirmPassword: '',
-    phone: ''
+    phone: '',
+    role: 'player'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -135,6 +136,27 @@ export function Register() {
                 placeholder="+260 xxx xxx xxx"
                 disabled={loading}
               />
+            </div>
+
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-foreground mb-2">
+                Registration Type
+              </label>
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading}
+                required
+              >
+                <option value="player">Player</option>
+                <option value="club_official">Club Official</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select "Player" if you are a tennis player, or "Club Official" if you represent a tennis club
+              </p>
             </div>
 
             <div>

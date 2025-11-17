@@ -52,13 +52,6 @@ export function Admin() {
       color: 'text-green-500'
     },
     {
-      title: 'Court Bookings',
-      description: 'View and manage court bookings',
-      icon: Calendar,
-      action: () => navigate('/play'),
-      color: 'text-purple-500'
-    },
-    {
       title: 'Players & Clubs',
       description: 'Manage player and club registrations',
       icon: Users,
@@ -85,7 +78,7 @@ export function Admin() {
       <section className="py-16">
         <div className="container-custom">
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Members</CardTitle>
@@ -116,17 +109,6 @@ export function Admin() {
               <CardContent>
                 <div className="text-2xl font-bold">K 45,200</div>
                 <p className="text-xs text-muted-foreground">+8% from last month</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Court Bookings</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">128</div>
-                <p className="text-xs text-muted-foreground">This week</p>
               </CardContent>
             </Card>
           </div>
@@ -172,7 +154,7 @@ export function Admin() {
                   <div className="flex items-center gap-4 text-sm">
                     <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                     <span className="text-muted-foreground">1 hour ago</span>
-                    <span className="flex-1">Court booking confirmed at Lusaka Tennis Club</span>
+                    <span className="flex-1">New player registration completed</span>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <div className="w-2 h-2 rounded-full bg-yellow-500"></div>

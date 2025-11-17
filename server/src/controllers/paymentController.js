@@ -1,7 +1,6 @@
 import Stripe from 'stripe';
 import User from '../models/User.js';
 import Tournament from '../models/Tournament.js';
-import Booking from '../models/Booking.js';
 import sendEmail from '../utils/sendEmail.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -154,55 +153,6 @@ export const createTournamentPayment = async (req, res) => {
   }
 };
 
-// @desc    Create payment intent for booking
-// @route   POST /api/payments/booking/:bookingId
-// @access  Private
-export const createBookingPayment = async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.bookingId);
-
-    if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
-    }
-
-    // Make sure user is booking owner
-    if (booking.user.toString() !== req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized'
-      });
-    }
-
-    const amount = booking.amount * 100; // Convert to ngwee
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'zmw',
-      metadata: {
-        userId: req.user.id,
-        bookingId: booking._id.toString(),
-        type: 'booking'
-      }
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        clientSecret: paymentIntent.client_secret,
-        amount
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
 // @desc    Webhook for Stripe events
 // @route   POST /api/payments/webhook
 // @access  Public
@@ -224,15 +174,9 @@ export const stripeWebhook = async (req, res) => {
   // Handle the event
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object;
-    const { type, bookingId, tournamentId } = paymentIntent.metadata;
+    const { type, tournamentId } = paymentIntent.metadata;
 
-    if (type === 'booking') {
-      await Booking.findByIdAndUpdate(bookingId, {
-        paymentStatus: 'paid',
-        status: 'confirmed',
-        paymentId: paymentIntent.id
-      });
-    } else if (type === 'tournament') {
+    if (type === 'tournament') {
       const tournament = await Tournament.findById(tournamentId);
       const registration = tournament.registrations.find(
         r => r.user.toString() === paymentIntent.metadata.userId

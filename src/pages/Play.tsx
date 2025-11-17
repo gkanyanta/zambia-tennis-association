@@ -54,8 +54,8 @@ const services = [
   },
   {
     icon: Clock,
-    title: 'Book Courts',
-    description: 'Reserve court time at your preferred facility',
+    title: 'Club Information',
+    description: 'View operating hours and contact information for facilities',
   },
   {
     icon: Users,
@@ -69,7 +69,7 @@ export function Play() {
     <div className="flex flex-col">
       <Hero
         title="Play Tennis"
-        description="Find clubs, book courts, and get coaching across Zambia"
+        description="Find clubs, view facilities, and get coaching across Zambia"
         gradient
       />
 
@@ -140,7 +140,7 @@ export function Play() {
                   <Button variant="outline" className="flex-1">
                     View Details
                   </Button>
-                  <Button className="flex-1">Book Court</Button>
+                  <Button className="flex-1">Contact Club</Button>
                 </CardFooter>
               </Card>
             ))}
