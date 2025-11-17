@@ -27,6 +27,8 @@ import { NotFound } from '@/pages/NotFound'
 import { Login } from '@/pages/Login'
 import { Register } from '@/pages/Register'
 import { Admin } from '@/pages/Admin'
+import { TournamentAdmin } from '@/pages/TournamentAdmin'
+import { TournamentCreate } from '@/pages/TournamentCreate'
 
 function App() {
   return (
@@ -40,6 +42,9 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/tournaments" element={<TournamentAdmin />} />
+              <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
+              <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />
               <Route path="/players" element={<Players />} />

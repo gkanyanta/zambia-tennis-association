@@ -38,9 +38,9 @@ export function Admin() {
     },
     {
       title: 'Manage Tournaments',
-      description: 'Create and manage tournament registrations',
+      description: 'Create and manage tournament entries and draws',
       icon: Trophy,
-      action: () => navigate('/tournaments'),
+      action: () => navigate('/admin/tournaments'),
       color: 'text-yellow-500'
     },
     {
