@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import {
   Newspaper,
   Trophy,
-  Calendar,
   DollarSign,
   Users,
   BarChart3
