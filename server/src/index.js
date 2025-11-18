@@ -4,13 +4,23 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
 import { connectDatabase } from './config/database.js';
 
 // Load env vars
 dotenv.config();
 
+// Create uploads directory if it doesn't exist
+const uploadsDir = process.env.UPLOAD_PATH || './uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log(`Created uploads directory: ${uploadsDir}`);
+}
+
 // Import routes
 import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
 import tournamentRoutes from './routes/tournaments.js';
 import newsRoutes from './routes/news.js';
 import rankingRoutes from './routes/rankings.js';
@@ -62,6 +72,7 @@ app.use('/uploads', express.static('uploads'));
 
 // Mount routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/rankings', rankingRoutes);
