@@ -139,6 +139,11 @@ async function importPlayers() {
           dateOfBirth = excelDateToJSDate(birthdaySerial);
         }
 
+        // Determine gender from Excel data
+        const playerGender = gender?.toLowerCase().includes('female') || gender?.toLowerCase().includes('girl') || gender?.toLowerCase().includes('women') || gender?.toLowerCase().includes('ladies')
+          ? 'female'
+          : 'male';
+
         // Create user object
         const userData = {
           firstName,
@@ -146,6 +151,8 @@ async function importPlayers() {
           email,
           password: 'ZTA@2025', // Default password - users should change on first login
           phone: '', // Not in Excel file
+          club: club || 'N/A',
+          gender: playerGender,
           role: 'player',
           zpin,
           membershipType: getMembershipType(isPlayerSenior),

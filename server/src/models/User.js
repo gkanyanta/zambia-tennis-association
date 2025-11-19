@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: false
   },
+  club: {
+    type: String,
+    required: false
+  },
   role: {
     type: String,
     enum: ['player', 'club_official', 'admin', 'staff'],

@@ -232,7 +232,7 @@ export function Players() {
                             {player.membershipType || 'N/A'}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-sm">N/A</td>
+                        <td className="px-4 py-3 text-sm">{player.club || 'N/A'}</td>
                         <td className="px-4 py-3 text-center">
                           {getMembershipBadge(player.membershipStatus)}
                         </td>

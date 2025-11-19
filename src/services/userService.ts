@@ -7,6 +7,7 @@ export interface User {
   email: string;
   role: 'player' | 'club_official' | 'admin' | 'staff';
   zpin?: string;
+  club?: string;
   membershipType?: 'junior' | 'adult' | 'family' | null;
   membershipStatus?: 'active' | 'expired' | 'pending' | null;
   membershipExpiry?: string;
