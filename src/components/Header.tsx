@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, User, LayoutDashboard } from 'lucide-react'
+import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -9,22 +9,26 @@ const navigation = [
   { name: 'Home', href: '/' },
   { name: 'News', href: '/news' },
   { name: 'Leagues', href: '/leagues' },
-  { name: 'Players', href: '/players' },
-  { name: 'Clubs', href: '/clubs' },
   { name: 'Tournaments', href: '/tournaments' },
   { name: 'Rankings', href: '/rankings' },
   { name: 'Membership', href: '/membership' },
-  { name: 'Play', href: '/play' },
-  { name: 'Juniors', href: '/juniors' },
-  { name: 'Madalas', href: '/madalas' },
-  { name: 'Coaches', href: '/coaches' },
   { name: 'Gallery', href: '/gallery' },
   { name: 'About', href: '/about' },
   { name: 'Contact', href: '/contact' },
 ]
 
+const communityMenu = [
+  { name: 'Players', href: '/players' },
+  { name: 'Clubs', href: '/clubs' },
+  { name: 'Play', href: '/play' },
+  { name: 'Juniors', href: '/juniors' },
+  { name: 'Madalas', href: '/madalas' },
+  { name: 'Coaches', href: '/coaches' },
+]
+
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [communityDropdownOpen, setCommunityDropdownOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
@@ -87,6 +91,46 @@ export function Header() {
             </Link>
           ))}
 
+          {/* Community Dropdown */}
+          <div
+            className="relative"
+            onMouseEnter={() => setCommunityDropdownOpen(true)}
+            onMouseLeave={() => setCommunityDropdownOpen(false)}
+          >
+            <button
+              className={cn(
+                "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1",
+                communityMenu.some(item => location.pathname === item.href)
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              )}
+            >
+              Community
+              <ChevronDown className="h-4 w-4" />
+            </button>
+
+            {communityDropdownOpen && (
+              <div className="absolute left-0 top-full mt-2 w-48 rounded-md shadow-lg bg-background border z-50">
+                <div className="py-1">
+                  {communityMenu.map((item) => (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={cn(
+                        "block px-4 py-2 text-sm transition-colors hover:bg-muted",
+                        location.pathname === item.href
+                          ? "text-primary font-semibold"
+                          : "text-foreground"
+                      )}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Auth buttons */}
           <div className="flex items-center gap-3 ml-4 border-l pl-4">
             {isAuthenticated ? (
@@ -143,6 +187,28 @@ export function Header() {
                 {item.name}
               </Link>
             ))}
+
+            {/* Community submenu in mobile */}
+            <div className="mt-1">
+              <div className="px-3 py-2 text-base font-medium text-muted-foreground">
+                Community
+              </div>
+              {communityMenu.map((item) => (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={cn(
+                    "block rounded-md px-6 py-2 text-sm font-medium transition-colors",
+                    location.pathname === item.href
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </div>
 
             {/* Mobile auth */}
             <div className="border-t mt-3 pt-3 space-y-2">
