@@ -291,8 +291,8 @@ export function Players() {
                     <p className="font-medium">{selectedPlayer.email}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Phone:</span>
-                    <p className="font-medium">{selectedPlayer.phone || 'N/A'}</p>
+                    <span className="text-muted-foreground">Club:</span>
+                    <p className="font-medium">{selectedPlayer.club || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Gender:</span>
