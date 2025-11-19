@@ -14,20 +14,23 @@ async function verifyImport() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB\n');
 
-    // Get total count of players with ZPIN starting with ZTAJ
+    // Get total count of players
     const totalJuniors = await User.countDocuments({ zpin: /^ZTAJ/ });
-    console.log(`Total junior players imported: ${totalJuniors}\n`);
+    const totalSeniors = await User.countDocuments({ zpin: /^ZTAS/ });
+    console.log(`Total junior players (ZTAJ): ${totalJuniors}`);
+    console.log(`Total senior players (ZTAS): ${totalSeniors}`);
+    console.log(`Total players imported: ${totalJuniors + totalSeniors}\n`);
 
-    // Get first 5 imported players
-    console.log('Sample of imported players:');
+    // Get sample junior players
+    console.log('Sample Junior Players (ZTAJ):');
     console.log('='.repeat(80));
 
-    const samplePlayers = await User.find({ zpin: /^ZTAJ/ })
-      .select('firstName lastName email zpin membershipType membershipStatus club')
-      .limit(5)
+    const sampleJuniors = await User.find({ zpin: /^ZTAJ/ })
+      .select('firstName lastName email zpin membershipType membershipStatus')
+      .limit(3)
       .lean();
 
-    samplePlayers.forEach((player, index) => {
+    sampleJuniors.forEach((player, index) => {
       console.log(`${index + 1}. ${player.firstName} ${player.lastName}`);
       console.log(`   ZPIN: ${player.zpin}`);
       console.log(`   Email: ${player.email}`);
@@ -35,13 +38,32 @@ async function verifyImport() {
       console.log();
     });
 
-    // Show ZPIN range
-    const firstPlayer = await User.findOne({ zpin: /^ZTAJ/ }).sort({ zpin: 1 });
-    const lastPlayer = await User.findOne({ zpin: /^ZTAJ/ }).sort({ zpin: -1 });
+    // Get sample senior players
+    console.log('Sample Senior Players (ZTAS):');
+    console.log('='.repeat(80));
 
-    console.log('ZPIN Range:');
-    console.log(`First ZPIN: ${firstPlayer.zpin} (${firstPlayer.firstName} ${firstPlayer.lastName})`);
-    console.log(`Last ZPIN: ${lastPlayer.zpin} (${lastPlayer.firstName} ${lastPlayer.lastName})`);
+    const sampleSeniors = await User.find({ zpin: /^ZTAS/ })
+      .select('firstName lastName email zpin membershipType membershipStatus')
+      .limit(3)
+      .lean();
+
+    sampleSeniors.forEach((player, index) => {
+      console.log(`${index + 1}. ${player.firstName} ${player.lastName}`);
+      console.log(`   ZPIN: ${player.zpin}`);
+      console.log(`   Email: ${player.email}`);
+      console.log(`   Membership: ${player.membershipType} (${player.membershipStatus})`);
+      console.log();
+    });
+
+    // Show ZPIN ranges
+    const firstJunior = await User.findOne({ zpin: /^ZTAJ/ }).sort({ zpin: 1 });
+    const lastJunior = await User.findOne({ zpin: /^ZTAJ/ }).sort({ zpin: -1 });
+    const firstSenior = await User.findOne({ zpin: /^ZTAS/ }).sort({ zpin: 1 });
+    const lastSenior = await User.findOne({ zpin: /^ZTAS/ }).sort({ zpin: -1 });
+
+    console.log('ZPIN Ranges:');
+    console.log(`Juniors: ${firstJunior.zpin} to ${lastJunior.zpin}`);
+    console.log(`Seniors: ${firstSenior.zpin} to ${lastSenior.zpin}`);
     console.log('\nDefault Password for all players: ZTA@2025');
     console.log('(Players should change this on first login)');
 

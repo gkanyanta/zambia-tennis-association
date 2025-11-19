@@ -21,23 +21,30 @@ function excelDateToJSDate(serial) {
   return new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate());
 }
 
+// Function to determine if player is senior
+function isSenior(age, category) {
+  return age >= 19 || category?.toLowerCase().includes('senior');
+}
+
 // Function to generate ZPIN
-function generateZPIN(index) {
-  // Format: ZTAJ + 4-digit number (ZTAJ for ZTA Junior)
+function generateZPIN(index, isSeniorPlayer) {
+  // Format: ZTAS for seniors, ZTAJ for juniors + 4-digit number
+  const prefix = isSeniorPlayer ? 'ZTAS' : 'ZTAJ';
   const paddedIndex = String(index).padStart(4, '0');
-  return `ZTAJ${paddedIndex}`;
+  return `${prefix}${paddedIndex}`;
 }
 
 // Function to generate email from name
-function generateEmail(firstName, lastName, index) {
+function generateEmail(firstName, lastName, index, isSeniorPlayer) {
   const cleanFirst = firstName.toLowerCase().replace(/[^a-z]/g, '');
   const cleanLast = lastName.toLowerCase().replace(/[^a-z]/g, '');
-  return `${cleanFirst}.${cleanLast}.${index}@ztajunior.org`;
+  const domain = isSeniorPlayer ? 'ztasenior.org' : 'ztajunior.org';
+  return `${cleanFirst}.${cleanLast}.${index}@${domain}`;
 }
 
 // Function to determine membership type
-function getMembershipType(category) {
-  return 'junior';
+function getMembershipType(isSeniorPlayer) {
+  return isSeniorPlayer ? 'adult' : 'junior';
 }
 
 async function importPlayers() {
@@ -59,19 +66,30 @@ async function importPlayers() {
     let imported = 0;
     let skipped = 0;
     let errors = 0;
+    let juniorCount = 0;
+    let seniorCount = 0;
 
-    // Get the highest existing ZPIN number to avoid conflicts
-    const existingUsers = await User.find({ zpin: /^ZTAJ/ }).sort({ zpin: -1 }).limit(1);
-    let startIndex = 1;
-    if (existingUsers.length > 0) {
-      const lastZPIN = existingUsers[0].zpin;
+    // Get the highest existing ZPIN numbers for both juniors and seniors
+    const existingJuniors = await User.find({ zpin: /^ZTAJ/ }).sort({ zpin: -1 }).limit(1);
+    const existingSeniors = await User.find({ zpin: /^ZTAS/ }).sort({ zpin: -1 }).limit(1);
+
+    let juniorStartIndex = 1;
+    let seniorStartIndex = 1;
+
+    if (existingJuniors.length > 0) {
+      const lastZPIN = existingJuniors[0].zpin;
       const lastNumber = parseInt(lastZPIN.replace('ZTAJ', ''));
-      startIndex = lastNumber + 1;
+      juniorStartIndex = lastNumber + 1;
+    }
+
+    if (existingSeniors.length > 0) {
+      const lastZPIN = existingSeniors[0].zpin;
+      const lastNumber = parseInt(lastZPIN.replace('ZTAS', ''));
+      seniorStartIndex = lastNumber + 1;
     }
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const zpinIndex = startIndex + i;
 
       try {
         // Extract data from row (handle the weird header name)
@@ -84,9 +102,22 @@ async function importPlayers() {
         const club = row['club'];
         const category = row['category'];
 
+        // Determine if player is senior or junior
+        const isPlayerSenior = isSenior(age, category);
+
+        // Get the appropriate index and increment counter
+        let zpinIndex;
+        if (isPlayerSenior) {
+          zpinIndex = seniorStartIndex + seniorCount;
+          seniorCount++;
+        } else {
+          zpinIndex = juniorStartIndex + juniorCount;
+          juniorCount++;
+        }
+
         // Generate ZPIN and email
-        const zpin = generateZPIN(zpinIndex);
-        const email = generateEmail(firstName, lastName, zpinIndex);
+        const zpin = generateZPIN(zpinIndex, isPlayerSenior);
+        const email = generateEmail(firstName, lastName, zpinIndex, isPlayerSenior);
 
         // Check if user already exists
         const existingUser = await User.findOne({
@@ -117,7 +148,7 @@ async function importPlayers() {
           phone: '', // Not in Excel file
           role: 'player',
           zpin,
-          membershipType: getMembershipType(category),
+          membershipType: getMembershipType(isPlayerSenior),
           membershipStatus: 'active',
           membershipExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
           isEmailVerified: false
@@ -140,6 +171,8 @@ async function importPlayers() {
     console.log('\n=== Import Complete ===');
     console.log(`Total rows: ${data.length}`);
     console.log(`Imported: ${imported}`);
+    console.log(`  - Juniors (ZTAJ): ${juniorCount}`);
+    console.log(`  - Seniors (ZTAS): ${seniorCount}`);
     console.log(`Skipped: ${skipped}`);
     console.log(`Errors: ${errors}`);
 
