@@ -50,7 +50,7 @@ export function Header() {
   const handleDropdownLeave = () => {
     const timeout = setTimeout(() => {
       setCommunityDropdownOpen(false)
-    }, 300) // 300ms delay before closing
+    }, 500) // 500ms delay before closing
     setDropdownTimeout(timeout)
   }
 
@@ -127,7 +127,7 @@ export function Header() {
 
             {communityDropdownOpen && (
               <div
-                className="absolute left-0 top-full mt-2 w-48 rounded-md shadow-lg bg-background border z-50"
+                className="absolute left-0 top-full mt-1 w-48 rounded-md shadow-lg bg-background border z-50"
                 onMouseEnter={handleDropdownEnter}
                 onMouseLeave={handleDropdownLeave}
               >
