@@ -21,6 +21,7 @@ if (!fs.existsSync(uploadsDir)) {
 // Import routes
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
+import playerRoutes from './routes/players.js';
 import tournamentRoutes from './routes/tournaments.js';
 import newsRoutes from './routes/news.js';
 import rankingRoutes from './routes/rankings.js';
@@ -73,6 +74,7 @@ app.use('/uploads', express.static('uploads'));
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/players', playerRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/rankings', rankingRoutes);

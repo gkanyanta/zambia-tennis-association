@@ -29,7 +29,7 @@ export const userService = {
   },
 
   async getPlayers(): Promise<User[]> {
-    const response = await apiFetch('/users?role=player');
+    const response = await apiFetch('/players');
     return response.data;
   },
 
