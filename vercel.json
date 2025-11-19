@@ -1,7 +1,4 @@
 {
-  "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':!server'",
   "rewrites": [
     {
       "source": "/(.*)",
