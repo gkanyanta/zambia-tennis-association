@@ -8,7 +8,8 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "seed": "node src/utils/seed.js",
-    "seed:admin": "node src/scripts/seedAdmin.js"
+    "seed:admin": "node src/scripts/seedAdmin.js",
+    "fix:images": "node src/scripts/fixImageUrls.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
