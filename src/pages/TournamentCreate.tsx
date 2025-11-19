@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, X, Save } from 'lucide-react'
+import { tournamentService } from '@/services/tournamentService'
 import type { TournamentCategory, DrawType, CategoryType, Gender, AgeGroup } from '@/types/tournament'
 
 export function TournamentCreate() {
@@ -35,11 +36,17 @@ export function TournamentCreate() {
     setLoading(true)
 
     try {
-      // TODO: API call to create tournament
-      console.log('Creating tournament:', { ...formData, categories })
-      // navigate('/admin/tournaments')
-    } catch (error) {
+      // Create tournament with all form data and categories
+      await tournamentService.createTournament({
+        ...formData,
+        categories
+      })
+
+      // Navigate back to tournament admin page on success
+      navigate('/admin/tournaments')
+    } catch (error: any) {
       console.error('Error creating tournament:', error)
+      alert(error.message || 'Failed to create tournament. Please check all required fields.')
     } finally {
       setLoading(false)
     }
