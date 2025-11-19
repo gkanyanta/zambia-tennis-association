@@ -2,11 +2,19 @@ import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 
 // @desc    Get all users (admin only)
-// @route   GET /api/users
+// @route   GET /api/users?role=player
 // @access  Private/Admin
 export const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    // Build query filter
+    const filter = {};
+
+    // Filter by role if provided
+    if (req.query.role) {
+      filter.role = req.query.role;
+    }
+
+    const users = await User.find(filter).select('-password').sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,

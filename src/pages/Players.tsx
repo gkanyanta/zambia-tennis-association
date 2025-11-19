@@ -1,68 +1,108 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Search, UserPlus, DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react'
-import { players } from '@/data/playerData'
-import type { Player, PaymentStatus } from '@/types/player'
+import { Search, UserPlus, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { userService, type User } from '@/services/userService'
 
-const getStatusBadge = (status: PaymentStatus) => {
+const getMembershipBadge = (status?: string | null) => {
   switch (status) {
-    case 'paid':
-      return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" /> Paid</Badge>
+    case 'active':
+      return <Badge variant="default" className="gap-1"><CheckCircle className="h-3 w-3" /> Active</Badge>
     case 'pending':
       return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" /> Pending</Badge>
-    case 'overdue':
-      return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Overdue</Badge>
+    case 'expired':
+      return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Expired</Badge>
+    default:
+      return <Badge variant="outline">N/A</Badge>
   }
 }
 
 export function Players() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'junior' | 'senior' | 'madalas'>('all')
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'junior' | 'adult'>('all')
+  const [selectedPlayer, setSelectedPlayer] = useState<User | null>(null)
+  const [players, setPlayers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchPlayers()
+  }, [])
+
+  const fetchPlayers = async () => {
+    try {
+      setLoading(true)
+      const data = await userService.getPlayers()
+      setPlayers(data)
+    } catch (err: any) {
+      console.error('Failed to fetch players:', err)
+      setError(err.message || 'Failed to load players')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredPlayers = players.filter(player => {
     const matchesSearch =
       player.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       player.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      player.zpin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      player.clubName.toLowerCase().includes(searchTerm.toLowerCase())
+      (player.zpin?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (player.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
 
-    const matchesCategory = selectedCategory === 'all' || player.category === selectedCategory
+    const matchesCategory = selectedCategory === 'all' || player.membershipType === selectedCategory
 
     return matchesSearch && matchesCategory
   })
 
-  const getPaymentSummary = () => {
+  const getSummary = () => {
     const summary = {
       totalPlayers: players.length,
-      paidCount: 0,
-      pendingCount: 0,
-      overdueCount: 0,
-      totalRevenue: 0,
+      activeCount: players.filter(p => p.membershipStatus === 'active').length,
+      juniorCount: players.filter(p => p.membershipType === 'junior').length,
+      seniorCount: players.filter(p => p.membershipType === 'adult').length,
     }
-
-    players.forEach(player => {
-      const currentYearPayment = player.zpinPayments.find(p => p.year === 2025)
-      if (currentYearPayment) {
-        if (currentYearPayment.status === 'paid') {
-          summary.paidCount++
-          summary.totalRevenue += currentYearPayment.amount
-        } else if (currentYearPayment.status === 'pending') {
-          summary.pendingCount++
-        } else {
-          summary.overdueCount++
-        }
-      }
-    })
-
     return summary
   }
 
-  const summary = getPaymentSummary()
+  const summary = getSummary()
+
+  if (loading) {
+    return (
+      <div className="flex flex-col">
+        <Hero
+          title="Player Database"
+          description="Manage player registrations and ZPIN (Zambia Player Identification Number)"
+          gradient
+        />
+        <section className="py-16">
+          <div className="container-custom text-center">
+            <p className="text-muted-foreground">Loading players...</p>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col">
+        <Hero
+          title="Player Database"
+          description="Manage player registrations and ZPIN (Zambia Player Identification Number)"
+          gradient
+        />
+        <section className="py-16">
+          <div className="container-custom text-center">
+            <p className="text-destructive">{error}</p>
+            <Button onClick={fetchPlayers} className="mt-4">Try Again</Button>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col">
@@ -74,7 +114,7 @@ export function Players() {
 
       <section className="py-16">
         <div className="container-custom">
-          {/* Payment Summary Cards */}
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <Card>
               <CardContent className="pt-6">
@@ -94,8 +134,8 @@ export function Players() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">ZPIN Paid (2025)</p>
-                    <p className="text-3xl font-bold text-primary">{summary.paidCount}</p>
+                    <p className="text-sm text-muted-foreground">Active Members</p>
+                    <p className="text-3xl font-bold text-primary">{summary.activeCount}</p>
                   </div>
                   <CheckCircle className="h-12 w-12 text-primary" />
                 </div>
@@ -106,10 +146,10 @@ export function Players() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending</p>
-                    <p className="text-3xl font-bold text-secondary">{summary.pendingCount}</p>
+                    <p className="text-sm text-muted-foreground">Juniors</p>
+                    <p className="text-3xl font-bold text-secondary">{summary.juniorCount}</p>
                   </div>
-                  <Clock className="h-12 w-12 text-secondary" />
+                  <UserPlus className="h-12 w-12 text-secondary" />
                 </div>
               </CardContent>
             </Card>
@@ -118,10 +158,10 @@ export function Players() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Overdue</p>
-                    <p className="text-3xl font-bold text-destructive">{summary.overdueCount}</p>
+                    <p className="text-sm text-muted-foreground">Seniors</p>
+                    <p className="text-3xl font-bold">{summary.seniorCount}</p>
                   </div>
-                  <XCircle className="h-12 w-12 text-destructive" />
+                  <UserPlus className="h-12 w-12 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
@@ -152,22 +192,12 @@ export function Players() {
                 Juniors
               </Button>
               <Button
-                variant={selectedCategory === 'senior' ? 'default' : 'outline'}
-                onClick={() => setSelectedCategory('senior')}
+                variant={selectedCategory === 'adult' ? 'default' : 'outline'}
+                onClick={() => setSelectedCategory('adult')}
               >
                 Seniors
               </Button>
-              <Button
-                variant={selectedCategory === 'madalas' ? 'default' : 'outline'}
-                onClick={() => setSelectedCategory('madalas')}
-              >
-                Madalas
-              </Button>
             </div>
-            <Button>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add Player
-            </Button>
           </div>
 
           {/* Players Table */}
@@ -180,60 +210,43 @@ export function Players() {
                       <th className="px-4 py-3 text-left text-sm font-semibold">ZPIN</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Category</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Contact</th>
-                      <th className="px-4 py-3 text-center text-sm font-semibold">2025 ZPIN</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold">Membership</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {filteredPlayers.map((player) => {
-                      const currentPayment = player.zpinPayments.find(p => p.year === 2025)
-                      return (
-                        <tr key={player.id} className="hover:bg-muted/50">
-                          <td className="px-4 py-3">
-                            <span className="font-mono text-sm font-medium">{player.zpin}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div>
-                              <div className="font-medium">{player.firstName} {player.lastName}</div>
-                              <div className="text-sm text-muted-foreground">{player.email}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="outline" className="capitalize">{player.category}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-sm">
-                              <div className="font-medium">{player.clubName}</div>
-                              <div className="text-muted-foreground">{player.city}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm">{player.phone}</td>
-                          <td className="px-4 py-3 text-center">
-                            {currentPayment ? (
-                              <div className="flex flex-col items-center gap-1">
-                                {getStatusBadge(currentPayment.status)}
-                                <span className="text-xs text-muted-foreground">
-                                  K{currentPayment.amount}
-                                </span>
-                              </div>
-                            ) : (
-                              <Badge variant="outline">Not Set</Badge>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelectedPlayer(player)}
-                            >
-                              View
-                            </Button>
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {filteredPlayers.map((player) => (
+                      <tr key={player._id} className="hover:bg-muted/50">
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-sm font-medium">{player.zpin || 'N/A'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <div className="font-medium">{player.firstName} {player.lastName}</div>
+                            <div className="text-sm text-muted-foreground">{player.email}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="capitalize">
+                            {player.membershipType || 'N/A'}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-sm">{player.phone || 'N/A'}</td>
+                        <td className="px-4 py-3 text-center">
+                          {getMembershipBadge(player.membershipStatus)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSelectedPlayer(player)}
+                          >
+                            View
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -261,7 +274,7 @@ export function Players() {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>{selectedPlayer.firstName} {selectedPlayer.lastName}</span>
-                <Badge className="capitalize">{selectedPlayer.category}</Badge>
+                <Badge className="capitalize">{selectedPlayer.membershipType || 'N/A'}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -271,19 +284,7 @@ export function Players() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-muted-foreground">ZPIN:</span>
-                    <p className="font-mono font-medium">{selectedPlayer.zpin}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Date of Birth:</span>
-                    <p className="font-medium">{new Date(selectedPlayer.dateOfBirth).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Gender:</span>
-                    <p className="font-medium capitalize">{selectedPlayer.gender}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">National ID:</span>
-                    <p className="font-medium">{selectedPlayer.nationalId}</p>
+                    <p className="font-mono font-medium">{selectedPlayer.zpin || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Email:</span>
@@ -291,75 +292,35 @@ export function Players() {
                   </div>
                   <div>
                     <span className="text-muted-foreground">Phone:</span>
-                    <p className="font-medium">{selectedPlayer.phone}</p>
+                    <p className="font-medium">{selectedPlayer.phone || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Club:</span>
-                    <p className="font-medium">{selectedPlayer.clubName}</p>
+                    <span className="text-muted-foreground">Gender:</span>
+                    <p className="font-medium capitalize">{selectedPlayer.gender || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Location:</span>
-                    <p className="font-medium">{selectedPlayer.city}, {selectedPlayer.province}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Emergency Contact */}
-              <div>
-                <h4 className="font-semibold mb-3">Emergency Contact</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Name:</span>
-                    <p className="font-medium">{selectedPlayer.emergencyContact}</p>
+                    <span className="text-muted-foreground">Membership Type:</span>
+                    <p className="font-medium capitalize">{selectedPlayer.membershipType || 'N/A'}</p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Phone:</span>
-                    <p className="font-medium">{selectedPlayer.emergencyPhone}</p>
+                    <span className="text-muted-foreground">Membership Status:</span>
+                    <div>{getMembershipBadge(selectedPlayer.membershipStatus)}</div>
                   </div>
-                </div>
-              </div>
-
-              {/* ZPIN Payment History */}
-              <div>
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  ZPIN Payment History
-                </h4>
-                <div className="space-y-2">
-                  {selectedPlayer.zpinPayments
-                    .sort((a, b) => b.year - a.year)
-                    .map((payment) => (
-                      <div
-                        key={payment.id}
-                        className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                      >
-                        <div>
-                          <div className="font-medium">Year {payment.year}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Due: {new Date(payment.dueDate).toLocaleDateString()}
-                            {payment.paidDate && ` | Paid: ${new Date(payment.paidDate).toLocaleDateString()}`}
-                          </div>
-                          {payment.receiptNumber && (
-                            <div className="text-xs text-muted-foreground font-mono">
-                              Receipt: {payment.receiptNumber}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold">K{payment.amount}</div>
-                          {getStatusBadge(payment.status)}
-                        </div>
-                      </div>
-                    ))}
+                  {selectedPlayer.membershipExpiry && (
+                    <div>
+                      <span className="text-muted-foreground">Membership Expiry:</span>
+                      <p className="font-medium">{new Date(selectedPlayer.membershipExpiry).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Joined:</span>
+                    <p className="font-medium">{new Date(selectedPlayer.createdAt).toLocaleDateString()}</p>
+                  </div>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <Button className="flex-1">
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Record Payment
-                </Button>
-                <Button variant="outline" onClick={() => setSelectedPlayer(null)}>
+                <Button variant="outline" onClick={() => setSelectedPlayer(null)} className="flex-1">
                   Close
                 </Button>
               </div>

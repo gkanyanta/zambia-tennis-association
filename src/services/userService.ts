@@ -6,10 +6,14 @@ export interface User {
   lastName: string;
   email: string;
   role: 'player' | 'club_official' | 'admin' | 'staff';
-  dateOfBirth: string;
-  gender: 'male' | 'female';
-  phone: string;
-  address: {
+  zpin?: string;
+  membershipType?: 'junior' | 'adult' | 'family' | null;
+  membershipStatus?: 'active' | 'expired' | 'pending' | null;
+  membershipExpiry?: string;
+  dateOfBirth?: string;
+  gender?: 'male' | 'female';
+  phone?: string;
+  address?: {
     street: string;
     city: string;
     province: string;
@@ -21,6 +25,11 @@ export interface User {
 export const userService = {
   async getUsers(): Promise<User[]> {
     const response = await apiFetch('/users');
+    return response.data;
+  },
+
+  async getPlayers(): Promise<User[]> {
+    const response = await apiFetch('/users?role=player');
     return response.data;
   },
 
