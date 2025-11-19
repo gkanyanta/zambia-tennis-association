@@ -210,7 +210,7 @@ export function Players() {
                       <th className="px-4 py-3 text-left text-sm font-semibold">ZPIN</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
                       <th className="px-4 py-3 text-left text-sm font-semibold">Category</th>
-                      <th className="px-4 py-3 text-left text-sm font-semibold">Contact</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold">Membership</th>
                       <th className="px-4 py-3 text-center text-sm font-semibold">Actions</th>
                     </tr>
@@ -232,7 +232,7 @@ export function Players() {
                             {player.membershipType || 'N/A'}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-sm">{player.phone || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm">N/A</td>
                         <td className="px-4 py-3 text-center">
                           {getMembershipBadge(player.membershipStatus)}
                         </td>
