@@ -29,7 +29,7 @@ const communityMenu = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [communityDropdownOpen, setCommunityDropdownOpen] = useState(false)
-  const [dropdownTimeout, setDropdownTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [dropdownTimeout, setDropdownTimeout] = useState<number | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()

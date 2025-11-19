@@ -40,7 +40,7 @@ export function TournamentCreate() {
       await tournamentService.createTournament({
         ...formData,
         categories
-      })
+      } as any)
 
       // Navigate back to tournament admin page on success
       navigate('/admin/tournaments')

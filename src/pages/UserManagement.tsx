@@ -82,10 +82,10 @@ export function UserManagement() {
       email: user.email,
       password: '',
       role: user.role,
-      dateOfBirth: user.dateOfBirth.split('T')[0],
-      gender: user.gender,
-      phone: user.phone,
-      address: user.address
+      dateOfBirth: user.dateOfBirth ? user.dateOfBirth.split('T')[0] : '',
+      gender: user.gender || '',
+      phone: user.phone || '',
+      address: user.address || { street: '', city: '', province: '', country: '' }
     })
     setShowDialog(true)
   }
@@ -193,8 +193,8 @@ export function UserManagement() {
                           </td>
                           <td className="px-4 py-3 text-sm">{user.email}</td>
                           <td className="px-4 py-3">{getRoleBadge(user.role)}</td>
-                          <td className="px-4 py-3 text-sm">{user.phone}</td>
-                          <td className="px-4 py-3 text-sm">{user.address.city}</td>
+                          <td className="px-4 py-3 text-sm">{user.phone || 'N/A'}</td>
+                          <td className="px-4 py-3 text-sm">{user.address?.city || 'N/A'}</td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2 justify-center">
                               <Button
