@@ -3,8 +3,7 @@ import type {
   Match,
   MatchPlayer,
   RoundRobinGroup,
-  TournamentEntry,
-  DrawType
+  TournamentEntry
 } from '@/types/tournament'
 import { getNextPowerOfTwo, getRoundName } from '@/types/tournament'
 
@@ -13,7 +12,6 @@ export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw 
   const acceptedEntries = entries.filter(e => e.status === 'accepted')
   const numPlayers = acceptedEntries.length
   const bracketSize = getNextPowerOfTwo(numPlayers)
-  const numByes = bracketSize - numPlayers
   const numberOfRounds = Math.log2(bracketSize)
 
   // Sort entries by seed (seeded players first, then unseeded)
@@ -30,7 +28,7 @@ export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw 
   // Place seeded players according to standard seeding positions
   const seedingPositions = getSeedingPositions(bracketSize)
 
-  sortedEntries.forEach((entry, index) => {
+  sortedEntries.forEach((entry) => {
     const player: MatchPlayer = {
       id: entry.playerId,
       name: entry.playerName,

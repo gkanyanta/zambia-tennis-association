@@ -9,7 +9,8 @@ import {
   Trophy,
   DollarSign,
   Users,
-  BarChart3
+  BarChart3,
+  UserCog
 } from 'lucide-react';
 
 export function Admin() {
@@ -29,6 +30,13 @@ export function Admin() {
   }
 
   const adminSections = [
+    {
+      title: 'User Management',
+      description: 'Create and manage admin and staff accounts',
+      icon: UserCog,
+      action: () => navigate('/admin/users'),
+      color: 'text-purple-500'
+    },
     {
       title: 'Manage News',
       description: 'Create, edit, and delete news articles',

@@ -5,15 +5,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { EntryManagement } from '@/components/EntryManagement'
+import { DrawGeneration } from '@/components/DrawGeneration'
 import { Plus, Users, Trophy, Grid3x3, Settings } from 'lucide-react'
-import type { Tournament, TournamentCategory } from '@/types/tournament'
+import type { Tournament, TournamentCategory, Draw } from '@/types/tournament'
+import { tournamentService } from '@/services/tournamentService'
 
 export function TournamentAdmin() {
   const navigate = useNavigate()
   const { tournamentId } = useParams()
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchTournaments()
@@ -30,10 +32,8 @@ export function TournamentAdmin() {
     try {
       // TODO: Replace with actual API call
       setTournaments([])
-      setLoading(false)
     } catch (error) {
       console.error('Error fetching tournaments:', error)
-      setLoading(false)
     }
   }
 
@@ -228,36 +228,166 @@ function TournamentOverview({ tournament }: { tournament: Tournament }) {
 }
 
 function EntriesManagement({ tournament }: { tournament: Tournament }) {
-  return (
-    <div>
-      <h3 className="text-xl font-bold mb-4">Manage Entries</h3>
-      <p className="text-muted-foreground mb-6">Review and accept/reject player entries for each category</p>
-      {/* Entry management interface will be added here */}
+  const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
+    tournament.categories[0] || null
+  )
+
+  const handleUpdateEntry = async (entryId: string, data: { status: string; seed?: number; rejectionReason?: string }) => {
+    try {
+      if (!selectedCategory) return
+      await tournamentService.updateEntryStatus(
+        tournament.id,
+        selectedCategory.id,
+        entryId,
+        data
+      )
+      // Refresh tournament data
+      window.location.reload()
+    } catch (error) {
+      console.error('Error updating entry:', error)
+      alert('Failed to update entry. Please try again.')
+      throw error
+    }
+  }
+
+  const handleAutoSeed = async () => {
+    try {
+      if (!selectedCategory) return
+      await tournamentService.autoSeedCategory(tournament.id, selectedCategory.id)
+      // Refresh tournament data
+      window.location.reload()
+    } catch (error) {
+      console.error('Error auto-seeding:', error)
+      alert('Failed to auto-seed entries. Please try again.')
+      throw error
+    }
+  }
+
+  if (!selectedCategory) {
+    return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
-          Entry management interface coming soon
+          No categories available. Create a category first.
         </CardContent>
       </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Category Selector */}
+      {tournament.categories.length > 1 && (
+        <Card>
+          <CardContent className="pt-6">
+            <label className="text-sm font-medium mb-2 block">Select Category</label>
+            <select
+              className="w-full p-2 border rounded-md"
+              value={selectedCategory.id}
+              onChange={(e) => {
+                const category = tournament.categories.find(c => c.id === e.target.value)
+                setSelectedCategory(category || null)
+              }}
+            >
+              {tournament.categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name} - {category.type} {category.gender} {category.ageGroup || 'Open'}
+                </option>
+              ))}
+            </select>
+          </CardContent>
+        </Card>
+      )}
+
+      <EntryManagement
+        category={selectedCategory}
+        onUpdateEntry={handleUpdateEntry}
+        onAutoSeed={handleAutoSeed}
+      />
     </div>
   )
 }
 
 function DrawsManagement({ tournament }: { tournament: Tournament }) {
-  return (
-    <div>
-      <h3 className="text-xl font-bold mb-4">Generate Draws</h3>
-      <p className="text-muted-foreground mb-6">Generate and manage draws for each category</p>
-      {/* Draw management interface will be added here */}
+  const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
+    tournament.categories[0] || null
+  )
+
+  const handleGenerateDraw = async (draw: Draw) => {
+    try {
+      if (!selectedCategory) return
+      await tournamentService.generateDraw(tournament.id, selectedCategory.id, draw)
+      // Refresh tournament data
+      window.location.reload()
+    } catch (error) {
+      console.error('Error generating draw:', error)
+      alert('Failed to generate draw. Please try again.')
+      throw error
+    }
+  }
+
+  const handleUpdateMatch = async (matchId: string, result: { winner: string; score: string }) => {
+    try {
+      if (!selectedCategory) return
+      await tournamentService.updateMatchResult(
+        tournament.id,
+        selectedCategory.id,
+        matchId,
+        result
+      )
+      // Refresh tournament data
+      window.location.reload()
+    } catch (error) {
+      console.error('Error updating match:', error)
+      alert('Failed to update match result. Please try again.')
+      throw error
+    }
+  }
+
+  if (!selectedCategory) {
+    return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
-          Draw management interface coming soon
+          No categories available. Create a category first.
         </CardContent>
       </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Category Selector */}
+      {tournament.categories.length > 1 && (
+        <Card>
+          <CardContent className="pt-6">
+            <label className="text-sm font-medium mb-2 block">Select Category</label>
+            <select
+              className="w-full p-2 border rounded-md"
+              value={selectedCategory.id}
+              onChange={(e) => {
+                const category = tournament.categories.find(c => c.id === e.target.value)
+                setSelectedCategory(category || null)
+              }}
+            >
+              {tournament.categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name} - {category.type} {category.gender} {category.ageGroup || 'Open'}
+                </option>
+              ))}
+            </select>
+          </CardContent>
+        </Card>
+      )}
+
+      <DrawGeneration
+        category={selectedCategory}
+        onGenerateDraw={handleGenerateDraw}
+        onUpdateMatch={handleUpdateMatch}
+      />
     </div>
   )
 }
 
-function ResultsManagement({ tournament }: { tournament: Tournament }) {
+function ResultsManagement({ }: { tournament: Tournament }) {
   return (
     <div>
       <h3 className="text-xl font-bold mb-4">Enter Results</h3>
