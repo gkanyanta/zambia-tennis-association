@@ -40,9 +40,9 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <nav className="container-custom flex h-16 items-center justify-between" aria-label="Global">
+      <nav className="container-custom flex h-16 items-center gap-8" aria-label="Global">
         {/* Logo */}
-        <div className="flex lg:flex-1">
+        <div className="flex">
           <Link to="/" className="-m-1.5 p-1.5">
             <span className="sr-only">Zambia Tennis Association</span>
             <div className="flex items-center gap-3">
@@ -51,7 +51,7 @@ export function Header() {
                 alt="ZTA Logo"
                 className="h-12 w-12 object-contain"
               />
-              <span className="font-bold text-xl text-foreground hidden sm:block">
+              <span className="font-bold text-xl text-foreground hidden sm:block whitespace-nowrap">
                 Zambia Tennis
               </span>
             </div>
@@ -59,7 +59,7 @@ export function Header() {
         </div>
 
         {/* Mobile menu button */}
-        <div className="flex lg:hidden">
+        <div className="flex lg:hidden ml-auto">
           <Button
             variant="ghost"
             size="icon"
@@ -75,7 +75,7 @@ export function Header() {
         </div>
 
         {/* Desktop navigation */}
-        <div className="hidden lg:flex lg:gap-x-6 lg:items-center">
+        <div className="hidden lg:flex lg:gap-x-6 lg:items-center ml-auto">
           {navigation.map((item) => (
             <Link
               key={item.name}
