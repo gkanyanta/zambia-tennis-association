@@ -39,7 +39,8 @@ export const galleryService = {
 
     // Upload image first
     const uploadResponse = await uploadFile(image);
-    const imageUrl = `http://localhost:5000${uploadResponse.data.path}`;
+    // Use the full URL from the upload response (Cloudinary returns full URLs)
+    const imageUrl = uploadResponse.data.url || uploadResponse.data.path;
 
     // Create gallery entry
     const response = await apiFetch('/gallery', {
@@ -56,7 +57,8 @@ export const galleryService = {
     if (image) {
       console.log('Uploading new gallery image...');
       const uploadResponse = await uploadFile(image);
-      imageUrl = `http://localhost:5000${uploadResponse.data.path}`;
+      // Use the full URL from the upload response (Cloudinary returns full URLs)
+      imageUrl = uploadResponse.data.url || uploadResponse.data.path;
     }
 
     const response = await apiFetch(`/gallery/${id}`, {

@@ -33,7 +33,8 @@ export const newsService = {
       try {
         const uploadResponse = await uploadFile(image);
         console.log('Image uploaded successfully:', uploadResponse);
-        imageUrl = `http://localhost:5000${uploadResponse.data.path}`;
+        // Use the full URL from the upload response (Cloudinary returns full URLs)
+        imageUrl = uploadResponse.data.url || uploadResponse.data.path;
       } catch (uploadError: any) {
         console.error('Image upload failed:', uploadError);
         // Throw error instead of silently continuing - user should know upload failed
@@ -57,7 +58,8 @@ export const newsService = {
       try {
         const uploadResponse = await uploadFile(image);
         console.log('Image uploaded successfully:', uploadResponse);
-        imageUrl = `http://localhost:5000${uploadResponse.data.path}`;
+        // Use the full URL from the upload response (Cloudinary returns full URLs)
+        imageUrl = uploadResponse.data.url || uploadResponse.data.path;
       } catch (uploadError: any) {
         console.error('Image upload failed:', uploadError);
         // Throw error instead of silently continuing
