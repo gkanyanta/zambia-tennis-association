@@ -24,6 +24,12 @@ export function NewsCard({
 }: NewsCardProps) {
   console.log('NewsCard rendering:', { title, imageUrl });
 
+  // Debug: Check if imageUrl is valid
+  if (imageUrl) {
+    console.log('Image URL type:', typeof imageUrl);
+    console.log('Image URL starts with http:', imageUrl.startsWith('http'));
+  }
+
   return (
     <Card
       className="card-elevated-hover cursor-pointer overflow-hidden"
@@ -37,10 +43,13 @@ export function NewsCard({
             className="h-full w-full object-contain"
             onError={(e) => {
               console.error('Image failed to load:', imageUrl);
+              console.error('Error target:', e.currentTarget);
+              console.error('Natural dimensions:', e.currentTarget.naturalWidth, e.currentTarget.naturalHeight);
               e.currentTarget.style.display = 'none';
             }}
-            onLoad={() => {
+            onLoad={(e) => {
               console.log('Image loaded successfully:', imageUrl);
+              console.log('Dimensions:', e.currentTarget.naturalWidth, 'x', e.currentTarget.naturalHeight);
             }}
           />
         </div>
