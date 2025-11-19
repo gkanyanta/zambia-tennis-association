@@ -1,5 +1,6 @@
 import { apiFetch, uploadFile } from './api';
 
+// News service for managing articles
 export interface NewsArticle {
   _id?: string;
   title: string;
