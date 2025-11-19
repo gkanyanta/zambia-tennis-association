@@ -29,6 +29,7 @@ const communityMenu = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [communityDropdownOpen, setCommunityDropdownOpen] = useState(false)
+  const [dropdownTimeout, setDropdownTimeout] = useState<NodeJS.Timeout | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
@@ -36,6 +37,21 @@ export function Header() {
   const handleLogout = () => {
     logout()
     navigate('/')
+  }
+
+  const handleDropdownEnter = () => {
+    if (dropdownTimeout) {
+      clearTimeout(dropdownTimeout)
+      setDropdownTimeout(null)
+    }
+    setCommunityDropdownOpen(true)
+  }
+
+  const handleDropdownLeave = () => {
+    const timeout = setTimeout(() => {
+      setCommunityDropdownOpen(false)
+    }, 300) // 300ms delay before closing
+    setDropdownTimeout(timeout)
   }
 
   return (
@@ -52,7 +68,7 @@ export function Header() {
                 className="h-12 w-12 object-contain"
               />
               <span className="font-bold text-xl text-foreground hidden sm:block whitespace-nowrap">
-                Zambia Tennis
+                Zambia Tennis Association
               </span>
             </div>
           </Link>
@@ -94,8 +110,8 @@ export function Header() {
           {/* Community Dropdown */}
           <div
             className="relative"
-            onMouseEnter={() => setCommunityDropdownOpen(true)}
-            onMouseLeave={() => setCommunityDropdownOpen(false)}
+            onMouseEnter={handleDropdownEnter}
+            onMouseLeave={handleDropdownLeave}
           >
             <button
               className={cn(
@@ -110,7 +126,11 @@ export function Header() {
             </button>
 
             {communityDropdownOpen && (
-              <div className="absolute left-0 top-full mt-2 w-48 rounded-md shadow-lg bg-background border z-50">
+              <div
+                className="absolute left-0 top-full mt-2 w-48 rounded-md shadow-lg bg-background border z-50"
+                onMouseEnter={handleDropdownEnter}
+                onMouseLeave={handleDropdownLeave}
+              >
                 <div className="py-1">
                   {communityMenu.map((item) => (
                     <Link
@@ -122,6 +142,7 @@ export function Header() {
                           ? "text-primary font-semibold"
                           : "text-foreground"
                       )}
+                      onClick={() => setCommunityDropdownOpen(false)}
                     >
                       {item.name}
                     </Link>
