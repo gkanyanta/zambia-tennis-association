@@ -3,35 +3,9 @@ import { Slideshow } from '@/components/Slideshow'
 import { NewsCard } from '@/components/NewsCard'
 import { Button } from '@/components/ui/button'
 import { Trophy, Users, Calendar, TrendingUp } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { galleryService } from '@/services/galleryService'
-
-const latestNews = [
-  {
-    id: 1,
-    title: 'ZTA Announces National Championships 2025',
-    excerpt: 'The Zambia Tennis Association is proud to announce the dates for the National Championships. Join us for the biggest tennis event of the year.',
-    date: 'January 15, 2025',
-    author: 'ZTA Admin',
-    category: 'Tournaments',
-  },
-  {
-    id: 2,
-    title: 'Junior Development Program Launch',
-    excerpt: 'New junior development program aims to identify and nurture young tennis talent across Zambia. Registration now open for aspiring champions.',
-    date: 'January 10, 2025',
-    author: 'Development Team',
-    category: 'Juniors',
-  },
-  {
-    id: 3,
-    title: 'Updated National Rankings Released',
-    excerpt: 'Check out the latest national rankings across all categories. Congratulations to all players who have shown remarkable progress.',
-    date: 'January 5, 2025',
-    author: 'Rankings Committee',
-    category: 'Rankings',
-  },
-]
+import { newsService, NewsArticle } from '@/services/newsService'
 
 const stats = [
   { icon: Users, label: 'Active Members', value: '2,500+' },
@@ -41,11 +15,15 @@ const stats = [
 ]
 
 export function Home() {
+  const navigate = useNavigate()
   const [slides, setSlides] = useState<any[]>([])
   const [loadingSlides, setLoadingSlides] = useState(true)
+  const [latestNews, setLatestNews] = useState<NewsArticle[]>([])
+  const [loadingNews, setLoadingNews] = useState(true)
 
   useEffect(() => {
     fetchSlides()
+    fetchLatestNews()
   }, [])
 
   const fetchSlides = async () => {
@@ -67,6 +45,35 @@ export function Home() {
       setSlides([])
     } finally {
       setLoadingSlides(false)
+    }
+  }
+
+  const fetchLatestNews = async () => {
+    try {
+      setLoadingNews(true)
+      const articles = await newsService.getNews()
+      // Filter published articles and get the 3 most recent
+      const publishedArticles = articles
+        .filter(article => article.published)
+        .sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0).getTime()
+          const dateB = new Date(b.createdAt || 0).getTime()
+          return dateB - dateA
+        })
+        .slice(0, 3)
+
+      setLatestNews(publishedArticles)
+    } catch (err) {
+      console.error('Failed to load news:', err)
+      setLatestNews([])
+    } finally {
+      setLoadingNews(false)
+    }
+  }
+
+  const handleNewsClick = (articleId?: string) => {
+    if (articleId) {
+      navigate(`/news/${articleId}`)
     }
   }
 
@@ -124,11 +131,37 @@ export function Home() {
               <Button variant="outline">View All News</Button>
             </Link>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {latestNews.map((news) => (
-              <NewsCard key={news.id} {...news} />
-            ))}
-          </div>
+          {loadingNews ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-80 rounded-lg bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : latestNews.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {latestNews.map((news) => (
+                <NewsCard
+                  key={news._id}
+                  id={news._id}
+                  title={news.title}
+                  excerpt={news.excerpt}
+                  date={new Date(news.createdAt || '').toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                  author={news.author}
+                  category={news.category}
+                  imageUrl={news.imageUrl}
+                  onClick={() => handleNewsClick(news._id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No published news articles yet.</p>
+            </div>
+          )}
         </div>
       </section>
 
