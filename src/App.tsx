@@ -4,6 +4,7 @@ import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import { Home } from '@/pages/Home'
 import { News } from '@/pages/News'
+import { NewsDetail } from '@/pages/NewsDetail'
 import { Membership } from '@/pages/Membership'
 import { Tournaments } from '@/pages/Tournaments'
 import { Rankings } from '@/pages/Rankings'
@@ -47,6 +48,7 @@ function App() {
               <Route path="/admin/tournaments" element={<TournamentAdmin />} />
               <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
               <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
+              <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />
               <Route path="/players" element={<Players />} />
