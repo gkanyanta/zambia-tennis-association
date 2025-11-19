@@ -1,16 +1,8 @@
 import multer from 'multer';
 import path from 'path';
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, process.env.UPLOAD_PATH || './uploads');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Use memory storage to handle file in memory before uploading to Cloudinary
+const storage = multer.memoryStorage();
 
 // File filter
 const fileFilter = (req, file, cb) => {
@@ -25,7 +17,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Configure multer
+// Configure multer with memory storage
 export const upload = multer({
   storage: storage,
   limits: {

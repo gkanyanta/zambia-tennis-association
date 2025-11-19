@@ -8,6 +8,7 @@ import {
   deleteTournament,
   submitEntry,
   updateEntryStatus,
+  autoSeedCategory,
   generateDraw,
   updateMatchResult
 } from '../controllers/tournamentController.js';
@@ -26,6 +27,7 @@ router.delete('/:id', protect, authorize('admin'), deleteTournament);
 // Entry management routes
 router.post('/:tournamentId/categories/:categoryId/entries', protect, submitEntry);
 router.put('/:tournamentId/categories/:categoryId/entries/:entryId', protect, authorize('admin', 'staff'), updateEntryStatus);
+router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authorize('admin', 'staff'), autoSeedCategory);
 
 // Draw management routes
 router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('admin', 'staff'), generateDraw);

@@ -322,6 +322,69 @@ export const updateEntryStatus = async (req, res) => {
   }
 };
 
+// @desc    Auto-seed category based on rankings
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/auto-seed
+// @access  Private (Admin only)
+export const autoSeedCategory = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    const category = tournament.categories.id(categoryId);
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    // Get accepted entries with rankings
+    const acceptedEntries = category.entries.filter(
+      e => e.status === 'accepted' && e.ranking
+    );
+
+    if (acceptedEntries.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No accepted entries with rankings to seed'
+      });
+    }
+
+    // Sort by ranking (lower number = better player)
+    acceptedEntries.sort((a, b) => a.ranking - b.ranking);
+
+    // Assign seeds to top players (typically top 8, 16, or 32 depending on draw size)
+    const maxSeeds = Math.min(32, Math.pow(2, Math.ceil(Math.log2(acceptedEntries.length))));
+    const numSeeds = Math.min(acceptedEntries.length, maxSeeds);
+
+    for (let i = 0; i < numSeeds; i++) {
+      acceptedEntries[i].seed = i + 1;
+    }
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully seeded top ${numSeeds} players`,
+      data: category
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // @desc    Generate draw for category
 // @route   POST /api/tournaments/:tournamentId/categories/:categoryId/draw
 // @access  Private (Admin only)
