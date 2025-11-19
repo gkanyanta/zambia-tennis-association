@@ -1,0 +1,6 @@
+server/
+server/**
+*.md
+.env
+.env.local
+.git
