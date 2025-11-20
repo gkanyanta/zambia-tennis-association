@@ -10,7 +10,9 @@ import {
   DollarSign,
   Users,
   BarChart3,
-  UserCog
+  UserCog,
+  Building2,
+  UserCircle
 } from 'lucide-react';
 
 export function Admin() {
@@ -59,11 +61,18 @@ export function Admin() {
       color: 'text-green-500'
     },
     {
-      title: 'Players & Clubs',
-      description: 'Manage player and club registrations',
-      icon: Users,
-      action: () => navigate('/players'),
+      title: 'Manage Players',
+      description: 'Edit players and move them between clubs',
+      icon: UserCircle,
+      action: () => navigate('/admin/players'),
       color: 'text-pink-500'
+    },
+    {
+      title: 'Manage Clubs',
+      description: 'Create, edit, and manage tennis clubs',
+      icon: Building2,
+      action: () => navigate('/admin/clubs'),
+      color: 'text-indigo-500'
     },
     {
       title: 'Payments',
