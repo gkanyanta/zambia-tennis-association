@@ -72,7 +72,20 @@ const clubSchema = new mongoose.Schema({
   },
   affiliationExpiry: {
     type: Date
-  }
+  },
+  outstandingBalance: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  arrears: [{
+    year: Number,
+    amount: Number,
+    addedOn: {
+      type: Date,
+      default: Date.now
+    }
+  }]
 }, {
   timestamps: true
 });

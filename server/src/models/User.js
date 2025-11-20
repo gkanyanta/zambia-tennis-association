@@ -76,6 +76,20 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Payment'
   },
+  outstandingBalance: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  arrears: [{
+    year: Number,
+    amount: Number,
+    membershipType: String,
+    addedOn: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   isEmailVerified: {
     type: Boolean,
     default: false

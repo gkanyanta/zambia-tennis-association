@@ -6,7 +6,8 @@ import {
   getEntityPayments,
   getPaymentStats,
   getExpiringMemberships,
-  calculatePaymentAmount
+  calculatePaymentAmount,
+  calculateTotalAmountDue
 } from '../controllers/membershipPaymentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -22,6 +23,7 @@ router.get('/', getPayments);
 router.get('/stats', getPaymentStats);
 router.get('/expiring', getExpiringMemberships);
 router.get('/calculate-amount/:entityType/:entityId', calculatePaymentAmount);
+router.get('/total-due/:entityType/:entityId', calculateTotalAmountDue);
 router.get('/entity/:entityType/:entityId', getEntityPayments);
 router.get('/:id', getPayment);
 

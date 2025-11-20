@@ -5,50 +5,96 @@ import Settings from '../models/Settings.js';
 
 /**
  * Check and update membership/affiliation status for expired entities
+ * Also calculates and adds arrears for unpaid memberships
  */
 export const updateExpiredMemberships = async () => {
   try {
     const now = new Date();
     console.log(`[${now.toISOString()}] Running membership status update job...`);
 
+    const settings = await Settings.getSettings();
     let playersUpdated = 0;
     let clubsUpdated = 0;
+    let arrearsAdded = 0;
 
-    // Update expired player memberships
-    const expiredPlayers = await User.updateMany(
-      {
-        role: 'player',
-        membershipStatus: 'active',
-        membershipExpiry: { $lt: now }
-      },
-      {
-        $set: { membershipStatus: 'expired' }
+    // Find all expired players (membership expired and status still active)
+    const expiredPlayers = await User.find({
+      role: 'player',
+      membershipStatus: 'active',
+      membershipExpiry: { $lt: now }
+    });
+
+    for (const player of expiredPlayers) {
+      // Calculate the fee they owe for the expired year
+      const expiredYear = player.membershipExpiry.getFullYear();
+      const feeOwed = player.isInternational
+        ? settings.membershipFees.international
+        : (player.membershipType === 'junior' ? settings.membershipFees.junior : settings.membershipFees.adult);
+
+      // Check if this year's arrears already exist
+      const existingArrear = player.arrears.find(a => a.year === expiredYear);
+
+      if (!existingArrear) {
+        // Add arrears for the expired year
+        player.arrears.push({
+          year: expiredYear,
+          amount: feeOwed,
+          membershipType: player.membershipType,
+          addedOn: now
+        });
+
+        player.outstandingBalance = (player.outstandingBalance || 0) + feeOwed;
+        arrearsAdded++;
       }
-    );
 
-    playersUpdated = expiredPlayers.modifiedCount || 0;
+      // Update status
+      player.membershipStatus = 'expired';
+      await player.save();
+      playersUpdated++;
+    }
 
-    // Update expired club affiliations
-    const expiredClubs = await Club.updateMany(
-      {
-        status: 'active',
-        affiliationExpiry: { $lt: now }
-      },
-      {
-        $set: { status: 'inactive' }
+    // Find all expired clubs (affiliation expired and status still active)
+    const expiredClubs = await Club.find({
+      status: 'active',
+      affiliationExpiry: { $lt: now }
+    });
+
+    for (const club of expiredClubs) {
+      // Calculate the fee they owe for the expired year
+      const expiredYear = club.affiliationExpiry.getFullYear();
+      const feeOwed = settings.clubAffiliationFee || 0;
+
+      // Check if this year's arrears already exist
+      const existingArrear = club.arrears.find(a => a.year === expiredYear);
+
+      if (!existingArrear && feeOwed > 0) {
+        // Add arrears for the expired year
+        club.arrears.push({
+          year: expiredYear,
+          amount: feeOwed,
+          addedOn: now
+        });
+
+        club.outstandingBalance = (club.outstandingBalance || 0) + feeOwed;
+        arrearsAdded++;
       }
-    );
 
-    clubsUpdated = expiredClubs.modifiedCount || 0;
+      // Update status
+      club.status = 'inactive';
+      await club.save();
+      clubsUpdated++;
+    }
 
     console.log(`[${now.toISOString()}] Status update complete:`);
     console.log(`  - Players updated: ${playersUpdated}`);
     console.log(`  - Clubs updated: ${clubsUpdated}`);
+    console.log(`  - Arrears added: ${arrearsAdded}`);
 
     return {
       success: true,
       playersUpdated,
       clubsUpdated,
+      arrearsAdded,
       timestamp: now
     };
   } catch (error) {

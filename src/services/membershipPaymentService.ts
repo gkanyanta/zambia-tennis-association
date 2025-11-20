@@ -127,6 +127,28 @@ class MembershipPaymentService {
     const response = await apiFetch(`/membership-payments/calculate-amount/${entityType}/${entityId}`)
     return response.data
   }
+
+  // Calculate total amount due including arrears
+  async calculateTotalAmountDue(entityType: 'player' | 'club', entityId: string): Promise<{
+    currentYearFee: number
+    outstandingBalance: number
+    totalAmountDue: number
+    membershipType: string
+    currency: string
+    arrears: Array<{
+      year: number
+      amount: number
+      membershipType?: string
+      addedOn: string
+    }>
+    breakdown: {
+      arrears: number
+      currentYear: number
+    }
+  }> {
+    const response = await apiFetch(`/membership-payments/total-due/${entityType}/${entityId}`)
+    return response.data
+  }
 }
 
 export const membershipPaymentService = new MembershipPaymentService()
