@@ -89,18 +89,33 @@ export function PlayerManagement() {
         const oldClub = clubs.find(c => c.name === editingPlayer.club)
         const newClub = clubs.find(c => c.name === formData.club)
 
+        const countUpdatePromises = []
         if (oldClub) {
-          await clubService.updateMemberCount(oldClub._id).catch(err => console.error('Failed to update old club count:', err))
+          countUpdatePromises.push(
+            clubService.updateMemberCount(oldClub._id).catch(err => {
+              console.error('Failed to update old club count:', err)
+              return null
+            })
+          )
         }
         if (newClub) {
-          await clubService.updateMemberCount(newClub._id).catch(err => console.error('Failed to update new club count:', err))
+          countUpdatePromises.push(
+            clubService.updateMemberCount(newClub._id).catch(err => {
+              console.error('Failed to update new club count:', err)
+              return null
+            })
+          )
         }
+
+        // Wait for count updates but don't fail if they error
+        await Promise.all(countUpdatePromises)
       }
 
-      alert('Player updated successfully!')
+      alert('Player updated successfully! Note: If club counts don\'t update, use the "Sync Counts" button on the Club Management page.')
       setShowModal(false)
       fetchData()
     } catch (err: any) {
+      console.error('Update player error:', err)
       alert(err.message || 'Failed to update player')
     }
   }
@@ -117,13 +132,17 @@ export function PlayerManagement() {
       if (player.club) {
         const club = clubs.find(c => c.name === player.club)
         if (club) {
-          await clubService.updateMemberCount(club._id).catch(err => console.error('Failed to update club count:', err))
+          await clubService.updateMemberCount(club._id).catch(err => {
+            console.error('Failed to update club count:', err)
+            return null
+          })
         }
       }
 
-      alert('Player deleted successfully!')
+      alert('Player deleted successfully! Note: If club count doesn\'t update, use the "Sync Counts" button on the Club Management page.')
       fetchData()
     } catch (err: any) {
+      console.error('Delete player error:', err)
       alert(err.message || 'Failed to delete player')
     }
   }

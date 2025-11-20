@@ -125,14 +125,30 @@ export function ClubManagement() {
 
     try {
       setSyncing(true)
+      let successCount = 0
+      let failedClubs: string[] = []
+
       // Update count for each club
       for (const club of clubs) {
-        await clubService.updateMemberCount(club._id)
+        try {
+          await clubService.updateMemberCount(club._id)
+          successCount++
+        } catch (clubErr: any) {
+          console.error(`Failed to update ${club.name}:`, clubErr)
+          failedClubs.push(club.name)
+        }
       }
-      alert('Member counts synchronized successfully!')
+
+      if (failedClubs.length === 0) {
+        alert(`Successfully synchronized ${successCount} club(s)!`)
+      } else {
+        alert(`Synchronized ${successCount} club(s). Failed: ${failedClubs.join(', ')}. Check console for details.`)
+      }
+
       fetchClubs()
     } catch (err: any) {
-      alert(err.message || 'Failed to sync member counts')
+      console.error('Sync error:', err)
+      alert(`Failed to sync member counts: ${err.message || 'Unknown error'}. The backend may need to be redeployed on Render.`)
     } finally {
       setSyncing(false)
     }
