@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Edit, Trash2, RefreshCw } from 'lucide-react'
+import { Search, Edit, Trash2 } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { clubService, type Club } from '@/services/clubService'
 
@@ -70,7 +70,15 @@ export function PlayerManagement() {
     if (!editingPlayer) return
 
     try {
-      await userService.updateUser(editingPlayer._id, formData)
+      const updateData = {
+        ...formData,
+        membershipType: formData.membershipType || null,
+        membershipStatus: formData.membershipStatus || null,
+        gender: formData.gender || undefined,
+        phone: formData.phone || undefined,
+        club: formData.club || undefined
+      }
+      await userService.updateUser(editingPlayer._id, updateData as any)
       alert('Player updated successfully!')
       setShowModal(false)
       fetchData()
