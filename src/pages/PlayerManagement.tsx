@@ -78,7 +78,25 @@ export function PlayerManagement() {
         phone: formData.phone || undefined,
         club: formData.club || undefined
       }
+
+      // Check if club changed
+      const clubChanged = editingPlayer.club !== formData.club
+
       await userService.updateUser(editingPlayer._id, updateData as any)
+
+      // If club changed, update member counts for both old and new clubs
+      if (clubChanged) {
+        const oldClub = clubs.find(c => c.name === editingPlayer.club)
+        const newClub = clubs.find(c => c.name === formData.club)
+
+        if (oldClub) {
+          await clubService.updateMemberCount(oldClub._id).catch(err => console.error('Failed to update old club count:', err))
+        }
+        if (newClub) {
+          await clubService.updateMemberCount(newClub._id).catch(err => console.error('Failed to update new club count:', err))
+        }
+      }
+
       alert('Player updated successfully!')
       setShowModal(false)
       fetchData()
@@ -94,6 +112,15 @@ export function PlayerManagement() {
 
     try {
       await userService.deleteUser(player._id)
+
+      // Update member count for the player's club
+      if (player.club) {
+        const club = clubs.find(c => c.name === player.club)
+        if (club) {
+          await clubService.updateMemberCount(club._id).catch(err => console.error('Failed to update club count:', err))
+        }
+      }
+
       alert('Player deleted successfully!')
       fetchData()
     } catch (err: any) {

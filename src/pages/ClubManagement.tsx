@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, Edit, Trash2, Users } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Users, RefreshCw } from 'lucide-react'
 import { clubService, type Club } from '@/services/clubService'
 
 export function ClubManagement() {
@@ -14,6 +14,7 @@ export function ClubManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingClub, setEditingClub] = useState<Club | null>(null)
+  const [syncing, setSyncing] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     city: '',
@@ -117,6 +118,26 @@ export function ClubManagement() {
     }
   }
 
+  const handleSyncMemberCounts = async () => {
+    if (!confirm('This will update member counts for all clubs. Continue?')) {
+      return
+    }
+
+    try {
+      setSyncing(true)
+      // Update count for each club
+      for (const club of clubs) {
+        await clubService.updateMemberCount(club._id)
+      }
+      alert('Member counts synchronized successfully!')
+      fetchClubs()
+    } catch (err: any) {
+      alert(err.message || 'Failed to sync member counts')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const filteredClubs = clubs.filter(club =>
     club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     club.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -143,7 +164,7 @@ export function ClubManagement() {
       <section className="py-16">
         <div className="container-custom">
           {/* Header */}
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -153,10 +174,20 @@ export function ClubManagement() {
                 className="pl-10"
               />
             </div>
-            <Button onClick={handleCreateClub}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Club
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleSyncMemberCounts}
+                disabled={syncing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync Counts'}
+              </Button>
+              <Button onClick={handleCreateClub}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Club
+              </Button>
+            </div>
           </div>
 
           {/* Clubs Table */}
