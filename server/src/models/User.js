@@ -61,6 +61,21 @@ const userSchema = new mongoose.Schema({
   membershipExpiry: {
     type: Date
   },
+  isInternational: {
+    type: Boolean,
+    default: false
+  },
+  lastPaymentDate: {
+    type: Date
+  },
+  lastPaymentAmount: {
+    type: Number,
+    min: 0
+  },
+  lastPaymentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Payment'
+  },
   isEmailVerified: {
     type: Boolean,
     default: false

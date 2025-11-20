@@ -11,6 +11,9 @@ import { connectDatabase } from './config/database.js';
 // Load env vars
 dotenv.config();
 
+// Import jobs
+import { initializeStatusUpdateJob } from './jobs/updateMembershipStatus.js';
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = process.env.UPLOAD_PATH || './uploads';
 if (!fs.existsSync(uploadsDir)) {
@@ -27,6 +30,8 @@ import tournamentRoutes from './routes/tournaments.js';
 import newsRoutes from './routes/news.js';
 import rankingRoutes from './routes/rankings.js';
 import paymentRoutes from './routes/payments.js';
+import membershipPaymentRoutes from './routes/membershipPayments.js';
+import settingsRoutes from './routes/settings.js';
 import uploadRoutes from './routes/upload.js';
 import galleryRoutes from './routes/gallery.js';
 
@@ -81,6 +86,8 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/rankings', rankingRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/membership-payments', membershipPaymentRoutes);
+app.use('/api/settings', settingsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/gallery', galleryRoutes);
 
@@ -112,8 +119,15 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+
+  // Initialize automated membership status update job
+  try {
+    await initializeStatusUpdateJob();
+  } catch (error) {
+    console.error('Failed to initialize status update job:', error);
+  }
 });
 
 // Handle unhandled promise rejections

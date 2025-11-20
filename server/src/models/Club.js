@@ -53,6 +53,25 @@ const clubSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive'],
     default: 'active'
+  },
+  affiliationFee: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  lastPaymentDate: {
+    type: Date
+  },
+  lastPaymentAmount: {
+    type: Number,
+    min: 0
+  },
+  lastPaymentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Payment'
+  },
+  affiliationExpiry: {
+    type: Date
   }
 }, {
   timestamps: true
