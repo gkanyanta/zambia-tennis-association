@@ -56,18 +56,18 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <nav className="container-custom flex h-16 items-center gap-8" aria-label="Global">
+      <nav className="container-custom flex h-16 items-center gap-2 lg:gap-8" aria-label="Global">
         {/* Logo */}
-        <div className="flex">
+        <div className="flex flex-shrink-0">
           <Link to="/" className="-m-1.5 p-1.5">
             <span className="sr-only">Zambia Tennis Association</span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 lg:gap-3">
               <img
                 src="/zta-logo.png"
                 alt="ZTA Logo"
-                className="h-12 w-12 object-contain"
+                className="h-10 w-10 lg:h-12 lg:w-12 object-contain"
               />
-              <span className="font-bold text-xl text-foreground hidden sm:block whitespace-nowrap">
+              <span className="font-bold text-base lg:text-xl text-foreground hidden md:block whitespace-nowrap">
                 Zambia Tennis Association
               </span>
             </div>
@@ -91,13 +91,13 @@ export function Header() {
         </div>
 
         {/* Desktop navigation */}
-        <div className="hidden lg:flex lg:gap-x-6 lg:items-center ml-auto">
+        <div className="hidden lg:flex lg:gap-x-3 xl:gap-x-6 lg:items-center ml-auto">
           {navigation.map((item) => (
             <Link
               key={item.name}
               to={item.href}
               className={cn(
-                "text-sm font-semibold leading-6 transition-colors hover:text-primary",
+                "text-sm font-semibold leading-6 transition-colors hover:text-primary whitespace-nowrap",
                 location.pathname === item.href
                   ? "text-primary"
                   : "text-muted-foreground"
@@ -153,7 +153,7 @@ export function Header() {
           </div>
 
           {/* Auth buttons */}
-          <div className="flex items-center gap-3 ml-4 border-l pl-4">
+          <div className="flex items-center gap-2 lg:gap-3 ml-2 lg:ml-4 border-l pl-2 lg:pl-4">
             {isAuthenticated ? (
               <>
                 {isAdmin && (
@@ -161,18 +161,32 @@ export function Header() {
                     variant="outline"
                     size="sm"
                     onClick={() => navigate('/admin')}
+                    className="hidden xl:flex"
                   >
                     <LayoutDashboard className="h-4 w-4 mr-2" />
                     Admin
                   </Button>
                 )}
-                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/admin')}
+                    className="xl:hidden"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                  </Button>
+                )}
+                <span className="text-xs lg:text-sm text-muted-foreground hidden xl:flex items-center gap-2">
                   <User className="h-4 w-4" />
                   {user?.firstName}
                 </span>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden xl:flex">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="xl:hidden">
+                  <LogOut className="h-4 w-4" />
                 </Button>
               </>
             ) : (
