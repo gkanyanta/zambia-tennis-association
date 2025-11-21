@@ -51,10 +51,35 @@ export function TournamentCreate() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validate required fields
+    const requiredFields = [
+      { field: 'name', label: 'Tournament Name' },
+      { field: 'description', label: 'Description' },
+      { field: 'startDate', label: 'Start Date' },
+      { field: 'endDate', label: 'End Date' },
+      { field: 'venue', label: 'Venue' },
+      { field: 'city', label: 'City' },
+      { field: 'province', label: 'Province' },
+      { field: 'entryDeadline', label: 'Entry Deadline' },
+      { field: 'organizer', label: 'Organizer Name' },
+      { field: 'contactEmail', label: 'Contact Email' },
+      { field: 'contactPhone', label: 'Contact Phone' }
+    ]
+
+    const missingFields = requiredFields.filter(({ field }) => !formData[field as keyof typeof formData])
+
+    if (missingFields.length > 0) {
+      alert(`Please fill in all required fields:\n\n${missingFields.map(f => `- ${f.label}`).join('\n')}`)
+      return
+    }
+
     if (selectedCategories.size === 0 && customCategories.length === 0) {
       alert('Please select at least one category for the tournament')
       return
     }
+
+    console.log('Form data being submitted:', formData)
+    console.log('Selected categories:', Array.from(selectedCategories))
 
     setLoading(true)
 
