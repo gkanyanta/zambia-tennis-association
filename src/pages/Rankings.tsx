@@ -8,18 +8,26 @@ import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
 import { RefreshCw, Plus, Trash2 } from 'lucide-react';
 
-type RankingCategory = 'mens-singles' | 'womens-singles' | 'juniors-boys' | 'juniors-girls';
+type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u';
 
 const categories = [
-  { id: 'mens-singles', label: "Men's Singles" },
-  { id: 'womens-singles', label: "Women's Singles" },
-  { id: 'juniors-boys', label: 'Juniors Boys' },
-  { id: 'juniors-girls', label: 'Juniors Girls' },
-] as const;
+  { id: 'men_senior' as const, label: "Men's Senior" },
+  { id: 'women_senior' as const, label: "Women's Senior" },
+  { id: 'boys_18u' as const, label: 'Boys 18 & Under' },
+  { id: 'boys_16u' as const, label: 'Boys 16 & Under' },
+  { id: 'boys_14u' as const, label: 'Boys 14 & Under' },
+  { id: 'boys_12u' as const, label: 'Boys 12 & Under' },
+  { id: 'boys_10u' as const, label: 'Boys 10 & Under' },
+  { id: 'girls_18u' as const, label: 'Girls 18 & Under' },
+  { id: 'girls_16u' as const, label: 'Girls 16 & Under' },
+  { id: 'girls_14u' as const, label: 'Girls 14 & Under' },
+  { id: 'girls_12u' as const, label: 'Girls 12 & Under' },
+  { id: 'girls_10u' as const, label: 'Girls 10 & Under' },
+];
 
 export function Rankings() {
   const { isAdmin } = useAuth();
-  const [activeCategory, setActiveCategory] = useState<RankingCategory>('mens-singles');
+  const [activeCategory, setActiveCategory] = useState<RankingCategory>('men_senior');
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
