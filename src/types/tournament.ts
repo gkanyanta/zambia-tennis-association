@@ -6,11 +6,13 @@ export type AgeGroup = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'Open'
 export interface TournamentCategory {
   id: string
   name: string
+  categoryCode?: string
   type: CategoryType
   gender: Gender
   ageGroup?: AgeGroup
   minAge?: number
   maxAge?: number
+  ageCalculationDate?: string
   drawType: DrawType
   maxEntries: number
   entries: TournamentEntry[]
