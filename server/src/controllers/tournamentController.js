@@ -61,6 +61,10 @@ export const getTournament = async (req, res) => {
 // @access  Private/Admin
 export const createTournament = async (req, res) => {
   try {
+    console.log('=== CREATE TOURNAMENT REQUEST ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Body keys:', Object.keys(req.body));
+
     const tournament = await Tournament.create(req.body);
 
     res.status(201).json({
@@ -68,6 +72,7 @@ export const createTournament = async (req, res) => {
       data: tournament
     });
   } catch (error) {
+    console.error('Tournament creation error:', error.message);
     res.status(500).json({
       success: false,
       message: error.message
