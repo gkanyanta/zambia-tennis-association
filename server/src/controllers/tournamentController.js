@@ -1,5 +1,14 @@
 import Tournament from '../models/Tournament.js';
+import User from '../models/User.js';
 import sendEmail from '../utils/sendEmail.js';
+import {
+  calculateAgeOnDec31,
+  checkCategoryEligibility,
+  getEligibleCategories,
+  validateTournamentEntry,
+  getCategoryDetails,
+  getAllJuniorCategories
+} from '../utils/tournamentEligibility.js';
 
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
@@ -207,7 +216,7 @@ export const deleteTournament = async (req, res) => {
 export const submitEntry = async (req, res) => {
   try {
     const { tournamentId, categoryId } = req.params;
-    const entryData = req.body;
+    const { playerId } = req.body;
 
     const tournament = await Tournament.findById(tournamentId);
 
@@ -227,11 +236,44 @@ export const submitEntry = async (req, res) => {
       });
     }
 
+    // Get player information
+    const player = await User.findById(playerId);
+
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        message: 'Player not found'
+      });
+    }
+
+    // Check if player has required fields
+    if (!player.dateOfBirth) {
+      return res.status(400).json({
+        success: false,
+        message: 'Player date of birth is required for tournament entry'
+      });
+    }
+
+    if (!player.gender) {
+      return res.status(400).json({
+        success: false,
+        message: 'Player gender is required for tournament entry'
+      });
+    }
+
     // Check if entries are still open
     if (tournament.status === 'entries_closed' || tournament.status === 'in_progress' || tournament.status === 'completed') {
       return res.status(400).json({
         success: false,
         message: 'Entries are closed for this tournament'
+      });
+    }
+
+    // Check entry deadline
+    if (new Date() > new Date(tournament.entryDeadline)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Entry deadline has passed'
       });
     }
 
@@ -244,7 +286,7 @@ export const submitEntry = async (req, res) => {
     }
 
     // Check if player already entered
-    const existingEntry = category.entries.find(e => e.playerZpin === entryData.playerZpin);
+    const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
     if (existingEntry) {
       return res.status(400).json({
         success: false,
@@ -252,15 +294,63 @@ export const submitEntry = async (req, res) => {
       });
     }
 
+    // Validate tournament entry eligibility for junior categories
+    let eligibilityCheck = { eligible: true, reason: 'Eligible', warnings: [], errors: [] };
+
+    if (category.type === 'junior' && category.categoryCode) {
+      const validation = validateTournamentEntry(player, category.categoryCode, tournament.startDate);
+
+      if (!validation.eligible) {
+        return res.status(400).json({
+          success: false,
+          message: 'Player is not eligible for this category',
+          errors: validation.errors,
+          info: validation.info
+        });
+      }
+
+      eligibilityCheck = {
+        eligible: validation.eligible,
+        reason: validation.info.ageCalculationDate
+          ? `Player will be ${validation.info.playerAge} years old on ${validation.info.ageCalculationDate}`
+          : 'Eligible',
+        suggestedCategory: validation.info.suggestedCategory,
+        warnings: validation.warnings
+      };
+    }
+
+    // Calculate age on December 31st for junior categories
+    const tournamentYear = new Date(tournament.startDate).getFullYear();
+    const ageOnDec31 = calculateAgeOnDec31(player.dateOfBirth, tournamentYear);
+    const currentAge = Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+
+    // Create entry data
+    const entryData = {
+      playerId: player._id.toString(),
+      playerName: `${player.firstName} ${player.lastName}`,
+      playerZpin: player.zpin,
+      dateOfBirth: player.dateOfBirth,
+      age: currentAge,
+      ageOnDec31,
+      gender: player.gender,
+      clubName: player.club || 'Independent',
+      eligibilityCheck,
+      status: 'pending'
+    };
+
     // Add entry
     category.entries.push(entryData);
+    category.entryCount = category.entries.length;
     await tournament.save();
 
     res.status(201).json({
       success: true,
-      data: category
+      message: 'Entry submitted successfully',
+      data: entryData,
+      warnings: eligibilityCheck.warnings
     });
   } catch (error) {
+    console.error('Submit entry error:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -508,6 +598,159 @@ export const updateMatchResult = async (req, res) => {
     res.status(200).json({
       success: true,
       data: match
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Check player eligibility for a category
+// @route   GET /api/tournaments/:tournamentId/categories/:categoryId/check-eligibility/:playerId
+// @access  Public
+export const checkEligibility = async (req, res) => {
+  try {
+    const { tournamentId, categoryId, playerId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    const category = tournament.categories.id(categoryId);
+
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: 'Category not found'
+      });
+    }
+
+    const player = await User.findById(playerId);
+
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        message: 'Player not found'
+      });
+    }
+
+    // Validate eligibility
+    const validation = validateTournamentEntry(player, category.categoryCode, tournament.startDate);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        eligible: validation.eligible,
+        errors: validation.errors,
+        warnings: validation.warnings,
+        info: validation.info
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get all eligible categories for a player in a tournament
+// @route   GET /api/tournaments/:tournamentId/eligible-categories/:playerId
+// @access  Public
+export const getPlayerEligibleCategories = async (req, res) => {
+  try {
+    const { tournamentId, playerId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    const player = await User.findById(playerId);
+
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        message: 'Player not found'
+      });
+    }
+
+    if (!player.dateOfBirth) {
+      return res.status(400).json({
+        success: false,
+        message: 'Player date of birth is required'
+      });
+    }
+
+    if (!player.gender) {
+      return res.status(400).json({
+        success: false,
+        message: 'Player gender is required'
+      });
+    }
+
+    // Get available category codes
+    const availableCategoryCodes = tournament.categories
+      .filter(cat => cat.type === 'junior')
+      .map(cat => cat.categoryCode);
+
+    const tournamentYear = new Date(tournament.startDate).getFullYear();
+
+    // Get eligible categories
+    const eligibleCategories = getEligibleCategories(
+      player.dateOfBirth,
+      player.gender,
+      availableCategoryCodes,
+      tournamentYear
+    );
+
+    // Map to full category details
+    const categoriesWithDetails = eligibleCategories.map(eligCat => {
+      const category = tournament.categories.find(cat => cat.categoryCode === eligCat.categoryCode);
+      return {
+        ...eligCat,
+        categoryId: category ? category._id : null,
+        categoryName: category ? category.name : eligCat.categoryCode,
+        maxEntries: category ? category.maxEntries : null,
+        currentEntries: category ? category.entries.length : 0,
+        isFull: category ? category.entries.length >= category.maxEntries : false
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: categoriesWithDetails
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get all standard junior categories
+// @route   GET /api/tournaments/junior-categories
+// @access  Public
+export const getJuniorCategories = async (req, res) => {
+  try {
+    const categories = getAllJuniorCategories();
+
+    res.status(200).json({
+      success: true,
+      count: categories.length,
+      data: categories
     });
   } catch (error) {
     res.status(500).json({

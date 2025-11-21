@@ -38,6 +38,12 @@ const userSchema = new mongoose.Schema({
     enum: ['male', 'female'],
     required: false
   },
+  dateOfBirth: {
+    type: Date,
+    required: function() {
+      return this.role === 'player';
+    }
+  },
   role: {
     type: String,
     enum: ['player', 'club_official', 'admin', 'staff'],

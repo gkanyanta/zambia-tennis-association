@@ -22,6 +22,10 @@ const entrySchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  ageOnDec31: {
+    type: Number,
+    required: true
+  },
   gender: {
     type: String,
     enum: ['male', 'female'],
@@ -33,6 +37,15 @@ const entrySchema = new mongoose.Schema({
   },
   ranking: Number,
   seed: Number,
+  eligibilityCheck: {
+    eligible: {
+      type: Boolean,
+      required: true
+    },
+    reason: String,
+    suggestedCategory: String,
+    warnings: [String]
+  },
   status: {
     type: String,
     enum: ['pending', 'accepted', 'rejected', 'withdrawn'],
@@ -116,6 +129,10 @@ const drawSchema = new mongoose.Schema({
 
 // Tournament category schema
 const categorySchema = new mongoose.Schema({
+  categoryCode: {
+    type: String,
+    required: true
+  },
   name: {
     type: String,
     required: true
@@ -136,6 +153,12 @@ const categorySchema = new mongoose.Schema({
   },
   minAge: Number,
   maxAge: Number,
+  ageCalculationDate: {
+    type: Date,
+    required: function() {
+      return this.type === 'junior';
+    }
+  },
   drawType: {
     type: String,
     enum: ['single_elimination', 'round_robin', 'feed_in'],
@@ -147,7 +170,11 @@ const categorySchema = new mongoose.Schema({
   },
   entries: [entrySchema],
   draw: drawSchema,
-  specialRules: [String]
+  specialRules: [String],
+  entryCount: {
+    type: Number,
+    default: 0
+  }
 });
 
 const tournamentSchema = new mongoose.Schema({

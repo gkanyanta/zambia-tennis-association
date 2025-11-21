@@ -10,11 +10,17 @@ import {
   updateEntryStatus,
   autoSeedCategory,
   generateDraw,
-  updateMatchResult
+  updateMatchResult,
+  checkEligibility,
+  getPlayerEligibleCategories,
+  getJuniorCategories
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Category information routes
+router.get('/junior-categories', getJuniorCategories);
 
 // Basic tournament routes
 router.get('/', getTournaments);
@@ -23,6 +29,10 @@ router.post('/', protect, authorize('admin', 'staff'), createTournament);
 router.put('/:id', protect, authorize('admin', 'staff'), updateTournament);
 router.post('/:id/register', protect, registerForTournament);
 router.delete('/:id', protect, authorize('admin'), deleteTournament);
+
+// Eligibility checking routes
+router.get('/:tournamentId/eligible-categories/:playerId', getPlayerEligibleCategories);
+router.get('/:tournamentId/categories/:categoryId/check-eligibility/:playerId', checkEligibility);
 
 // Entry management routes
 router.post('/:tournamentId/categories/:categoryId/entries', protect, submitEntry);

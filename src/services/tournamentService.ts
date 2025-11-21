@@ -12,6 +12,85 @@ export interface Tournament {
   maxParticipants?: number;
   entryFee: number;
   registrationDeadline?: string;
+  startDate: string;
+  endDate: string;
+  venue: string;
+  city: string;
+  province: string;
+  entryDeadline: string;
+  categories: TournamentCategory[];
+}
+
+export interface TournamentCategory {
+  _id: string;
+  categoryCode: string;
+  name: string;
+  type: 'junior' | 'senior' | 'madalas';
+  gender: 'boys' | 'girls' | 'mens' | 'womens' | 'mixed';
+  ageGroup?: string;
+  maxAge?: number;
+  minAge?: number;
+  ageCalculationDate?: string;
+  drawType: 'single_elimination' | 'round_robin' | 'feed_in';
+  maxEntries: number;
+  entryCount: number;
+  entries: TournamentEntry[];
+}
+
+export interface TournamentEntry {
+  _id: string;
+  playerId: string;
+  playerName: string;
+  playerZpin: string;
+  dateOfBirth: string;
+  age: number;
+  ageOnDec31: number;
+  gender: 'male' | 'female';
+  clubName: string;
+  ranking?: number;
+  seed?: number;
+  eligibilityCheck: {
+    eligible: boolean;
+    reason: string;
+    suggestedCategory?: string;
+    warnings: string[];
+  };
+  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  rejectionReason?: string;
+  entryDate: string;
+}
+
+export interface JuniorCategory {
+  code: string;
+  name: string;
+  gender: 'male' | 'female';
+  maxAge: number;
+}
+
+export interface EligibilityCheck {
+  eligible: boolean;
+  errors: string[];
+  warnings: string[];
+  info: {
+    playerAge: number;
+    tournamentYear: number;
+    categoryCode: string;
+    ageCalculationDate: string;
+    suggestedCategory?: string;
+  };
+}
+
+export interface EligibleCategoryInfo {
+  categoryCode: string;
+  categoryId: string | null;
+  categoryName: string;
+  eligible: boolean;
+  suggested: boolean;
+  ageOnDec31: number;
+  reason: string;
+  maxEntries: number | null;
+  currentEntries: number;
+  isFull: boolean;
 }
 
 export const tournamentService = {
@@ -59,24 +138,16 @@ export const tournamentService = {
   async submitEntry(
     tournamentId: string,
     categoryId: string,
-    entryData: {
-      playerId: string;
-      playerName: string;
-      playerZpin: string;
-      dateOfBirth: string;
-      gender: 'male' | 'female';
-      clubName: string;
-      ranking?: number;
-    }
-  ): Promise<any> {
+    playerId: string
+  ): Promise<{ data: TournamentEntry; warnings: string[] }> {
     const response = await apiFetch(
       `/tournaments/${tournamentId}/categories/${categoryId}/entries`,
       {
         method: 'POST',
-        body: JSON.stringify(entryData),
+        body: JSON.stringify({ playerId }),
       }
     );
-    return response.data;
+    return response;
   },
 
   async updateEntryStatus(
@@ -145,6 +216,33 @@ export const tournamentService = {
         body: JSON.stringify(result),
       }
     );
+    return response.data;
+  },
+
+  // Eligibility Checking
+  async checkEligibility(
+    tournamentId: string,
+    categoryId: string,
+    playerId: string
+  ): Promise<EligibilityCheck> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/check-eligibility/${playerId}`
+    );
+    return response.data;
+  },
+
+  async getPlayerEligibleCategories(
+    tournamentId: string,
+    playerId: string
+  ): Promise<EligibleCategoryInfo[]> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/eligible-categories/${playerId}`
+    );
+    return response.data;
+  },
+
+  async getJuniorCategories(): Promise<JuniorCategory[]> {
+    const response = await apiFetch('/tournaments/junior-categories');
     return response.data;
   }
 };
