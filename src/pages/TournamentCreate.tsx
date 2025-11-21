@@ -4,142 +4,47 @@ import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, Save, CheckCircle2 } from 'lucide-react'
+import { Save, Calendar, MapPin, Users, Phone, FileText, Trophy } from 'lucide-react'
 import { tournamentService } from '@/services/tournamentService'
-import type { TournamentCategory, DrawType, CategoryType, Gender, AgeGroup } from '@/types/tournament'
 
 // Standard junior categories
 const JUNIOR_CATEGORIES = [
-  { code: 'B10U', name: 'Boys 10 & Under', gender: 'boys' as const, ageGroup: 'U10' as const },
-  { code: 'B12U', name: 'Boys 12 & Under', gender: 'boys' as const, ageGroup: 'U12' as const },
-  { code: 'B14U', name: 'Boys 14 & Under', gender: 'boys' as const, ageGroup: 'U14' as const },
-  { code: 'B16U', name: 'Boys 16 & Under', gender: 'boys' as const, ageGroup: 'U16' as const },
-  { code: 'B18U', name: 'Boys 18 & Under', gender: 'boys' as const, ageGroup: 'U18' as const },
-  { code: 'G10U', name: 'Girls 10 & Under', gender: 'girls' as const, ageGroup: 'U10' as const },
-  { code: 'G12U', name: 'Girls 12 & Under', gender: 'girls' as const, ageGroup: 'U12' as const },
-  { code: 'G14U', name: 'Girls 14 & Under', gender: 'girls' as const, ageGroup: 'U14' as const },
-  { code: 'G16U', name: 'Girls 16 & Under', gender: 'girls' as const, ageGroup: 'U16' as const },
-  { code: 'G18U', name: 'Girls 18 & Under', gender: 'girls' as const, ageGroup: 'U18' as const },
+  { code: 'B10U', name: 'Boys 10 & Under', gender: 'boys' as const, maxAge: 10 },
+  { code: 'B12U', name: 'Boys 12 & Under', gender: 'boys' as const, maxAge: 12 },
+  { code: 'B14U', name: 'Boys 14 & Under', gender: 'boys' as const, maxAge: 14 },
+  { code: 'B16U', name: 'Boys 16 & Under', gender: 'boys' as const, maxAge: 16 },
+  { code: 'B18U', name: 'Boys 18 & Under', gender: 'boys' as const, maxAge: 18 },
+  { code: 'G10U', name: 'Girls 10 & Under', gender: 'girls' as const, maxAge: 10 },
+  { code: 'G12U', name: 'Girls 12 & Under', gender: 'girls' as const, maxAge: 12 },
+  { code: 'G14U', name: 'Girls 14 & Under', gender: 'girls' as const, maxAge: 14 },
+  { code: 'G16U', name: 'Girls 16 & Under', gender: 'girls' as const, maxAge: 16 },
+  { code: 'G18U', name: 'Girls 18 & Under', gender: 'girls' as const, maxAge: 18 },
 ]
 
 export function TournamentCreate() {
   const navigate = useNavigate()
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    startDate: '',
-    endDate: '',
-    venue: '',
-    city: '',
-    province: '',
-    entryDeadline: '',
-    entryFee: 0,
-    organizer: '',
-    contactEmail: '',
-    contactPhone: '',
-    rules: '',
-    prizes: ''
-  })
-
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
-  const [drawType, setDrawType] = useState<DrawType>('single_elimination')
-  const [maxEntries, setMaxEntries] = useState(32)
-  const [customCategories, setCustomCategories] = useState<Partial<TournamentCategory>[]>([])
-  const [showCustomCategoryForm, setShowCustomCategoryForm] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Form data
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [venue, setVenue] = useState('')
+  const [city, setCity] = useState('')
+  const [province, setProvince] = useState('')
+  const [entryDeadline, setEntryDeadline] = useState('')
+  const [entryFee, setEntryFee] = useState(0)
+  const [organizer, setOrganizer] = useState('Zambia Tennis Association')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [rules, setRules] = useState('')
+  const [prizes, setPrizes] = useState('')
 
-    // Validate required fields
-    const requiredFields = [
-      { field: 'name', label: 'Tournament Name' },
-      { field: 'description', label: 'Description' },
-      { field: 'startDate', label: 'Start Date' },
-      { field: 'endDate', label: 'End Date' },
-      { field: 'venue', label: 'Venue' },
-      { field: 'city', label: 'City' },
-      { field: 'province', label: 'Province' },
-      { field: 'entryDeadline', label: 'Entry Deadline' },
-      { field: 'organizer', label: 'Organizer Name' },
-      { field: 'contactEmail', label: 'Contact Email' },
-      { field: 'contactPhone', label: 'Contact Phone' }
-    ]
-
-    const missingFields = requiredFields.filter(({ field }) => !formData[field as keyof typeof formData])
-
-    if (missingFields.length > 0) {
-      alert(`Please fill in all required fields:\n\n${missingFields.map(f => `- ${f.label}`).join('\n')}`)
-      return
-    }
-
-    if (selectedCategories.size === 0 && customCategories.length === 0) {
-      alert('Please select at least one category for the tournament')
-      return
-    }
-
-    console.log('Form data being submitted:', formData)
-    console.log('Selected categories:', Array.from(selectedCategories))
-
-    setLoading(true)
-
-    try {
-      // Calculate December 31st of tournament start year for age calculation
-      const tournamentYear = new Date(formData.startDate).getFullYear()
-      const dec31 = new Date(tournamentYear, 11, 31, 23, 59, 59)
-
-      // Build categories from selected junior categories
-      const juniorCats = Array.from(selectedCategories).map(code => {
-        const cat = JUNIOR_CATEGORIES.find(c => c.code === code)!
-        const ageNumber = cat.ageGroup.replace('U', '')
-
-        return {
-          categoryCode: cat.code,
-          name: cat.name,
-          type: 'junior' as const,
-          gender: cat.gender,
-          ageGroup: cat.ageGroup,
-          maxAge: parseInt(ageNumber),
-          ageCalculationDate: dec31.toISOString(),
-          drawType,
-          maxEntries,
-          entries: []
-        }
-      })
-
-      // Enhance custom categories
-      const enhancedCustomCategories = customCategories.map(cat => {
-        const enhanced = { ...cat }
-
-        if (cat.type === 'junior' && cat.gender && cat.ageGroup) {
-          const genderPrefix = cat.gender === 'boys' ? 'B' : 'G'
-          const ageNumber = cat.ageGroup?.replace('U', '')
-          enhanced.categoryCode = `${genderPrefix}${ageNumber}U`
-          enhanced.ageCalculationDate = dec31.toISOString()
-          enhanced.maxAge = parseInt(ageNumber || '0')
-        }
-
-        return enhanced
-      })
-
-      // Combine all categories
-      const allCategories = [...juniorCats, ...enhancedCustomCategories]
-
-      // Create tournament
-      await tournamentService.createTournament({
-        ...formData,
-        categories: allCategories
-      } as any)
-
-      // Navigate back to tournament admin page on success
-      navigate('/admin/tournaments')
-    } catch (error: any) {
-      console.error('Error creating tournament:', error)
-      alert(error.message || 'Failed to create tournament. Please check all required fields.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  // Categories
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in'>('single_elimination')
+  const [maxEntries, setMaxEntries] = useState(32)
 
   const toggleCategory = (code: string) => {
     const newSelected = new Set(selectedCategories)
@@ -163,525 +68,482 @@ export function TournamentCreate() {
     setSelectedCategories(newSelected)
   }
 
-  const selectAllCategories = () => {
+  const selectAll = () => {
     setSelectedCategories(new Set(JUNIOR_CATEGORIES.map(c => c.code)))
   }
 
-  const clearAllCategories = () => {
+  const clearAll = () => {
     setSelectedCategories(new Set())
   }
 
-  const addCustomCategory = (category: Partial<TournamentCategory>) => {
-    setCustomCategories([...customCategories, category])
-    setShowCustomCategoryForm(false)
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-  const removeCustomCategory = (index: number) => {
-    setCustomCategories(customCategories.filter((_, i) => i !== index))
+    if (!name || !description || !startDate || !endDate || !venue || !city || !province ||
+        !entryDeadline || !organizer || !contactEmail || !contactPhone) {
+      alert('Please fill in all required fields marked with *')
+      return
+    }
+
+    if (selectedCategories.size === 0) {
+      alert('Please select at least one category')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const tournamentYear = new Date(startDate).getFullYear()
+      const dec31 = new Date(tournamentYear, 11, 31, 23, 59, 59)
+
+      const categories = Array.from(selectedCategories).map(code => {
+        const cat = JUNIOR_CATEGORIES.find(c => c.code === code)!
+        return {
+          categoryCode: cat.code,
+          name: cat.name,
+          type: 'junior' as const,
+          gender: cat.gender,
+          ageGroup: `U${cat.maxAge}` as any,
+          maxAge: cat.maxAge,
+          ageCalculationDate: dec31.toISOString(),
+          drawType,
+          maxEntries,
+          entries: []
+        }
+      })
+
+      await tournamentService.createTournament({
+        name,
+        description,
+        startDate,
+        endDate,
+        venue,
+        city,
+        province,
+        entryDeadline,
+        entryFee,
+        organizer,
+        contactEmail,
+        contactPhone,
+        rules,
+        prizes,
+        categories
+      } as any)
+
+      alert('Tournament created successfully!')
+      navigate('/admin/tournaments')
+    } catch (error: any) {
+      console.error('Error creating tournament:', error)
+      alert(error.message || 'Failed to create tournament')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Hero
-        title="Create Tournament"
-        description="Set up a new tournament with categories and entry rules"
+        title="Create New Tournament"
+        description="Set up a new tennis tournament with categories and entry details"
         gradient
       />
 
-      <section className="py-8">
-        <div className="container-custom max-w-4xl">
-          <Button variant="outline" onClick={() => navigate('/admin/tournaments')} className="mb-6">
-            ← Back
-          </Button>
+      <div className="container-custom max-w-5xl py-8">
+        <Button
+          variant="outline"
+          onClick={() => navigate('/admin/tournaments')}
+          className="mb-6"
+        >
+          ← Back to Tournaments
+        </Button>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Basic Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Tournament Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Tournament Name</label>
-                  <Input
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g., National Championships 2025"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Description</label>
-                  <textarea
-                    required
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    placeholder="Tournament description"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Start Date</label>
-                    <Input
-                      type="date"
-                      required
-                      value={formData.startDate}
-                      onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">End Date</label>
-                    <Input
-                      type="date"
-                      required
-                      value={formData.endDate}
-                      onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Venue</label>
-                    <Input
-                      required
-                      value={formData.venue}
-                      onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
-                      placeholder="e.g., Lusaka Tennis Club"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">City</label>
-                    <Input
-                      required
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      placeholder="e.g., Lusaka"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Province</label>
-                    <Input
-                      required
-                      value={formData.province}
-                      onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                      placeholder="e.g., Lusaka"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Entry Deadline</label>
-                    <Input
-                      type="date"
-                      required
-                      value={formData.entryDeadline}
-                      onChange={(e) => setFormData({ ...formData, entryDeadline: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Entry Fee (K)</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={formData.entryFee}
-                      onChange={(e) => setFormData({ ...formData, entryFee: Number(e.target.value) })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Contact Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Contact Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Organizer Name</label>
-                  <Input
-                    required
-                    value={formData.organizer}
-                    onChange={(e) => setFormData({ ...formData, organizer: e.target.value })}
-                    placeholder="e.g., Zambia Tennis Association"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Contact Email</label>
-                    <Input
-                      type="email"
-                      required
-                      value={formData.contactEmail}
-                      onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
-                      placeholder="tournaments@zambiatennis.org"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Contact Phone</label>
-                    <Input
-                      type="tel"
-                      required
-                      value={formData.contactPhone}
-                      onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                      placeholder="+260 xxx xxx xxx"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Junior Categories Selection */}
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Junior Categories</CardTitle>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={selectAllBoys}>
-                      All Boys
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={selectAllGirls}>
-                      All Girls
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={selectAllCategories}>
-                      Select All
-                    </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={clearAllCategories}>
-                      Clear All
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Select which junior categories will compete in this tournament:
-                </p>
-
-                {/* Boys Categories */}
-                <div className="mb-6">
-                  <h4 className="font-medium mb-3">Boys Categories</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').map(cat => (
-                      <label
-                        key={cat.code}
-                        className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all ${
-                          selectedCategories.has(cat.code)
-                            ? 'bg-primary/10 border-primary'
-                            : 'hover:bg-muted'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.has(cat.code)}
-                          onChange={() => toggleCategory(cat.code)}
-                          className="h-4 w-4"
-                        />
-                        <div>
-                          <div className="font-medium text-sm">{cat.code}</div>
-                          <div className="text-xs text-muted-foreground">{cat.name}</div>
-                        </div>
-                        {selectedCategories.has(cat.code) && (
-                          <CheckCircle2 className="h-4 w-4 ml-auto text-primary" />
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Girls Categories */}
-                <div>
-                  <h4 className="font-medium mb-3">Girls Categories</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').map(cat => (
-                      <label
-                        key={cat.code}
-                        className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all ${
-                          selectedCategories.has(cat.code)
-                            ? 'bg-primary/10 border-primary'
-                            : 'hover:bg-muted'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.has(cat.code)}
-                          onChange={() => toggleCategory(cat.code)}
-                          className="h-4 w-4"
-                        />
-                        <div>
-                          <div className="font-medium text-sm">{cat.code}</div>
-                          <div className="text-xs text-muted-foreground">{cat.name}</div>
-                        </div>
-                        {selectedCategories.has(cat.code) && (
-                          <CheckCircle2 className="h-4 w-4 ml-auto text-primary" />
-                        )}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Category Settings */}
-                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                  <h4 className="font-medium mb-3">Category Settings (applies to all selected)</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Draw Type</label>
-                      <select
-                        value={drawType}
-                        onChange={(e) => setDrawType(e.target.value as DrawType)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="single_elimination">Single Elimination</option>
-                        <option value="round_robin">Round Robin</option>
-                        <option value="feed_in">Feed-in (Compass)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Max Entries per Category</label>
-                      <Input
-                        type="number"
-                        min="4"
-                        value={maxEntries}
-                        onChange={(e) => setMaxEntries(Number(e.target.value))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Selected Categories Summary */}
-                {selectedCategories.size > 0 && (
-                  <div className="mt-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                      {selectedCategories.size} {selectedCategories.size === 1 ? 'category' : 'categories'} selected
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Custom Categories (Optional) */}
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Additional Categories (Optional)</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Add senior, madalas, or other custom categories
-                    </p>
-                  </div>
-                  <Button type="button" variant="outline" onClick={() => setShowCustomCategoryForm(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Custom
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {customCategories.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-4 text-sm">
-                    No custom categories added
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {customCategories.map((category, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <div className="font-medium">{category.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {category.type} • {category.gender} • {category.drawType?.replace('_', ' ')}
-                          </div>
-                        </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeCustomCategory(index)}>
-                          <Plus className="h-4 w-4 rotate-45" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Additional Details */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Additional Details (Optional)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Tournament Rules</label>
-                  <textarea
-                    value={formData.rules}
-                    onChange={(e) => setFormData({ ...formData, rules: e.target.value })}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    placeholder="Special rules or regulations"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Prizes</label>
-                  <textarea
-                    value={formData.prizes}
-                    onChange={(e) => setFormData({ ...formData, prizes: e.target.value })}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    placeholder="Prize information"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Submit */}
-            <div className="flex gap-4">
-              <Button
-                type="submit"
-                disabled={loading || (selectedCategories.size === 0 && customCategories.length === 0)}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {loading ? 'Creating...' : 'Create Tournament'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/admin/tournaments')}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      {showCustomCategoryForm && (
-        <CategoryFormModal
-          onClose={() => setShowCustomCategoryForm(false)}
-          onSubmit={addCustomCategory}
-        />
-      )}
-    </div>
-  )
-}
-
-function CategoryFormModal({
-  onClose,
-  onSubmit
-}: {
-  onClose: () => void
-  onSubmit: (category: Partial<TournamentCategory>) => void
-}) {
-  const [formData, setFormData] = useState<Partial<TournamentCategory>>({
-    name: '',
-    type: 'junior',
-    gender: 'boys',
-    ageGroup: 'U10',
-    drawType: 'single_elimination',
-    maxEntries: 32,
-    specialRules: []
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSubmit(formData)
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-      <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <CardHeader>
-          <CardTitle>Add Category</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Category Name</label>
-              <Input
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g., Boys U12 Singles"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Information */}
+          <Card className="border-t-4 border-t-primary">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Tournament Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Type</label>
-                <select
-                  required
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as CategoryType })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="junior">Junior</option>
-                  <option value="senior">Senior</option>
-                  <option value="madalas">Madalas</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Gender</label>
-                <select
-                  required
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value as Gender })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="boys">Boys</option>
-                  <option value="girls">Girls</option>
-                  <option value="mens">Mens</option>
-                  <option value="womens">Womens</option>
-                  <option value="mixed">Mixed</option>
-                </select>
-              </div>
-            </div>
-
-            {formData.type === 'junior' && (
-              <div>
-                <label className="block text-sm font-medium mb-2">Age Group</label>
-                <select
-                  required
-                  value={formData.ageGroup}
-                  onChange={(e) => setFormData({ ...formData, ageGroup: e.target.value as AgeGroup })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="U10">U10</option>
-                  <option value="U12">U12</option>
-                  <option value="U14">U14</option>
-                  <option value="U16">U16</option>
-                  <option value="U18">U18</option>
-                </select>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Draw Type</label>
-                <select
-                  required
-                  value={formData.drawType}
-                  onChange={(e) => setFormData({ ...formData, drawType: e.target.value as DrawType })}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="single_elimination">Single Elimination</option>
-                  <option value="round_robin">Round Robin</option>
-                  <option value="feed_in">Feed-in (Compass)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Max Entries</label>
+                <label className="block text-sm font-medium mb-2">
+                  Tournament Name <span className="text-red-500">*</span>
+                </label>
                 <Input
-                  type="number"
-                  min="4"
                   required
-                  value={formData.maxEntries}
-                  onChange={(e) => setFormData({ ...formData, maxEntries: Number(e.target.value) })}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., ZTA National Junior Championships 2025"
+                  className="text-lg"
                 />
               </div>
-            </div>
 
-            <div className="flex gap-4 pt-4">
-              <Button type="submit">Add Category</Button>
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Description <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Brief description of the tournament..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Dates */}
+          <Card className="border-t-4 border-t-blue-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Dates & Deadlines
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Start Date <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    required
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    End Date <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    required
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Entry Deadline <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="date"
+                    required
+                    value={entryDeadline}
+                    onChange={(e) => setEntryDeadline(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Location */}
+          <Card className="border-t-4 border-t-green-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Tournament Location
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Venue <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    required
+                    value={venue}
+                    onChange={(e) => setVenue(e.target.value)}
+                    placeholder="e.g., Lusaka Tennis Club"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    City <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    required
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g., Lusaka"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Province <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    required
+                    value={province}
+                    onChange={(e) => setProvince(e.target.value)}
+                    placeholder="e.g., Lusaka"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contact & Entry Fee */}
+          <Card className="border-t-4 border-t-purple-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="h-5 w-5" />
+                Contact Information & Entry Fee
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Organizer <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  required
+                  value={organizer}
+                  onChange={(e) => setOrganizer(e.target.value)}
+                  placeholder="e.g., Zambia Tennis Association"
+                />
+              </div>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Contact Email <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="email"
+                    required
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="tournaments@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Contact Phone <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    type="tel"
+                    required
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="+260 xxx xxx xxx"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Entry Fee (K)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={entryFee}
+                    onChange={(e) => setEntryFee(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Categories Selection */}
+          <Card className="border-t-4 border-t-orange-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Select Categories
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                Choose which age categories will compete (age as of December 31st, {new Date(startDate || Date.now()).getFullYear()})
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Quick Actions */}
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={selectAll} size="sm" variant="secondary">
+                  Select All 10 Categories
+                </Button>
+                <Button type="button" onClick={selectAllBoys} size="sm" variant="outline">
+                  All Boys (5)
+                </Button>
+                <Button type="button" onClick={selectAllGirls} size="sm" variant="outline">
+                  All Girls (5)
+                </Button>
+                <Button type="button" onClick={clearAll} size="sm" variant="ghost">
+                  Clear All
+                </Button>
+              </div>
+
+              {/* Boys Categories */}
+              <div>
+                <h4 className="font-semibold mb-3 text-blue-600 dark:text-blue-400">Boys Categories</h4>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').map(cat => (
+                    <label
+                      key={cat.code}
+                      className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedCategories.has(cat.code)
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.has(cat.code)}
+                        onChange={() => toggleCategory(cat.code)}
+                        className="sr-only"
+                      />
+                      <div className="text-center">
+                        <div className="text-2xl font-bold mb-1">{cat.code}</div>
+                        <div className="text-xs text-muted-foreground">{cat.maxAge} & Under</div>
+                      </div>
+                      {selectedCategories.has(cat.code) && (
+                        <div className="absolute top-2 right-2 h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center">
+                          <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                            <path d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        </div>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Girls Categories */}
+              <div>
+                <h4 className="font-semibold mb-3 text-pink-600 dark:text-pink-400">Girls Categories</h4>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').map(cat => (
+                    <label
+                      key={cat.code}
+                      className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedCategories.has(cat.code)
+                          ? 'border-pink-500 bg-pink-50 dark:bg-pink-950'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.has(cat.code)}
+                        onChange={() => toggleCategory(cat.code)}
+                        className="sr-only"
+                      />
+                      <div className="text-center">
+                        <div className="text-2xl font-bold mb-1">{cat.code}</div>
+                        <div className="text-xs text-muted-foreground">{cat.maxAge} & Under</div>
+                      </div>
+                      {selectedCategories.has(cat.code) && (
+                        <div className="absolute top-2 right-2 h-5 w-5 bg-pink-500 rounded-full flex items-center justify-center">
+                          <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                            <path d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        </div>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Selected Count */}
+              {selectedCategories.size > 0 && (
+                <div className="flex items-center gap-2 p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                  <svg className="h-5 w-5 text-green-600" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span className="font-medium text-green-900 dark:text-green-100">
+                    {selectedCategories.size} {selectedCategories.size === 1 ? 'category' : 'categories'} selected
+                  </span>
+                </div>
+              )}
+
+              {/* Category Settings */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+                <h4 className="font-semibold">Category Settings (applies to all selected)</h4>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Draw Format</label>
+                    <select
+                      value={drawType}
+                      onChange={(e) => setDrawType(e.target.value as any)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="single_elimination">Single Elimination (Knockout)</option>
+                      <option value="round_robin">Round Robin (Everyone plays everyone)</option>
+                      <option value="feed_in">Feed-in (Compass Draw)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Max Players per Category</label>
+                    <select
+                      value={maxEntries}
+                      onChange={(e) => setMaxEntries(Number(e.target.value))}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="8">8 players</option>
+                      <option value="16">16 players</option>
+                      <option value="32">32 players</option>
+                      <option value="64">64 players</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Optional Details */}
+          <Card className="border-t-4 border-t-yellow-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Additional Information (Optional)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Tournament Rules</label>
+                <textarea
+                  value={rules}
+                  onChange={(e) => setRules(e.target.value)}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Any special rules or regulations..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Prizes</label>
+                <textarea
+                  value={prizes}
+                  onChange={(e) => setPrizes(e.target.value)}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="Prize information..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Submit Buttons */}
+          <div className="flex gap-4 justify-end sticky bottom-4 bg-white dark:bg-gray-900 p-4 rounded-lg border shadow-lg">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/admin/tournaments')}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || selectedCategories.size === 0}
+              className="min-w-[200px]"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Creating Tournament...' : 'Create Tournament'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
