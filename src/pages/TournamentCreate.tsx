@@ -36,10 +36,34 @@ export function TournamentCreate() {
     setLoading(true)
 
     try {
-      // Create tournament with all form data and categories
+      // Calculate December 31st of tournament start year for age calculation
+      const tournamentYear = new Date(formData.startDate).getFullYear()
+      const dec31 = new Date(tournamentYear, 11, 31, 23, 59, 59)
+
+      // Enhance categories with categoryCode and ageCalculationDate
+      const enhancedCategories = categories.map(cat => {
+        const enhanced = { ...cat }
+
+        // Generate categoryCode for junior categories (e.g., B10U, G12U)
+        if (cat.type === 'junior' && cat.gender && cat.ageGroup) {
+          const genderPrefix = cat.gender === 'boys' ? 'B' : 'G'
+          const ageNumber = cat.ageGroup?.replace('U', '')
+          enhanced.categoryCode = `${genderPrefix}${ageNumber}U`
+
+          // Set age calculation date to December 31st of tournament year
+          enhanced.ageCalculationDate = dec31.toISOString()
+
+          // Set maxAge from ageGroup
+          enhanced.maxAge = parseInt(ageNumber || '0')
+        }
+
+        return enhanced
+      })
+
+      // Create tournament with all form data and enhanced categories
       await tournamentService.createTournament({
         ...formData,
-        categories
+        categories: enhancedCategories
       } as any)
 
       // Navigate back to tournament admin page on success
