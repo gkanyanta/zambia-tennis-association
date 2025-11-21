@@ -4,9 +4,23 @@ import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus, X, Save } from 'lucide-react'
+import { Plus, Save, CheckCircle2 } from 'lucide-react'
 import { tournamentService } from '@/services/tournamentService'
 import type { TournamentCategory, DrawType, CategoryType, Gender, AgeGroup } from '@/types/tournament'
+
+// Standard junior categories
+const JUNIOR_CATEGORIES = [
+  { code: 'B10U', name: 'Boys 10 & Under', gender: 'boys' as const, ageGroup: 'U10' as const },
+  { code: 'B12U', name: 'Boys 12 & Under', gender: 'boys' as const, ageGroup: 'U12' as const },
+  { code: 'B14U', name: 'Boys 14 & Under', gender: 'boys' as const, ageGroup: 'U14' as const },
+  { code: 'B16U', name: 'Boys 16 & Under', gender: 'boys' as const, ageGroup: 'U16' as const },
+  { code: 'B18U', name: 'Boys 18 & Under', gender: 'boys' as const, ageGroup: 'U18' as const },
+  { code: 'G10U', name: 'Girls 10 & Under', gender: 'girls' as const, ageGroup: 'U10' as const },
+  { code: 'G12U', name: 'Girls 12 & Under', gender: 'girls' as const, ageGroup: 'U12' as const },
+  { code: 'G14U', name: 'Girls 14 & Under', gender: 'girls' as const, ageGroup: 'U14' as const },
+  { code: 'G16U', name: 'Girls 16 & Under', gender: 'girls' as const, ageGroup: 'U16' as const },
+  { code: 'G18U', name: 'Girls 18 & Under', gender: 'girls' as const, ageGroup: 'U18' as const },
+]
 
 export function TournamentCreate() {
   const navigate = useNavigate()
@@ -27,12 +41,21 @@ export function TournamentCreate() {
     prizes: ''
   })
 
-  const [categories, setCategories] = useState<Partial<TournamentCategory>[]>([])
-  const [showCategoryForm, setShowCategoryForm] = useState(false)
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [drawType, setDrawType] = useState<DrawType>('single_elimination')
+  const [maxEntries, setMaxEntries] = useState(32)
+  const [customCategories, setCustomCategories] = useState<Partial<TournamentCategory>[]>([])
+  const [showCustomCategoryForm, setShowCustomCategoryForm] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (selectedCategories.size === 0 && customCategories.length === 0) {
+      alert('Please select at least one category for the tournament')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -40,30 +63,47 @@ export function TournamentCreate() {
       const tournamentYear = new Date(formData.startDate).getFullYear()
       const dec31 = new Date(tournamentYear, 11, 31, 23, 59, 59)
 
-      // Enhance categories with categoryCode and ageCalculationDate
-      const enhancedCategories = categories.map(cat => {
+      // Build categories from selected junior categories
+      const juniorCats = Array.from(selectedCategories).map(code => {
+        const cat = JUNIOR_CATEGORIES.find(c => c.code === code)!
+        const ageNumber = cat.ageGroup.replace('U', '')
+
+        return {
+          categoryCode: cat.code,
+          name: cat.name,
+          type: 'junior' as const,
+          gender: cat.gender,
+          ageGroup: cat.ageGroup,
+          maxAge: parseInt(ageNumber),
+          ageCalculationDate: dec31.toISOString(),
+          drawType,
+          maxEntries,
+          entries: []
+        }
+      })
+
+      // Enhance custom categories
+      const enhancedCustomCategories = customCategories.map(cat => {
         const enhanced = { ...cat }
 
-        // Generate categoryCode for junior categories (e.g., B10U, G12U)
         if (cat.type === 'junior' && cat.gender && cat.ageGroup) {
           const genderPrefix = cat.gender === 'boys' ? 'B' : 'G'
           const ageNumber = cat.ageGroup?.replace('U', '')
           enhanced.categoryCode = `${genderPrefix}${ageNumber}U`
-
-          // Set age calculation date to December 31st of tournament year
           enhanced.ageCalculationDate = dec31.toISOString()
-
-          // Set maxAge from ageGroup
           enhanced.maxAge = parseInt(ageNumber || '0')
         }
 
         return enhanced
       })
 
-      // Create tournament with all form data and enhanced categories
+      // Combine all categories
+      const allCategories = [...juniorCats, ...enhancedCustomCategories]
+
+      // Create tournament
       await tournamentService.createTournament({
         ...formData,
-        categories: enhancedCategories
+        categories: allCategories
       } as any)
 
       // Navigate back to tournament admin page on success
@@ -76,13 +116,43 @@ export function TournamentCreate() {
     }
   }
 
-  const addCategory = (category: Partial<TournamentCategory>) => {
-    setCategories([...categories, { ...category, id: `cat-${Date.now()}`, entries: [] }])
-    setShowCategoryForm(false)
+  const toggleCategory = (code: string) => {
+    const newSelected = new Set(selectedCategories)
+    if (newSelected.has(code)) {
+      newSelected.delete(code)
+    } else {
+      newSelected.add(code)
+    }
+    setSelectedCategories(newSelected)
   }
 
-  const removeCategory = (index: number) => {
-    setCategories(categories.filter((_, i) => i !== index))
+  const selectAllBoys = () => {
+    const newSelected = new Set(selectedCategories)
+    JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').forEach(c => newSelected.add(c.code))
+    setSelectedCategories(newSelected)
+  }
+
+  const selectAllGirls = () => {
+    const newSelected = new Set(selectedCategories)
+    JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').forEach(c => newSelected.add(c.code))
+    setSelectedCategories(newSelected)
+  }
+
+  const selectAllCategories = () => {
+    setSelectedCategories(new Set(JUNIOR_CATEGORIES.map(c => c.code)))
+  }
+
+  const clearAllCategories = () => {
+    setSelectedCategories(new Set())
+  }
+
+  const addCustomCategory = (category: Partial<TournamentCategory>) => {
+    setCustomCategories([...customCategories, category])
+    setShowCustomCategoryForm(false)
+  }
+
+  const removeCustomCategory = (index: number) => {
+    setCustomCategories(customCategories.filter((_, i) => i !== index))
   }
 
   return (
@@ -241,34 +311,166 @@ export function TournamentCreate() {
               </CardContent>
             </Card>
 
-            {/* Categories */}
+            {/* Junior Categories Selection */}
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Tournament Categories</CardTitle>
-                  <Button type="button" onClick={() => setShowCategoryForm(true)}>
+                  <CardTitle>Junior Categories</CardTitle>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={selectAllBoys}>
+                      All Boys
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={selectAllGirls}>
+                      All Girls
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={selectAllCategories}>
+                      Select All
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={clearAllCategories}>
+                      Clear All
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select which junior categories will compete in this tournament:
+                </p>
+
+                {/* Boys Categories */}
+                <div className="mb-6">
+                  <h4 className="font-medium mb-3">Boys Categories</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').map(cat => (
+                      <label
+                        key={cat.code}
+                        className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all ${
+                          selectedCategories.has(cat.code)
+                            ? 'bg-primary/10 border-primary'
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.has(cat.code)}
+                          onChange={() => toggleCategory(cat.code)}
+                          className="h-4 w-4"
+                        />
+                        <div>
+                          <div className="font-medium text-sm">{cat.code}</div>
+                          <div className="text-xs text-muted-foreground">{cat.name}</div>
+                        </div>
+                        {selectedCategories.has(cat.code) && (
+                          <CheckCircle2 className="h-4 w-4 ml-auto text-primary" />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Girls Categories */}
+                <div>
+                  <h4 className="font-medium mb-3">Girls Categories</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').map(cat => (
+                      <label
+                        key={cat.code}
+                        className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all ${
+                          selectedCategories.has(cat.code)
+                            ? 'bg-primary/10 border-primary'
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.has(cat.code)}
+                          onChange={() => toggleCategory(cat.code)}
+                          className="h-4 w-4"
+                        />
+                        <div>
+                          <div className="font-medium text-sm">{cat.code}</div>
+                          <div className="text-xs text-muted-foreground">{cat.name}</div>
+                        </div>
+                        {selectedCategories.has(cat.code) && (
+                          <CheckCircle2 className="h-4 w-4 ml-auto text-primary" />
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Category Settings */}
+                <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                  <h4 className="font-medium mb-3">Category Settings (applies to all selected)</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Draw Type</label>
+                      <select
+                        value={drawType}
+                        onChange={(e) => setDrawType(e.target.value as DrawType)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="single_elimination">Single Elimination</option>
+                        <option value="round_robin">Round Robin</option>
+                        <option value="feed_in">Feed-in (Compass)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Max Entries per Category</label>
+                      <Input
+                        type="number"
+                        min="4"
+                        value={maxEntries}
+                        onChange={(e) => setMaxEntries(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selected Categories Summary */}
+                {selectedCategories.size > 0 && (
+                  <div className="mt-4 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                      {selectedCategories.size} {selectedCategories.size === 1 ? 'category' : 'categories'} selected
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Custom Categories (Optional) */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>Additional Categories (Optional)</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Add senior, madalas, or other custom categories
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => setShowCustomCategoryForm(true)}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Category
+                    Add Custom
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                {categories.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No categories added yet. Click "Add Category" to create one.
+                {customCategories.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4 text-sm">
+                    No custom categories added
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {categories.map((category, index) => (
+                    {customCategories.map((category, index) => (
                       <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
                         <div>
                           <div className="font-medium">{category.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {category.type} • {category.gender} • {category.ageGroup || 'Open'} • {category.drawType?.replace('_', ' ')}
+                            {category.type} • {category.gender} • {category.drawType?.replace('_', ' ')}
                           </div>
                         </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeCategory(index)}>
-                          <X className="h-4 w-4" />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeCustomCategory(index)}>
+                          <Plus className="h-4 w-4 rotate-45" />
                         </Button>
                       </div>
                     ))}
@@ -306,7 +508,10 @@ export function TournamentCreate() {
 
             {/* Submit */}
             <div className="flex gap-4">
-              <Button type="submit" disabled={loading || categories.length === 0}>
+              <Button
+                type="submit"
+                disabled={loading || (selectedCategories.size === 0 && customCategories.length === 0)}
+              >
                 <Save className="h-4 w-4 mr-2" />
                 {loading ? 'Creating...' : 'Create Tournament'}
               </Button>
@@ -318,10 +523,10 @@ export function TournamentCreate() {
         </div>
       </section>
 
-      {showCategoryForm && (
+      {showCustomCategoryForm && (
         <CategoryFormModal
-          onClose={() => setShowCategoryForm(false)}
-          onSubmit={addCategory}
+          onClose={() => setShowCustomCategoryForm(false)}
+          onSubmit={addCustomCategory}
         />
       )}
     </div>
