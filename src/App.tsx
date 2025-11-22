@@ -33,6 +33,7 @@ import { TournamentCreate } from '@/pages/TournamentCreate'
 import { UserManagement } from '@/pages/UserManagement'
 import { ClubManagement } from '@/pages/ClubManagement'
 import { PlayerManagement } from '@/pages/PlayerManagement'
+import { RankingsImport } from '@/pages/RankingsImport'
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
               <Route path="/admin/tournaments" element={<TournamentAdmin />} />
               <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
               <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
+              <Route path="/admin/rankings/import" element={<RankingsImport />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />

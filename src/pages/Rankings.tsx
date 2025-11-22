@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Hero } from '@/components/Hero';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
-import { RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { RefreshCw, Plus, Trash2, Upload } from 'lucide-react';
 
 type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u';
 
@@ -27,15 +28,17 @@ const categories = [
 
 export function Rankings() {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<RankingCategory>('men_senior');
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     rank: 0,
-    name: '',
+    playerName: '',
     club: '',
-    points: 0
+    totalPoints: 0,
+    rankingPeriod: '2025'
   });
 
   useEffect(() => {
@@ -64,7 +67,7 @@ export function Rankings() {
       });
       alert('Ranking added successfully!');
       setShowAddForm(false);
-      setFormData({ rank: 0, name: '', club: '', points: 0 });
+      setFormData({ rank: 0, playerName: '', club: '', totalPoints: 0, rankingPeriod: '2025' });
       await fetchRankings();
     } catch (err: any) {
       alert(err.message || 'Failed to add ranking');
@@ -108,6 +111,10 @@ export function Rankings() {
           {/* Admin Controls */}
           {isAdmin && (
             <div className="flex gap-2 mb-6">
+              <Button onClick={() => navigate('/admin/rankings/import')}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import from CSV
+              </Button>
               <Button onClick={() => setShowAddForm(!showAddForm)}>
                 <Plus className="h-4 w-4 mr-2" />
                 {showAddForm ? 'Cancel' : 'Add Player'}
@@ -133,21 +140,20 @@ export function Rankings() {
                   />
                   <Input
                     placeholder="Player Name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.playerName}
+                    onChange={(e) => setFormData({ ...formData, playerName: e.target.value })}
                     required
                   />
                   <Input
                     placeholder="Club"
                     value={formData.club}
                     onChange={(e) => setFormData({ ...formData, club: e.target.value })}
-                    required
                   />
                   <Input
                     type="number"
                     placeholder="Points"
-                    value={formData.points || ''}
-                    onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) })}
+                    value={formData.totalPoints || ''}
+                    onChange={(e) => setFormData({ ...formData, totalPoints: parseInt(e.target.value) })}
                     required
                   />
                   <Button type="submit" className="md:col-span-4">Add to Rankings</Button>
@@ -200,13 +206,13 @@ export function Rankings() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="font-semibold text-foreground">{player.name}</div>
+                            <div className="font-semibold text-foreground">{player.playerName}</div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-muted-foreground">{player.club}</span>
+                            <span className="text-muted-foreground">{player.club || '-'}</span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <span className="font-mono font-semibold">{player.points}</span>
+                            <span className="font-mono font-semibold">{player.totalPoints}</span>
                           </td>
                           {isAdmin && (
                             <td className="px-6 py-4 text-center">
