@@ -25,7 +25,7 @@ interface ParsedRanking {
 }
 
 export function RankingsImport() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState('men_senior');
@@ -35,8 +35,15 @@ export function RankingsImport() {
   const [importResults, setImportResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Redirect if not authenticated
+  if (!isAuthenticated) {
+    navigate('/login');
+    return null;
+  }
+
   // Redirect if not admin
   if (!isAdmin) {
+    alert('You must be an admin to access this page');
     navigate('/');
     return null;
   }
@@ -122,7 +129,15 @@ export function RankingsImport() {
         setImportResults(null);
       }, 5000);
     } catch (err: any) {
-      setError(err.message || 'Failed to import rankings');
+      console.error('Import error:', err);
+      const errorMessage = err.message || 'Failed to import rankings';
+
+      if (errorMessage.includes('Not authorized') || errorMessage.includes('User not found')) {
+        setError('Your session has expired. Please log in again.');
+        setTimeout(() => navigate('/login'), 2000);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setImporting(false);
     }
