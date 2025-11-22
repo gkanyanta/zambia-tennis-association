@@ -25,7 +25,7 @@ interface ParsedRanking {
 }
 
 export function RankingsImport() {
-  const { isAdmin, isAuthenticated, user } = useAuth();
+  const { isAdmin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [category, setCategory] = useState('men_senior');

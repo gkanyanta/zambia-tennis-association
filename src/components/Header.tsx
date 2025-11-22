@@ -51,7 +51,7 @@ export function Header() {
     const timeout = setTimeout(() => {
       setCommunityDropdownOpen(false)
     }, 500) // 500ms delay before closing
-    setDropdownTimeout(timeout)
+    setDropdownTimeout(timeout as unknown as number)
   }
 
   return (
