@@ -1,39 +1,12 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Award, BookOpen, Users, GraduationCap } from 'lucide-react'
-
-const coaches = [
-  {
-    name: 'Michael Banda',
-    level: 'ITF Level 3',
-    specialization: 'High Performance',
-    location: 'Lusaka Tennis Club',
-    experience: '15 years',
-  },
-  {
-    name: 'Sarah Tembo',
-    level: 'ITF Level 2',
-    specialization: 'Junior Development',
-    location: 'Olympic Youth Development Centre',
-    experience: '10 years',
-  },
-  {
-    name: 'Patrick Mwale',
-    level: 'ITF Level 2',
-    specialization: 'Adult Programs',
-    location: 'Ndola Sports Complex',
-    experience: '12 years',
-  },
-  {
-    name: 'Grace Phiri',
-    level: 'ITF Level 1',
-    specialization: 'Beginner & Intermediate',
-    location: 'Kitwe Tennis Centre',
-    experience: '7 years',
-  },
-]
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Award, BookOpen, Users, GraduationCap, MapPin, Mail, Phone } from 'lucide-react'
+import { coachService, type Coach } from '@/services/coachService'
 
 const certificationLevels = [
   {
@@ -69,6 +42,38 @@ const certificationLevels = [
 ]
 
 export function Coaches() {
+  const navigate = useNavigate()
+  const [coaches, setCoaches] = useState<Coach[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterLevel, setFilterLevel] = useState<string>('all')
+  const [filterClub, setFilterClub] = useState<string>('all')
+
+  useEffect(() => {
+    fetchCoaches()
+  }, [])
+
+  const fetchCoaches = async () => {
+    try {
+      setLoading(true)
+      const data = await coachService.getActiveCoaches()
+      setCoaches(data)
+    } catch (err: any) {
+      console.error('Failed to load coaches:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredCoaches = coaches.filter(coach => {
+    const matchesLevel = filterLevel === 'all' || coach.itfLevel === filterLevel
+    const matchesClub = filterClub === 'all' || coach.club._id === filterClub
+    return matchesLevel && matchesClub
+  })
+
+  const uniqueClubs = Array.from(new Set(coaches.map(c => c.club._id)))
+    .map(id => coaches.find(c => c.club._id === id)?.club)
+    .filter(Boolean) as Array<{ _id: string; name: string }>
+
   return (
     <div className="flex flex-col">
       <Hero
@@ -80,7 +85,7 @@ export function Coaches() {
       {/* Coach Directory */}
       <section className="py-16">
         <div className="container-custom">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
             <div>
               <h2 className="text-3xl font-bold text-foreground mb-2">
                 Find a Coach
@@ -89,33 +94,107 @@ export function Coaches() {
                 Connect with certified coaches across Zambia
               </p>
             </div>
+
+            {/* Filters */}
+            <div className="flex gap-2">
+              <Select value={filterLevel} onValueChange={setFilterLevel}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="ITF Level 1">ITF Level 1</SelectItem>
+                  <SelectItem value="ITF Level 2">ITF Level 2</SelectItem>
+                  <SelectItem value="ITF Level 3">ITF Level 3</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={filterClub} onValueChange={setFilterClub}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by club" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clubs</SelectItem>
+                  {uniqueClubs.map((club) => (
+                    <SelectItem key={club._id} value={club._id}>{club.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-            {coaches.map((coach, index) => (
-              <Card key={index} className="card-elevated-hover">
-                <CardHeader>
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                    <Users className="h-8 w-8 text-primary" />
-                  </div>
-                  <CardTitle className="text-center">{coach.name}</CardTitle>
-                  <div className="flex justify-center">
-                    <Badge variant="default">{coach.level}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="text-center">
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <p><strong>Specialization:</strong> {coach.specialization}</p>
-                    <p><strong>Location:</strong> {coach.location}</p>
-                    <p><strong>Experience:</strong> {coach.experience}</p>
-                  </div>
-                  <Button className="w-full mt-4" variant="outline">
-                    Contact Coach
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading coaches...</p>
+            </div>
+          ) : filteredCoaches.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                No coaches found. {filterLevel !== 'all' || filterClub !== 'all' ? 'Try adjusting your filters.' : 'Check back soon!'}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+              {filteredCoaches.map((coach) => (
+                <Card
+                  key={coach._id}
+                  className="card-elevated-hover cursor-pointer"
+                  onClick={() => navigate(`/coaches/${coach._id}`)}
+                >
+                  <CardHeader>
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+                      <Users className="h-8 w-8 text-primary" />
+                    </div>
+                    <CardTitle className="text-center">{coach.fullName || `${coach.firstName} ${coach.lastName}`}</CardTitle>
+                    <div className="flex justify-center">
+                      <Badge variant="default">{coach.itfLevel}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="text-center">
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      {coach.specializations && coach.specializations.length > 0 && (
+                        <p><strong>Specialization:</strong> {coach.specializations[0]}</p>
+                      )}
+                      <p className="flex items-center justify-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {coach.club.name}
+                      </p>
+                      <p><strong>Experience:</strong> {coach.experience} years</p>
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                      {coach.preferredContactMethod !== 'phone' && (
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            window.location.href = `mailto:${coach.email}`
+                          }}
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {coach.preferredContactMethod !== 'email' && (
+                        <Button
+                          className="flex-1"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            window.location.href = `tel:${coach.phone}`
+                          }}
+                        >
+                          <Phone className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {/* Certification Levels */}
           <div className="mb-16">

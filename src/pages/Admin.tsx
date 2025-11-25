@@ -75,6 +75,13 @@ export function Admin() {
       color: 'text-indigo-500'
     },
     {
+      title: 'Manage Coaches',
+      description: 'Manage coaches, listings, and payments',
+      icon: Users,
+      action: () => navigate('/admin/coaches'),
+      color: 'text-orange-500'
+    },
+    {
       title: 'Payments',
       description: 'View membership and tournament payments',
       icon: DollarSign,

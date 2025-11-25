@@ -13,6 +13,9 @@ import { Calendar } from '@/pages/Calendar'
 import { Juniors } from '@/pages/Juniors'
 import { Madalas } from '@/pages/Madalas'
 import { Coaches } from '@/pages/Coaches'
+import { CoachDetail } from '@/pages/CoachDetail'
+import { CoachManagement } from '@/pages/CoachManagement'
+import { CoachListingSettings } from '@/pages/CoachListingSettings'
 import { Gallery } from '@/pages/Gallery'
 import { GalleryAdmin } from '@/pages/GalleryAdmin'
 import { Leagues } from '@/pages/Leagues'
@@ -22,6 +25,8 @@ import { Transformation } from '@/pages/Transformation'
 import { Rules } from '@/pages/Rules'
 import { About } from '@/pages/About'
 import { Contact } from '@/pages/Contact'
+import { Donate } from '@/pages/Donate'
+import { Sponsors } from '@/pages/Sponsors'
 import { Privacy } from '@/pages/Privacy'
 import { Terms } from '@/pages/Terms'
 import { NotFound } from '@/pages/NotFound'
@@ -50,6 +55,8 @@ function App() {
               <Route path="/admin/users" element={<UserManagement />} />
               <Route path="/admin/players" element={<PlayerManagement />} />
               <Route path="/admin/clubs" element={<ClubManagement />} />
+              <Route path="/admin/coaches" element={<CoachManagement />} />
+              <Route path="/admin/coach-settings" element={<CoachListingSettings />} />
               <Route path="/admin/tournaments" element={<TournamentAdmin />} />
               <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
               <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
@@ -67,12 +74,16 @@ function App() {
               <Route path="/juniors" element={<Juniors />} />
               <Route path="/madalas" element={<Madalas />} />
               <Route path="/coaches" element={<Coaches />} />
+              <Route path="/coaches/:id" element={<CoachDetail />} />
               <Route path="/gallery" element={<Gallery />} />
               <Route path="/gallery/manage" element={<GalleryAdmin />} />
               <Route path="/transformation" element={<Transformation />} />
               <Route path="/rules" element={<Rules />} />
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/donate" element={<Donate />} />
+              <Route path="/sponsors" element={<Sponsors />} />
+              <Route path="/partnerships" element={<Sponsors />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="*" element={<NotFound />} />

@@ -34,6 +34,8 @@ import membershipPaymentRoutes from './routes/membershipPayments.js';
 import settingsRoutes from './routes/settings.js';
 import uploadRoutes from './routes/upload.js';
 import galleryRoutes from './routes/gallery.js';
+import coachRoutes from './routes/coaches.js';
+import coachListingRoutes from './routes/coachListings.js';
 
 // Initialize app
 const app = express();
@@ -90,6 +92,8 @@ app.use('/api/membership-payments', membershipPaymentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/gallery', galleryRoutes);
+app.use('/api/coaches', coachRoutes);
+app.use('/api/coach-listings', coachListingRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

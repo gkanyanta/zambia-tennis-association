@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown } from 'lucide-react'
+import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -152,6 +152,25 @@ export function Header() {
             )}
           </div>
 
+          {/* Donate Button */}
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => navigate('/donate')}
+            className="bg-primary hover:bg-primary/90 hidden xl:flex"
+          >
+            <Heart className="h-4 w-4 mr-2" />
+            Donate
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => navigate('/donate')}
+            className="xl:hidden"
+          >
+            <Heart className="h-4 w-4" />
+          </Button>
+
           {/* Auth buttons */}
           <div className="flex items-center gap-2 lg:gap-3 ml-2 lg:ml-4 border-l pl-2 lg:pl-4">
             {isAuthenticated ? (
@@ -244,6 +263,19 @@ export function Header() {
                 </Link>
               ))}
             </div>
+
+            {/* Mobile Donate Button */}
+            <Button
+              variant="default"
+              className="w-full justify-start mt-3"
+              onClick={() => {
+                navigate('/donate')
+                setMobileMenuOpen(false)
+              }}
+            >
+              <Heart className="h-4 w-4 mr-2" />
+              Donate to ZTA
+            </Button>
 
             {/* Mobile auth */}
             <div className="border-t mt-3 pt-3 space-y-2">

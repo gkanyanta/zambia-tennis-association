@@ -1,122 +1,278 @@
+import { useState, useEffect } from 'react'
 import { Hero } from '@/components/Hero'
-import { MembershipCard } from '@/components/MembershipCard'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { MapPin, Phone, Mail, Users, Building2 } from 'lucide-react'
+import { clubService, type Club } from '@/services/clubService'
 
-const membershipTiers = [
-  {
-    name: 'Junior Membership',
-    description: 'For players under 18 years old',
-    price: '200',
-    period: 'year',
-    benefits: [
-      'Access to all ZTA junior tournaments',
-      'Eligibility for national rankings',
-      'Junior development program access',
-      'Discounted coaching sessions',
-      'Free tournament entry for selected events',
-      'ZTA junior membership card and certificate',
-      'Access to member-only training sessions',
-    ],
+type Region = 'northern' | 'southern' | 'all'
+
+const REGIONS = {
+  northern: {
+    name: 'Northern Region',
+    description: 'Copperbelt and surrounding areas',
+    provinces: ['Copperbelt', 'Northern', 'Luapula', 'Muchinga']
   },
-  {
-    name: 'Adult Membership',
-    description: 'For players 18 years and older',
-    price: '400',
-    period: 'year',
-    benefits: [
-      'Access to all ZTA adult tournaments',
-      'Eligibility for national rankings',
-      'Priority tournament registration',
-      'Access to member-only events',
-      'ZTA membership card and certificate',
-      'Voting rights at AGM',
-      'Monthly newsletter subscription',
-      'Insurance coverage during ZTA events',
-      'Discounted merchandise',
-    ],
-    featured: true,
-  },
-  {
-    name: 'Family Membership',
-    description: 'For families with multiple players',
-    price: '750',
-    period: 'year',
-    benefits: [
-      'Coverage for up to 4 family members',
-      'All benefits of individual memberships',
-      'Additional discount on coaching packages',
-      'Priority access to family tournaments',
-      'Complimentary guest passes (4 per year)',
-      'Family locker room access',
-      'Special family event invitations',
-      'Discounted merchandise',
-    ],
-  },
-]
+  southern: {
+    name: 'Southern Region',
+    description: 'Lusaka and surrounding areas',
+    provinces: ['Lusaka', 'Southern', 'Central', 'Eastern', 'Western']
+  }
+}
 
 export function Membership() {
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedRegion, setSelectedRegion] = useState<Region>('all')
+
+  useEffect(() => {
+    fetchClubs()
+  }, [])
+
+  const fetchClubs = async () => {
+    try {
+      setLoading(true)
+      const data = await clubService.getClubs()
+      setClubs(data.filter(club => club.status === 'active'))
+    } catch (err: any) {
+      console.error('Failed to load clubs:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getClubRegion = (club: Club): Region => {
+    if (!club.province) return 'southern' // Default to southern
+
+    const province = club.province.toLowerCase()
+    if (REGIONS.northern.provinces.some(p => p.toLowerCase() === province)) {
+      return 'northern'
+    }
+    return 'southern'
+  }
+
+  const filteredClubs = clubs.filter(club => {
+    if (selectedRegion === 'all') return true
+    return getClubRegion(club) === selectedRegion
+  })
+
+  const clubsByRegion = {
+    northern: clubs.filter(club => getClubRegion(club) === 'northern'),
+    southern: clubs.filter(club => getClubRegion(club) === 'southern')
+  }
+
   return (
     <div className="flex flex-col">
       <Hero
-        title="Become a ZTA Member"
-        description="Join Zambia's premier tennis community and unlock exclusive benefits, tournaments, and opportunities"
+        title="Join a Tennis Club"
+        description="ZTA membership is through affiliated clubs. Choose your region to find a club near you."
         gradient
       />
 
       <section className="py-16">
         <div className="container-custom">
-          <div className="text-center mb-12">
+          {/* Introduction */}
+          <div className="text-center mb-12 max-w-3xl mx-auto">
             <h2 className="text-3xl font-bold text-foreground mb-4">
-              Choose Your Membership
+              How to Become a Member
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Select the membership tier that best fits your tennis journey. All memberships
-              include access to our growing network of clubs and facilities.
+            <p className="text-muted-foreground mb-6">
+              The Zambia Tennis Association operates through a network of affiliated clubs across the country.
+              To become a ZTA member, you need to register with one of our member clubs in your region.
             </p>
+            <div className="bg-primary/10 rounded-lg p-6 text-left">
+              <h3 className="font-semibold text-foreground mb-3">Membership Benefits:</h3>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">✓</span>
+                  <span>Access to all ZTA tournaments and competitions</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">✓</span>
+                  <span>Eligibility for national rankings</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">✓</span>
+                  <span>Access to coaching and development programs</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">✓</span>
+                  <span>Official ZTA membership recognition</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">✓</span>
+                  <span>Access to club facilities and activities</span>
+                </li>
+              </ul>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-            {membershipTiers.map((tier, index) => (
-              <div key={index} className={tier.featured ? 'md:-mt-4' : ''}>
-                <MembershipCard
-                  {...tier}
-                  onJoin={() => alert(`Joining ${tier.name} - Payment integration coming soon!`)}
-                />
-              </div>
-            ))}
+          {/* Region Selection */}
+          <div className="flex justify-center gap-4 mb-12">
+            <Button
+              variant={selectedRegion === 'all' ? 'default' : 'outline'}
+              onClick={() => setSelectedRegion('all')}
+              size="lg"
+            >
+              All Regions ({clubs.length})
+            </Button>
+            <Button
+              variant={selectedRegion === 'northern' ? 'default' : 'outline'}
+              onClick={() => setSelectedRegion('northern')}
+              size="lg"
+            >
+              Northern Region ({clubsByRegion.northern.length})
+            </Button>
+            <Button
+              variant={selectedRegion === 'southern' ? 'default' : 'outline'}
+              onClick={() => setSelectedRegion('southern')}
+              size="lg"
+            >
+              Southern Region ({clubsByRegion.southern.length})
+            </Button>
           </div>
 
-          {/* Additional Benefits */}
-          <div className="bg-muted/50 rounded-lg p-8">
+          {/* Region Info */}
+          {selectedRegion !== 'all' && (
+            <div className="mb-8 bg-muted/50 rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                {REGIONS[selectedRegion].name}
+              </h3>
+              <p className="text-muted-foreground">
+                {REGIONS[selectedRegion].description}
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Covers: {REGIONS[selectedRegion].provinces.join(', ')}
+              </p>
+            </div>
+          )}
+
+          {/* Clubs List */}
+          {loading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading clubs...</p>
+            </div>
+          ) : filteredClubs.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                No clubs found in this region.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredClubs.map((club) => (
+                <Card key={club._id} className="card-elevated-hover">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg mb-2">{club.name}</CardTitle>
+                        <Badge variant="secondary" className="mb-2">
+                          {getClubRegion(club) === 'northern' ? 'Northern Region' : 'Southern Region'}
+                        </Badge>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Building2 className="h-6 w-6 text-primary" />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Location */}
+                    {(club.city || club.province) && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <span className="text-muted-foreground">
+                          {[club.city, club.province].filter(Boolean).join(', ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Contact Person */}
+                    {club.contactPerson && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <Users className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="text-xs text-muted-foreground">Contact Person</div>
+                          <div className="font-medium">{club.contactPerson}</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Contact Details */}
+                    <div className="space-y-2 pt-2 border-t">
+                      {club.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <a
+                            href={`tel:${club.phone}`}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            {club.phone}
+                          </a>
+                        </div>
+                      )}
+                      {club.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <a
+                            href={`mailto:${club.email}`}
+                            className="text-sm text-primary hover:underline truncate"
+                          >
+                            {club.email}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Member Count */}
+                    {club.memberCount > 0 && (
+                      <div className="pt-2 border-t">
+                        <div className="text-xs text-muted-foreground">Current Members</div>
+                        <div className="text-lg font-semibold text-foreground">{club.memberCount}</div>
+                      </div>
+                    )}
+
+                    {/* Action Button */}
+                    <Button className="w-full" variant="default">
+                      Contact Club
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Additional Info */}
+          <div className="mt-16 bg-muted/50 rounded-lg p-8">
             <h3 className="text-2xl font-bold text-foreground mb-6 text-center">
-              All Members Enjoy
+              Next Steps
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
               <div className="text-center">
-                <div className="text-4xl mb-2">🎾</div>
-                <h4 className="font-semibold text-foreground mb-1">Official Recognition</h4>
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+                  <span className="text-xl font-bold text-primary">1</span>
+                </div>
+                <h4 className="font-semibold text-foreground mb-2">Choose a Club</h4>
                 <p className="text-sm text-muted-foreground">
-                  Recognized by the International Tennis Federation
+                  Select a club in your region from the list above
                 </p>
               </div>
               <div className="text-center">
-                <div className="text-4xl mb-2">🏆</div>
-                <h4 className="font-semibold text-foreground mb-1">Tournament Access</h4>
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+                  <span className="text-xl font-bold text-primary">2</span>
+                </div>
+                <h4 className="font-semibold text-foreground mb-2">Contact the Club</h4>
                 <p className="text-sm text-muted-foreground">
-                  Compete in sanctioned tournaments nationwide
+                  Reach out using the contact details provided
                 </p>
               </div>
               <div className="text-center">
-                <div className="text-4xl mb-2">📊</div>
-                <h4 className="font-semibold text-foreground mb-1">National Rankings</h4>
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+                  <span className="text-xl font-bold text-primary">3</span>
+                </div>
+                <h4 className="font-semibold text-foreground mb-2">Register & Play</h4>
                 <p className="text-sm text-muted-foreground">
-                  Track your progress with official rankings
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="text-4xl mb-2">🤝</div>
-                <h4 className="font-semibold text-foreground mb-1">Community</h4>
-                <p className="text-sm text-muted-foreground">
-                  Connect with players across Zambia
+                  Complete your club registration and start playing
                 </p>
               </div>
             </div>
