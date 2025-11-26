@@ -183,6 +183,27 @@ export function CoachDetail() {
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Profile Image */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex justify-center">
+                    <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-border">
+                      {coach.profileImage ? (
+                        <img
+                          src={coach.profileImage}
+                          alt={`${coach.firstName} ${coach.lastName}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                          <Award className="h-16 w-16 text-primary" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Contact Info */}
               <Card>
                 <CardHeader>

@@ -1,7 +1,19 @@
+import { useState } from 'react'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Heart, Users, Trophy, GraduationCap, Building2, Sparkles } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Heart, Users, Trophy, GraduationCap, Building2, Sparkles, CreditCard, Loader2 } from 'lucide-react'
+import { donationService } from '@/services/donationService'
 
 const impactAreas = [
   {
@@ -54,6 +66,49 @@ const donationOptions = [
 ]
 
 export function Donate() {
+  const [donationForm, setDonationForm] = useState({
+    amount: '',
+    donorName: '',
+    donorEmail: '',
+    donorPhone: '',
+    donationType: 'general' as 'general' | 'youth_development' | 'tournament_support' | 'coach_education' | 'infrastructure',
+    message: '',
+    isAnonymous: false
+  })
+  const [processing, setProcessing] = useState(false)
+  const [showOnlineForm, setShowOnlineForm] = useState(false)
+
+  const handleQuickAmount = (amount: number) => {
+    setDonationForm({ ...donationForm, amount: amount.toString() })
+    setShowOnlineForm(true)
+  }
+
+  const handleDonationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setProcessing(true)
+
+    try {
+      const response = await donationService.initializeDonation({
+        amount: parseFloat(donationForm.amount),
+        donorName: donationForm.donorName,
+        donorEmail: donationForm.donorEmail,
+        donorPhone: donationForm.donorPhone,
+        donationType: donationForm.donationType,
+        message: donationForm.message,
+        isAnonymous: donationForm.isAnonymous
+      })
+
+      if (response.success && response.paymentLink) {
+        // Redirect to Flutterwave payment page
+        window.location.href = response.paymentLink
+      }
+    } catch (error: any) {
+      console.error('Donation error:', error)
+      alert(error.response?.data?.message || 'Failed to process donation. Please try again.')
+      setProcessing(false)
+    }
+  }
+
   return (
     <div className="flex flex-col">
       <Hero
@@ -116,25 +171,187 @@ export function Donate() {
                 {donationOptions.map((option, index) => (
                   <div
                     key={index}
-                    className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                    onClick={() => handleQuickAmount(parseInt(option.amount.replace(/[^\d]/g, '')) || 0)}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 flex-1">
                       <Sparkles className="h-5 w-5 text-primary mt-1 flex-shrink-0" />
                       <div>
                         <div className="font-semibold text-foreground mb-1">{option.amount}</div>
                         <div className="text-sm text-muted-foreground">{option.impact}</div>
                       </div>
                     </div>
+                    <Button variant="outline" size="sm">
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Donate
+                    </Button>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
+          {/* Online Donation Form */}
+          {showOnlineForm && (
+            <Card className="mb-12 border-primary/50">
+              <CardHeader className="bg-primary/5">
+                <CardTitle className="text-center text-2xl flex items-center justify-center gap-2">
+                  <CreditCard className="h-6 w-6" />
+                  Donate Online
+                </CardTitle>
+                <p className="text-center text-muted-foreground">
+                  Secure payment via Flutterwave - Supports cards, mobile money (MTN, Airtel, Zamtel), and bank transfers
+                </p>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <form onSubmit={handleDonationSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="amount">Donation Amount (ZMW) *</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        min="1"
+                        value={donationForm.amount}
+                        onChange={(e) => setDonationForm({ ...donationForm, amount: e.target.value })}
+                        placeholder="Enter amount"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="donationType">Donation Purpose</Label>
+                      <Select
+                        value={donationForm.donationType}
+                        onValueChange={(value: any) => setDonationForm({ ...donationForm, donationType: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General Support</SelectItem>
+                          <SelectItem value="youth_development">Youth Development</SelectItem>
+                          <SelectItem value="tournament_support">Tournament Support</SelectItem>
+                          <SelectItem value="coach_education">Coach Education</SelectItem>
+                          <SelectItem value="infrastructure">Infrastructure</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="donorName">Full Name *</Label>
+                      <Input
+                        id="donorName"
+                        value={donationForm.donorName}
+                        onChange={(e) => setDonationForm({ ...donationForm, donorName: e.target.value })}
+                        placeholder="Enter your name"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="donorEmail">Email Address *</Label>
+                      <Input
+                        id="donorEmail"
+                        type="email"
+                        value={donationForm.donorEmail}
+                        onChange={(e) => setDonationForm({ ...donationForm, donorEmail: e.target.value })}
+                        placeholder="your.email@example.com"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="donorPhone">Phone Number (Optional)</Label>
+                    <Input
+                      id="donorPhone"
+                      type="tel"
+                      value={donationForm.donorPhone}
+                      onChange={(e) => setDonationForm({ ...donationForm, donorPhone: e.target.value })}
+                      placeholder="+260 XXX XXXXXX"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="message">Message (Optional)</Label>
+                    <Textarea
+                      id="message"
+                      value={donationForm.message}
+                      onChange={(e) => setDonationForm({ ...donationForm, message: e.target.value })}
+                      placeholder="Share why you're supporting ZTA..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="isAnonymous"
+                      checked={donationForm.isAnonymous}
+                      onChange={(e) => setDonationForm({ ...donationForm, isAnonymous: e.target.checked })}
+                      className="rounded border-gray-300"
+                    />
+                    <Label htmlFor="isAnonymous" className="font-normal">
+                      Make this donation anonymous
+                    </Label>
+                  </div>
+
+                  <div className="flex justify-center gap-4 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowOnlineForm(false)}
+                      disabled={processing}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" size="lg" disabled={processing}>
+                      {processing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Proceed to Payment
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Show Online Donation Button */}
+          {!showOnlineForm && (
+            <div className="mb-12 text-center">
+              <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30">
+                <CardContent className="pt-8 pb-8">
+                  <h3 className="text-2xl font-bold text-foreground mb-4">
+                    Donate Online Securely
+                  </h3>
+                  <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
+                    Make an instant donation using your card, mobile money (MTN, Airtel, Zamtel), or bank transfer
+                  </p>
+                  <Button size="lg" onClick={() => setShowOnlineForm(true)}>
+                    <CreditCard className="h-5 w-5 mr-2" />
+                    Donate Online Now
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Bank Details */}
           <Card className="mb-12 border-primary/20">
             <CardHeader className="bg-primary/5">
-              <CardTitle className="text-center text-2xl">How to Donate</CardTitle>
+              <CardTitle className="text-center text-2xl">Alternative: Direct Bank Transfer</CardTitle>
+              <p className="text-center text-muted-foreground text-sm">
+                Prefer to donate directly? Use our bank account details below
+              </p>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="space-y-6">

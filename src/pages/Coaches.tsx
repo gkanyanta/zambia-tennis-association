@@ -143,8 +143,18 @@ export function Coaches() {
                   onClick={() => navigate(`/coaches/${coach._id}`)}
                 >
                   <CardHeader>
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                      <Users className="h-8 w-8 text-primary" />
+                    <div className="w-16 h-16 rounded-full mb-4 mx-auto overflow-hidden border-2 border-border">
+                      {coach.profileImage ? (
+                        <img
+                          src={coach.profileImage}
+                          alt={`${coach.firstName} ${coach.lastName}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                          <Users className="h-8 w-8 text-primary" />
+                        </div>
+                      )}
                     </div>
                     <CardTitle className="text-center">{coach.fullName || `${coach.firstName} ${coach.lastName}`}</CardTitle>
                     <div className="flex justify-center">

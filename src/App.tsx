@@ -26,6 +26,7 @@ import { Rules } from '@/pages/Rules'
 import { About } from '@/pages/About'
 import { Contact } from '@/pages/Contact'
 import { Donate } from '@/pages/Donate'
+import { DonateVerify } from '@/pages/DonateVerify'
 import { Sponsors } from '@/pages/Sponsors'
 import { Privacy } from '@/pages/Privacy'
 import { Terms } from '@/pages/Terms'
@@ -82,6 +83,7 @@ function App() {
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/donate" element={<Donate />} />
+              <Route path="/donate/verify" element={<DonateVerify />} />
               <Route path="/sponsors" element={<Sponsors />} />
               <Route path="/partnerships" element={<Sponsors />} />
               <Route path="/privacy" element={<Privacy />} />

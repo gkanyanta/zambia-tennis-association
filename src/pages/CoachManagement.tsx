@@ -8,10 +8,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Search, Plus, Edit, Trash2, CheckCircle, XCircle, DollarSign, Clock } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, CheckCircle, XCircle, DollarSign, Clock, X, User } from 'lucide-react'
 import { coachService, type Coach } from '@/services/coachService'
 import { clubService, type Club } from '@/services/clubService'
 import { CoachListingPaymentForm } from '@/components/CoachListingPaymentForm'
+import { uploadService } from '@/services/uploadService'
 
 export function CoachManagement() {
   const [coaches, setCoaches] = useState<Coach[]>([])
@@ -39,8 +40,11 @@ export function CoachManagement() {
     languages: '',
     preferredContactMethod: 'both' as 'email' | 'phone' | 'both',
     availableForBooking: true,
-    status: 'active' as 'active' | 'inactive'
+    status: 'active' as 'active' | 'inactive',
+    profileImage: ''
   })
+
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -77,7 +81,8 @@ export function CoachManagement() {
       languages: '',
       preferredContactMethod: 'both',
       availableForBooking: true,
-      status: 'active'
+      status: 'active',
+      profileImage: ''
     })
     setShowModal(true)
   }
@@ -97,9 +102,35 @@ export function CoachManagement() {
       languages: coach.languages?.join(', ') || '',
       preferredContactMethod: coach.preferredContactMethod,
       availableForBooking: coach.availableForBooking,
-      status: coach.status
+      status: coach.status,
+      profileImage: coach.profileImage || ''
     })
     setShowModal(true)
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB')
+      return
+    }
+
+    try {
+      setUploadingImage(true)
+      const imageUrl = await uploadService.uploadImage(file)
+      setFormData({ ...formData, profileImage: imageUrl })
+    } catch (error: any) {
+      alert(error.message || 'Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,7 +149,8 @@ export function CoachManagement() {
         bio: formData.bio,
         preferredContactMethod: formData.preferredContactMethod,
         availableForBooking: formData.availableForBooking,
-        status: formData.status
+        status: formData.status,
+        profileImage: formData.profileImage
       }
 
       if (editingCoach) {
@@ -379,6 +411,48 @@ export function CoachManagement() {
             <DialogTitle>{editingCoach ? 'Edit Coach' : 'Add New Coach'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Profile Image Upload */}
+            <div className="space-y-2">
+              <Label htmlFor="profileImage">Profile Image</Label>
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Input
+                    id="profileImage"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                    className="cursor-pointer"
+                  />
+                  {uploadingImage && (
+                    <p className="text-sm text-muted-foreground mt-1">Uploading image...</p>
+                  )}
+                </div>
+                {formData.profileImage ? (
+                  <div className="relative">
+                    <img
+                      src={formData.profileImage}
+                      alt="Profile preview"
+                      className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                      onClick={() => setFormData({ ...formData, profileImage: '' })}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center border-2 border-border">
+                    <User className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName">First Name *</Label>
