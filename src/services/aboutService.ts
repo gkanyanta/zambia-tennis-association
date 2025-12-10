@@ -172,6 +172,14 @@ export const updateContentSection = async (
   return response.data;
 };
 
+export const updateAboutContent = async (
+  id: string,
+  data: { title: string; content: string }
+): Promise<{ success: boolean; data: AboutContent }> => {
+  const response = await apiClient.put(`${ABOUT_CONTENT_URL}/${id}`, data);
+  return response.data;
+};
+
 export const deleteContentSection = async (
   section: string
 ): Promise<{ success: boolean; data: {} }> => {

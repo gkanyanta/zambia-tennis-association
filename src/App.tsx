@@ -40,6 +40,9 @@ import { UserManagement } from '@/pages/UserManagement'
 import { ClubManagement } from '@/pages/ClubManagement'
 import { PlayerManagement } from '@/pages/PlayerManagement'
 import { RankingsImport } from '@/pages/RankingsImport'
+import { ExecutiveMembersManagement } from '@/pages/ExecutiveMembersManagement'
+import { AffiliationsManagement } from '@/pages/AffiliationsManagement'
+import { AboutContentEditor } from '@/pages/AboutContentEditor'
 
 function App() {
   return (
@@ -62,6 +65,9 @@ function App() {
               <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
               <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
               <Route path="/admin/rankings/import" element={<RankingsImport />} />
+              <Route path="/admin/executive-members" element={<ExecutiveMembersManagement />} />
+              <Route path="/admin/affiliations" element={<AffiliationsManagement />} />
+              <Route path="/admin/about-content" element={<AboutContentEditor />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />

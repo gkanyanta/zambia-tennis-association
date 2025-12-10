@@ -31,6 +31,44 @@ class UploadService {
 
     return response.data.data.url
   }
+
+  async uploadExecutiveMemberImage(file: File): Promise<string> {
+    const token = localStorage.getItem('token')
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const response = await axios.post<UploadResponse>(
+      `${API_URL}/upload/executive-member`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    return response.data.data.url
+  }
+
+  async uploadAffiliationLogo(file: File): Promise<string> {
+    const token = localStorage.getItem('token')
+    const formData = new FormData()
+    formData.append('image', file)
+
+    const response = await axios.post<UploadResponse>(
+      `${API_URL}/upload/affiliation-logo`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    return response.data.data.url
+  }
 }
 
 export const uploadService = new UploadService()

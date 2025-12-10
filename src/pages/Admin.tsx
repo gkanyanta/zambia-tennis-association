@@ -12,7 +12,10 @@ import {
   BarChart3,
   UserCog,
   Building2,
-  UserCircle
+  UserCircle,
+  Info,
+  Globe,
+  FileText
 } from 'lucide-react';
 
 export function Admin() {
@@ -87,6 +90,27 @@ export function Admin() {
       icon: DollarSign,
       action: () => navigate('/membership'),
       color: 'text-emerald-500'
+    },
+    {
+      title: 'Executive Members',
+      description: 'Manage executive committee members',
+      icon: Users,
+      action: () => navigate('/admin/executive-members'),
+      color: 'text-teal-500'
+    },
+    {
+      title: 'Affiliations',
+      description: 'Manage organizational affiliations',
+      icon: Globe,
+      action: () => navigate('/admin/affiliations'),
+      color: 'text-cyan-500'
+    },
+    {
+      title: 'About Content',
+      description: 'Edit About page content sections',
+      icon: FileText,
+      action: () => navigate('/admin/about-content'),
+      color: 'text-slate-500'
     }
   ];
 
