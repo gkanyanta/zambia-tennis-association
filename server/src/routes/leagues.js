@@ -8,7 +8,11 @@ import {
   getLeagueStandings,
   getLeagueFixtures,
   generateFixtures,
-  updateFixtureResult
+  updateFixtureResult,
+  getAvailablePlayers,
+  updateFixturePlayers,
+  updateMatchScore,
+  getFixture
 } from '../controllers/leagueController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -25,6 +29,12 @@ router.delete('/:id', protect, authorize('admin'), deleteLeague);
 router.get('/:id/standings', getLeagueStandings);
 router.get('/:id/fixtures', getLeagueFixtures);
 router.post('/:id/fixtures/generate', protect, authorize('admin', 'staff'), generateFixtures);
+
+// Fixture management
+router.get('/:leagueId/fixtures/:fixtureId', getFixture);
 router.put('/:leagueId/fixtures/:fixtureId', protect, authorize('admin', 'staff'), updateFixtureResult);
+router.get('/:leagueId/fixtures/:fixtureId/available-players', protect, authorize('admin', 'staff'), getAvailablePlayers);
+router.put('/:leagueId/fixtures/:fixtureId/players', protect, authorize('admin', 'staff'), updateFixturePlayers);
+router.put('/:leagueId/fixtures/:fixtureId/matches/:matchIndex/score', protect, authorize('admin', 'staff'), updateMatchScore);
 
 export default router;

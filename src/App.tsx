@@ -19,6 +19,7 @@ import { CoachListingSettings } from '@/pages/CoachListingSettings'
 import { Gallery } from '@/pages/Gallery'
 import { GalleryAdmin } from '@/pages/GalleryAdmin'
 import { Leagues } from '@/pages/Leagues'
+import FixtureScoreEntry from '@/components/leagues/FixtureScoreEntry'
 import { Players } from '@/pages/Players'
 import { Clubs } from '@/pages/Clubs'
 import { Transformation } from '@/pages/Transformation'
@@ -71,6 +72,7 @@ function App() {
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />
+              <Route path="/leagues/:leagueId/fixtures/:fixtureId/score" element={<FixtureScoreEntry />} />
               <Route path="/players" element={<Players />} />
               <Route path="/clubs" element={<Clubs />} />
               <Route path="/membership" element={<Membership />} />

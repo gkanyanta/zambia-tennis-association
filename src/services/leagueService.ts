@@ -1,6 +1,6 @@
 import apiClient from './apiClient';
 
-const API_URL = '/api/leagues';
+const API_URL = '/leagues';
 
 export interface League {
   _id: string;
@@ -189,7 +189,7 @@ export const updateFixtureResult = async (
 };
 
 // League Teams API
-const TEAMS_API_URL = '/api/league-teams';
+const TEAMS_API_URL = '/league-teams';
 
 // Fetch all league teams
 export const fetchLeagueTeams = async (params?: {
@@ -253,5 +253,64 @@ export const updatePlayerPosition = async (
   data: { position?: string; ranking?: number }
 ): Promise<{ success: boolean; data: LeagueTeam }> => {
   const response = await apiClient.put(`${TEAMS_API_URL}/${teamId}/roster/${playerId}`, data);
+  return response.data;
+};
+
+// Get available players for fixture
+export const fetchAvailablePlayers = async (
+  leagueId: string,
+  fixtureId: string
+): Promise<{ success: boolean; count: number; data: any[] }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/fixtures/${fixtureId}/available-players`);
+  return response.data;
+};
+
+// Update fixture players
+export const updateFixturePlayers = async (
+  leagueId: string,
+  fixtureId: string,
+  data: {
+    matches: Array<{
+      matchType: string;
+      homePlayer?: string;
+      awayPlayer?: string;
+      homePlayers?: string[];
+      awayPlayers?: string[];
+    }>;
+  }
+): Promise<{ success: boolean; data: LeagueFixture }> => {
+  const response = await apiClient.put(`${API_URL}/${leagueId}/fixtures/${fixtureId}/players`, data);
+  return response.data;
+};
+
+// Update match score
+export const updateMatchScore = async (
+  leagueId: string,
+  fixtureId: string,
+  matchIndex: number,
+  data: {
+    sets: Array<{
+      setNumber: number;
+      homeGames: number;
+      awayGames: number;
+      tiebreak?: {
+        played: boolean;
+        homePoints?: number;
+        awayPoints?: number;
+      };
+    }>;
+    status?: string;
+  }
+): Promise<{ success: boolean; data: LeagueFixture }> => {
+  const response = await apiClient.put(`${API_URL}/${leagueId}/fixtures/${fixtureId}/matches/${matchIndex}/score`, data);
+  return response.data;
+};
+
+// Get single fixture with full details
+export const fetchFixture = async (
+  leagueId: string,
+  fixtureId: string
+): Promise<{ success: boolean; data: LeagueFixture }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/fixtures/${fixtureId}`);
   return response.data;
 };

@@ -790,3 +790,235 @@ function generateRoundRobinFixtures(teams, numberOfRounds, startDate, fixtureInt
 
   return fixtures;
 }
+
+// @desc    Get available players for team selection
+// @route   GET /api/leagues/:leagueId/fixtures/:fixtureId/available-players
+// @access  Private (Admin/Staff)
+export const getAvailablePlayers = async (req, res) => {
+  try {
+    const User = (await import('../models/User.js')).default;
+    
+    const players = await User.find({
+      role: 'player',
+      membershipStatus: 'active'
+    }).select('firstName lastName email gender zpin');
+
+    res.json({
+      success: true,
+      count: players.length,
+      data: players
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update fixture players
+// @route   PUT /api/leagues/:leagueId/fixtures/:fixtureId/players
+// @access  Private (Admin/Staff)
+export const updateFixturePlayers = async (req, res) => {
+  try {
+    const { matches } = req.body;
+
+    const fixture = await LeagueFixture.findOne({
+      _id: req.params.fixtureId,
+      league: req.params.leagueId
+    });
+
+    if (!fixture) {
+      return res.status(404).json({
+        success: false,
+        error: 'Fixture not found'
+      });
+    }
+
+    // Initialize matches if not exists
+    if (!fixture.matches || fixture.matches.length === 0) {
+      fixture.matches = [
+        { matchType: 'singles1', status: 'not_started', sets: [], homeSetsWon: 0, awaySetsWon: 0 },
+        { matchType: 'singles2', status: 'not_started', sets: [], homeSetsWon: 0, awaySetsWon: 0 },
+        { matchType: 'doubles', status: 'not_started', sets: [], homeSetsWon: 0, awaySetsWon: 0 }
+      ];
+    }
+
+    // Update player assignments
+    matches.forEach((match, index) => {
+      if (fixture.matches[index]) {
+        if (match.matchType === 'doubles') {
+          fixture.matches[index].homePlayers = match.homePlayers || [];
+          fixture.matches[index].awayPlayers = match.awayPlayers || [];
+        } else {
+          fixture.matches[index].homePlayer = match.homePlayer;
+          fixture.matches[index].awayPlayer = match.awayPlayer;
+        }
+      }
+    });
+
+    await fixture.save();
+
+    const updatedFixture = await LeagueFixture.findById(fixture._id)
+      .populate('homeTeam awayTeam')
+      .populate('matches.homePlayer matches.awayPlayer matches.homePlayers matches.awayPlayers');
+
+    res.json({
+      success: true,
+      data: updatedFixture
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update match score (set by set)
+// @route   PUT /api/leagues/:leagueId/fixtures/:fixtureId/matches/:matchIndex/score
+// @access  Private (Admin/Staff)
+export const updateMatchScore = async (req, res) => {
+  try {
+    const { sets, status } = req.body;
+    const matchIndex = parseInt(req.params.matchIndex);
+
+    const fixture = await LeagueFixture.findOne({
+      _id: req.params.fixtureId,
+      league: req.params.leagueId
+    });
+
+    if (!fixture) {
+      return res.status(404).json({
+        success: false,
+        error: 'Fixture not found'
+      });
+    }
+
+    if (!fixture.matches[matchIndex]) {
+      return res.status(404).json({
+        success: false,
+        error: 'Match not found'
+      });
+    }
+
+    // Validate sets
+    if (sets && sets.length > 0) {
+      for (const set of sets) {
+        // Validate tennis scores
+        const homeGames = set.homeGames;
+        const awayGames = set.awayGames;
+        
+        // Check for valid tennis scores
+        if (homeGames < 0 || awayGames < 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Games cannot be negative'
+          });
+        }
+
+        if (homeGames > 7 || awayGames > 7) {
+          return res.status(400).json({
+            success: false,
+            error: 'Maximum 7 games per set'
+          });
+        }
+
+        // Validate winning conditions
+        const diff = Math.abs(homeGames - awayGames);
+        const winner = homeGames > awayGames ? homeGames : awayGames;
+        
+        if (winner === 6 && diff < 2 && diff !== 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Must win by 2 games when score is 6'
+          });
+        }
+
+        if (winner === 7 && (homeGames !== 7 || awayGames < 5) && (awayGames !== 7 || homeGames < 5)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Score 7 must be from 7-5 or 7-6 tiebreak'
+          });
+        }
+
+        // Detect tiebreak
+        if ((homeGames === 7 && awayGames === 6) || (awayGames === 7 && homeGames === 6)) {
+          if (!set.tiebreak || !set.tiebreak.played) {
+            return res.status(400).json({
+              success: false,
+              error: 'Tiebreak details required for 7-6 score'
+            });
+          }
+        }
+      }
+    }
+
+    // Update match
+    fixture.matches[matchIndex].sets = sets;
+    fixture.matches[matchIndex].status = status || 'in_progress';
+    
+    if (status === 'completed') {
+      fixture.matches[matchIndex].completedAt = new Date();
+    }
+
+    // Check if all matches are completed
+    const allCompleted = fixture.matches.every(m => m.status === 'completed');
+    if (allCompleted) {
+      fixture.status = 'completed';
+      fixture.completedAt = new Date();
+    }
+
+    await fixture.save(); // This triggers pre-save hook to calculate winners
+
+    // Invalidate standings cache if fixture is completed
+    if (fixture.status === 'completed') {
+      invalidateStandingsCache(req.params.leagueId);
+    }
+
+    const updatedFixture = await LeagueFixture.findById(fixture._id)
+      .populate('homeTeam awayTeam winner')
+      .populate('matches.homePlayer matches.awayPlayer matches.homePlayers matches.awayPlayers');
+
+    res.json({
+      success: true,
+      data: updatedFixture
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get single fixture with full details
+// @route   GET /api/leagues/:leagueId/fixtures/:fixtureId
+// @access  Public
+export const getFixture = async (req, res) => {
+  try {
+    const fixture = await LeagueFixture.findOne({
+      _id: req.params.fixtureId,
+      league: req.params.leagueId
+    })
+      .populate('homeTeam awayTeam winner')
+      .populate('matches.homePlayer matches.awayPlayer matches.homePlayers matches.awayPlayers');
+
+    if (!fixture) {
+      return res.status(404).json({
+        success: false,
+        error: 'Fixture not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: fixture
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};

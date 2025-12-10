@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://zta-backend-y10h.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://zta-backend-y10h.onrender.com';
 
 // Get auth token from localStorage
 const getAuthToken = () => {
@@ -23,7 +23,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(`${API_URL}/api${endpoint}`, {
     ...options,
     headers,
   });
@@ -51,7 +51,7 @@ export const uploadFile = async (file: File) => {
   formData.append('image', file);
 
   try {
-    const response = await fetch(`${API_URL}/upload`, {
+    const response = await fetch(`${API_URL}/api/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ type Gender = 'men' | 'women'
 type TabType = 'standings' | 'fixtures' | 'results'
 
 export function Leagues() {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [selectedRegion, setSelectedRegion] = useState<Region>('northern')
   const [selectedGender, setSelectedGender] = useState<Gender>('men')
@@ -456,19 +458,33 @@ export function Leagues() {
                               </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                              <Button
-                                variant="outline"
-                                onClick={() => setEditingFixture(fixture._id)}
-                                disabled={editingFixture === fixture._id}
-                              >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Enter Scores
-                              </Button>
+                              {fixture.status === 'scheduled' || fixture.status === 'in_progress' ? (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => navigate(`/leagues/${currentLeague?._id}/fixtures/${fixture._id}/score`)}
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  {fixture.status === 'in_progress' ? 'Continue Scoring' : 'Enter Scores'}
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => navigate(`/leagues/${currentLeague?._id}/fixtures/${fixture._id}/score`)}
+                                >
+                                  <Trophy className="h-4 w-4 mr-2" />
+                                  View Results
+                                </Button>
+                              )}
+                              {fixture.overallScore && (fixture.overallScore.homeWins > 0 || fixture.overallScore.awayWins > 0) && (
+                                <div className="text-center text-sm font-semibold text-primary">
+                                  {fixture.overallScore.homeWins} - {fixture.overallScore.awayWins}
+                                </div>
+                              )}
                             </div>
                           </div>
 
-                          {/* Score Entry Form */}
-                          {editingFixture === fixture._id && currentLeague && (
+                          {/* Remove old inline score entry form */}
+                          {false && editingFixture === fixture._id && currentLeague && (
                             <div className="mt-6 pt-6 border-t">
                               <h4 className="font-semibold mb-4">Enter Match Scores</h4>
                               <div className="text-sm text-muted-foreground mb-4">

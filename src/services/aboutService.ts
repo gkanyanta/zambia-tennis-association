@@ -52,7 +52,7 @@ export interface AboutContent {
 }
 
 // Executive Members API
-const EXECUTIVE_MEMBERS_URL = '/api/executive-members';
+const EXECUTIVE_MEMBERS_URL = '/executive-members';
 
 export const fetchExecutiveMembers = async (params?: {
   isActive?: boolean;
@@ -99,7 +99,7 @@ export const reorderExecutiveMembers = async (
 };
 
 // Affiliations API
-const AFFILIATIONS_URL = '/api/affiliations';
+const AFFILIATIONS_URL = '/affiliations';
 
 export const fetchAffiliations = async (params?: {
   isActive?: boolean;
@@ -146,7 +146,7 @@ export const reorderAffiliations = async (
 };
 
 // About Content API
-const ABOUT_CONTENT_URL = '/api/about-content';
+const ABOUT_CONTENT_URL = '/about-content';
 
 export const fetchAboutContent = async (
   section?: string
@@ -194,7 +194,7 @@ export const uploadExecutiveMemberImage = async (
   const formData = new FormData();
   formData.append('image', file);
 
-  const response = await apiClient.post('/api/upload/executive-member', formData, {
+  const response = await apiClient.post('/upload/executive-member', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
@@ -209,7 +209,7 @@ export const uploadAffiliationLogo = async (
   const formData = new FormData();
   formData.append('image', file);
 
-  const response = await apiClient.post('/api/upload/affiliation-logo', formData, {
+  const response = await apiClient.post('/upload/affiliation-logo', formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
     }
