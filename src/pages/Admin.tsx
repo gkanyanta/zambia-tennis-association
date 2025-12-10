@@ -110,6 +110,13 @@ export function Admin() {
       icon: FileText,
       action: () => navigate('/admin/about-content'),
       color: 'text-slate-500'
+    },
+    {
+      title: 'Manage Leagues',
+      description: 'Manage leagues, teams, fixtures, and standings',
+      icon: Trophy,
+      action: () => navigate('/leagues'),
+      color: 'text-red-500'
     }
   ];
 
