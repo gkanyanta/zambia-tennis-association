@@ -24,7 +24,7 @@ const SECTIONS = [
 
 export function AboutContentEditor() {
   const { toast } = useToast();
-  const [content, setContent] = useState<{ [key: string]: AboutContent }>({});
+  const [, setContent] = useState<{ [key: string]: AboutContent }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('about');

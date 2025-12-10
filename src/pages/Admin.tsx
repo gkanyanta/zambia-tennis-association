@@ -13,7 +13,6 @@ import {
   UserCog,
   Building2,
   UserCircle,
-  Info,
   Globe,
   FileText
 } from 'lucide-react';

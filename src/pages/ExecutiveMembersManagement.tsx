@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Plus, Edit, Trash2, CheckCircle, XCircle, User, Upload, Loader2 } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, CheckCircle, XCircle, User, Loader2 } from 'lucide-react';
 import {
   fetchExecutiveMembers,
   createExecutiveMember,
@@ -146,8 +146,8 @@ export function ExecutiveMembersManagement() {
     try {
       const memberData = {
         ...formData,
-        startDate: formData.startDate ? new Date(formData.startDate) : new Date(),
-        endDate: formData.endDate ? new Date(formData.endDate) : undefined
+        startDate: formData.startDate ? formData.startDate : undefined,
+        endDate: formData.endDate ? formData.endDate : undefined
       };
 
       if (editingMember) {

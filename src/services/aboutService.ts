@@ -10,7 +10,7 @@ export interface ExecutiveMember {
   profileImage: string;
   bio?: string;
   displayOrder: number;
-  region: 'national' | 'northern' | 'southern';
+  region: 'national' | 'northern' | 'southern' | 'eastern' | 'western';
   isActive: boolean;
   socialMedia?: {
     linkedin?: string;
@@ -30,7 +30,7 @@ export interface Affiliation {
   description?: string;
   logo: string;
   websiteUrl: string;
-  category: 'international' | 'continental' | 'national';
+  category: 'international' | 'continental' | 'national' | 'regional';
   displayOrder: number;
   isActive: boolean;
   createdAt: string;

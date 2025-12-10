@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, Calendar, MapPin, Edit, Plus, Loader2 } from 'lucide-react'
+import { Trophy, Calendar, MapPin, Edit, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   fetchLeagues,
@@ -29,7 +29,6 @@ export function Leagues() {
   const [editingFixture, setEditingFixture] = useState<string | null>(null)
   const [scores, setScores] = useState<{ [key: string]: { homeScore: number; awayScore: number } }>({})
 
-  const [leagues, setLeagues] = useState<League[]>([])
   const [currentLeague, setCurrentLeague] = useState<League | null>(null)
   const [standings, setStandings] = useState<LeagueStanding[]>([])
   const [fixtures, setFixtures] = useState<LeagueFixture[]>([])
@@ -63,7 +62,6 @@ export function Leagues() {
         gender: selectedGender,
         status: 'active'
       })
-      setLeagues(response.data)
 
       // Set the first active league as current
       if (response.data.length > 0) {
