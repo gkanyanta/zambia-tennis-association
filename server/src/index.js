@@ -39,6 +39,9 @@ import coachListingRoutes from './routes/coachListings.js';
 import flutterwaveRoutes from './routes/flutterwave.js';
 import leagueRoutes from './routes/leagues.js';
 import leagueTeamRoutes from './routes/leagueTeams.js';
+import executiveMemberRoutes from './routes/executiveMembers.js';
+import affiliationRoutes from './routes/affiliations.js';
+import aboutContentRoutes from './routes/aboutContent.js';
 
 // Initialize app
 const app = express();
@@ -100,6 +103,9 @@ app.use('/api/coach-listings', coachListingRoutes);
 app.use('/api/flutterwave', flutterwaveRoutes);
 app.use('/api/leagues', leagueRoutes);
 app.use('/api/league-teams', leagueTeamRoutes);
+app.use('/api/executive-members', executiveMemberRoutes);
+app.use('/api/affiliations', affiliationRoutes);
+app.use('/api/about-content', aboutContentRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

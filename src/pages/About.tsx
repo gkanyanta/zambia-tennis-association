@@ -1,182 +1,264 @@
-import { Hero } from '@/components/Hero'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Target, Eye, Award, Users } from 'lucide-react'
-
-const leadership = [
-  {
-    name: 'Dr. John Mwanza',
-    position: 'President',
-    bio: 'Leading ZTA\'s transformation and development initiatives',
-  },
-  {
-    name: 'Grace Tembo',
-    position: 'Vice President',
-    bio: 'Overseeing junior development and women\'s tennis programs',
-  },
-  {
-    name: 'Michael Phiri',
-    position: 'Secretary General',
-    bio: 'Managing day-to-day operations and member services',
-  },
-  {
-    name: 'Patricia Banda',
-    position: 'Treasurer',
-    bio: 'Financial management and fundraising initiatives',
-  },
-]
-
-const milestones = [
-  { year: '1989', event: 'ZTA officially established' },
-  { year: '1995', event: 'Joined International Tennis Federation' },
-  { year: '2005', event: 'Hosted first international tournament' },
-  { year: '2010', event: 'Launched national junior program' },
-  { year: '2018', event: 'Opened Olympic Youth Development Centre' },
-  { year: '2025', event: 'Initiated transformation strategy' },
-]
+import { useState, useEffect } from 'react';
+import { Hero } from '@/components/Hero';
+import { ExecutiveCard } from '@/components/about/ExecutiveCard';
+import { AffiliationCard } from '@/components/about/AffiliationCard';
+import { Loader2, Users, Globe } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import {
+  fetchExecutiveMembers,
+  fetchAffiliations,
+  fetchAboutContent,
+  ExecutiveMember,
+  Affiliation,
+  AboutContent
+} from '@/services/aboutService';
 
 export function About() {
+  const { toast } = useToast();
+  const [executives, setExecutives] = useState<ExecutiveMember[]>([]);
+  const [affiliations, setAffiliations] = useState<Affiliation[]>([]);
+  const [content, setContent] = useState<{ [key: string]: AboutContent }>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPageData();
+  }, []);
+
+  const loadPageData = async () => {
+    try {
+      setLoading(true);
+
+      const [execRes, affRes, contentRes] = await Promise.all([
+        fetchExecutiveMembers({ isActive: true }),
+        fetchAffiliations({ isActive: true }),
+        fetchAboutContent()
+      ]);
+
+      setExecutives(execRes.data);
+      setAffiliations(affRes.data);
+
+      // Convert content array to object for easy access
+      const contentMap: { [key: string]: AboutContent } = {};
+      contentRes.data.forEach((item) => {
+        contentMap[item.section] = item;
+      });
+      setContent(contentMap);
+    } catch (error: any) {
+      console.error('Failed to load about page data:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to load page data',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Group executives by region
+  const nationalLeadership = executives
+    .filter((e) => e.region === 'national')
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  const regionalLeadership = executives
+    .filter((e) => e.region !== 'national')
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  // Group affiliations by category
+  const internationalAffiliations = affiliations
+    .filter((a) => a.category === 'international' || a.category === 'continental')
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  const nationalAffiliations = affiliations
+    .filter((a) => a.category === 'national')
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       <Hero
         title="About ZTA"
-        description="The official governing body for tennis in Zambia since 1989"
-        gradient
+        subtitle="Learn about the Zambia Tennis Association, our leadership, and mission"
       />
 
-      {/* Mission, Vision, Values */}
-      <section className="py-16">
-        <div className="container-custom">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            <Card className="card-elevated text-center">
-              <CardHeader>
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                  <Target className="h-6 w-6 text-primary" />
-                </div>
-                <CardTitle>Our Mission</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  To promote, develop, and govern tennis in Zambia through inclusive
-                  programs, excellent facilities, and transparent administration.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="card-elevated text-center">
-              <CardHeader>
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                  <Eye className="h-6 w-6 text-primary" />
-                </div>
-                <CardTitle>Our Vision</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  To be the leading tennis nation in Southern Africa, producing
-                  world-class players and providing opportunities for all Zambians.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="card-elevated text-center">
-              <CardHeader>
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                  <Award className="h-6 w-6 text-primary" />
-                </div>
-                <CardTitle>Our Values</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Excellence, Integrity, Inclusion, Development, and Community
-                  guide everything we do.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* History */}
-          <div className="mb-16">
-            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-              Our History
-            </h2>
-            <Card className="card-elevated">
-              <CardContent className="pt-6">
-                <p className="text-muted-foreground mb-6">
-                  The Zambia Tennis Association was founded in 1989 to organize and
-                  promote tennis throughout the country. Since then, we have grown
-                  from a small group of enthusiasts to a nationwide organization
-                  serving thousands of players.
-                </p>
-                <div className="space-y-4">
-                  {milestones.map((milestone, index) => (
-                    <div key={index} className="flex gap-4 items-center">
-                      <div className="flex-shrink-0 w-16 font-bold text-primary">
-                        {milestone.year}
-                      </div>
-                      <div className="flex-1 border-l-2 border-primary pl-4 py-2">
-                        <p className="text-muted-foreground">{milestone.event}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Leadership */}
-          <div>
-            <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-              Leadership Team
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {leadership.map((leader, index) => (
-                <Card key={index} className="card-elevated-hover text-center">
-                  <CardHeader>
-                    <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto">
-                      <Users className="h-10 w-10 text-primary" />
-                    </div>
-                    <CardTitle className="text-lg">{leader.name}</CardTitle>
-                    <CardDescription className="font-semibold text-primary">
-                      {leader.position}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">{leader.bio}</p>
-                  </CardContent>
-                </Card>
-              ))}
+      {/* About Section */}
+      {content.about && (
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold mb-6 text-center">
+                {content.about.title}
+              </h2>
+              <div
+                className="prose prose-lg mx-auto"
+                dangerouslySetInnerHTML={{ __html: content.about.content }}
+              />
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* Mission & Vision */}
+      {(content.mission || content.vision) && (
+        <section className="py-16 bg-gray-50">
+          <div className="container mx-auto px-4">
+            <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+              {/* Mission */}
+              {content.mission && (
+                <div className="bg-white p-8 rounded-lg shadow-md">
+                  <h2 className="text-2xl font-bold mb-4 text-primary">
+                    {content.mission.title}
+                  </h2>
+                  <div
+                    className="prose"
+                    dangerouslySetInnerHTML={{ __html: content.mission.content }}
+                  />
+                </div>
+              )}
+
+              {/* Vision */}
+              {content.vision && (
+                <div className="bg-white p-8 rounded-lg shadow-md">
+                  <h2 className="text-2xl font-bold mb-4 text-primary">
+                    {content.vision.title}
+                  </h2>
+                  <div
+                    className="prose"
+                    dangerouslySetInnerHTML={{ __html: content.vision.content }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Executive Committee */}
+      {executives.length > 0 && (
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <Users className="w-12 h-12 text-primary mx-auto mb-4" />
+              <h2 className="text-3xl font-bold mb-2">Executive Committee</h2>
+              <p className="text-gray-600">
+                Meet the dedicated leaders of the Zambia Tennis Association
+              </p>
+            </div>
+
+            {/* National Leadership */}
+            {nationalLeadership.length > 0 && (
+              <div className="mb-12">
+                <h3 className="text-2xl font-semibold mb-6 text-center">
+                  National Leadership
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {nationalLeadership.map((member) => (
+                    <ExecutiveCard key={member._id} member={member} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Regional Leadership */}
+            {regionalLeadership.length > 0 && (
+              <div>
+                <h3 className="text-2xl font-semibold mb-6 text-center">
+                  Regional Leadership
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {regionalLeadership.map((member) => (
+                    <ExecutiveCard key={member._id} member={member} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Affiliations */}
-      <section className="py-16 bg-muted/50">
-        <div className="container-custom">
-          <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-            Affiliations
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <Card className="text-center">
-              <CardHeader>
-                <CardTitle>ITF</CardTitle>
-                <CardDescription>International Tennis Federation</CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="text-center">
-              <CardHeader>
-                <CardTitle>CAT</CardTitle>
-                <CardDescription>Confederation of African Tennis</CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="text-center">
-              <CardHeader>
-                <CardTitle>NSCZ</CardTitle>
-                <CardDescription>National Sports Council of Zambia</CardDescription>
-              </CardHeader>
-            </Card>
+      {affiliations.length > 0 && (
+        <section className="py-16 bg-gray-50">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <Globe className="w-12 h-12 text-primary mx-auto mb-4" />
+              <h2 className="text-3xl font-bold mb-2">Our Affiliations</h2>
+              <p className="text-gray-600">
+                Proud members of local and international tennis organizations
+              </p>
+            </div>
+
+            {/* International & Continental */}
+            {internationalAffiliations.length > 0 && (
+              <div className="mb-12">
+                <h3 className="text-2xl font-semibold mb-6 text-center">
+                  International & Continental
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+                  {internationalAffiliations.map((affiliation) => (
+                    <AffiliationCard key={affiliation._id} affiliation={affiliation} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* National */}
+            {nationalAffiliations.length > 0 && (
+              <div>
+                <h3 className="text-2xl font-semibold mb-6 text-center">
+                  National
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+                  {nationalAffiliations.map((affiliation) => (
+                    <AffiliationCard key={affiliation._id} affiliation={affiliation} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* History */}
+      {content.history && (
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold mb-6 text-center">
+                {content.history.title}
+              </h2>
+              <div
+                className="prose prose-lg mx-auto"
+                dangerouslySetInnerHTML={{ __html: content.history.content }}
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Objectives */}
+      {content.objectives && (
+        <section className="py-16 bg-gray-50">
+          <div className="container mx-auto px-4">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-3xl font-bold mb-6 text-center">
+                {content.objectives.title}
+              </h2>
+              <div
+                className="prose prose-lg mx-auto"
+                dangerouslySetInnerHTML={{ __html: content.objectives.content }}
+              />
+            </div>
+          </div>
+        </section>
+      )}
     </div>
-  )
+  );
 }
