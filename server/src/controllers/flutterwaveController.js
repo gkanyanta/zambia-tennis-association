@@ -5,17 +5,28 @@ import Coach from '../models/Coach.js';
 import User from '../models/User.js';
 import sendEmail from '../utils/sendEmail.js';
 
-// Initialize Flutterwave
-const flw = new Flutterwave(
-  process.env.FLUTTERWAVE_PUBLIC_KEY,
-  process.env.FLUTTERWAVE_SECRET_KEY
-)
+// Initialize Flutterwave (only if keys are configured)
+let flw = null;
+if (process.env.FLUTTERWAVE_PUBLIC_KEY && process.env.FLUTTERWAVE_SECRET_KEY) {
+  flw = new Flutterwave(
+    process.env.FLUTTERWAVE_PUBLIC_KEY,
+    process.env.FLUTTERWAVE_SECRET_KEY
+  );
+}
 
 // @desc    Initialize donation payment
 // @route   POST /api/flutterwave/donations/initialize
 // @access  Public
 export const initializeDonation = async (req, res) => {
   try {
+    // Check if Flutterwave is configured
+    if (!flw) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment service not configured. Please contact administrator.'
+      });
+    }
+
     const {
       amount,
       donorName,
@@ -102,6 +113,14 @@ export const initializeDonation = async (req, res) => {
 // @access  Public
 export const verifyDonation = async (req, res) => {
   try {
+    // Check if Flutterwave is configured
+    if (!flw) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment service not configured. Please contact administrator.'
+      });
+    }
+
     const { transactionId } = req.params
 
     // Verify transaction with Flutterwave
@@ -200,6 +219,14 @@ export const verifyDonation = async (req, res) => {
 // @access  Protected (Admin/Staff)
 export const initializeCoachListingPayment = async (req, res) => {
   try {
+    // Check if Flutterwave is configured
+    if (!flw) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment service not configured. Please contact administrator.'
+      });
+    }
+
     const { coachId, amount, duration, paymentMethod } = req.body
 
     // Validation
@@ -277,6 +304,14 @@ export const initializeCoachListingPayment = async (req, res) => {
 // @access  Protected (Admin/Staff)
 export const verifyCoachListingPayment = async (req, res) => {
   try {
+    // Check if Flutterwave is configured
+    if (!flw) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment service not configured. Please contact administrator.'
+      });
+    }
+
     const { transactionId } = req.params
 
     // Verify transaction with Flutterwave
@@ -358,6 +393,15 @@ export const verifyCoachListingPayment = async (req, res) => {
 export const handleWebhook = async (req, res) => {
   try {
     const secretHash = process.env.FLUTTERWAVE_SECRET_HASH
+
+    // Check if Flutterwave webhook is configured
+    if (!secretHash) {
+      return res.status(503).json({
+        success: false,
+        error: 'Payment webhook not configured. Please contact administrator.'
+      });
+    }
+
     const signature = req.headers['verif-hash']
 
     if (!signature || signature !== secretHash) {
