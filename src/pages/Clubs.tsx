@@ -168,28 +168,39 @@ export function Clubs() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {(club.city || club.province) && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span>{[club.city, club.province].filter(Boolean).join(', ')}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4" />
+                    <span>
+                      {club.city && club.province
+                        ? `${club.city}, ${club.province}`
+                        : club.city || club.province || 'Location not specified'}
+                    </span>
+                  </div>
 
                   <div className="flex items-center gap-2 text-sm">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{club.memberCount} members</span>
+                    <span className="font-medium">{club.memberCount || 0} members</span>
                   </div>
 
-                  {club.established && (
+                  {club.established ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4" />
                       <span>Established {club.established}</span>
                     </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span className="italic">Establishment year not specified</span>
+                    </div>
                   )}
 
-                  {club.description && (
+                  {club.description ? (
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {club.description}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      No description available
                     </p>
                   )}
 
@@ -237,74 +248,82 @@ export function Clubs() {
               <div>
                 <h4 className="font-semibold mb-3">Club Information</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  {selectedClub.contactPerson && (
-                    <div>
-                      <span className="text-muted-foreground">Contact Person:</span>
-                      <p className="font-medium">{selectedClub.contactPerson}</p>
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-muted-foreground">Contact Person:</span>
+                    <p className={selectedClub.contactPerson ? "font-medium" : "font-medium italic text-muted-foreground"}>
+                      {selectedClub.contactPerson || 'Not specified'}
+                    </p>
+                  </div>
 
-                  {selectedClub.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    {selectedClub.email ? (
                       <a href={`mailto:${selectedClub.email}`} className="font-medium text-primary hover:underline">
                         {selectedClub.email}
                       </a>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="font-medium italic text-muted-foreground">Not specified</span>
+                    )}
+                  </div>
 
-                  {selectedClub.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    {selectedClub.phone ? (
                       <a href={`tel:${selectedClub.phone}`} className="font-medium">
                         {selectedClub.phone}
                       </a>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="font-medium italic text-muted-foreground">Not specified</span>
+                    )}
+                  </div>
 
-                  {selectedClub.website && (
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    {selectedClub.website ? (
                       <a href={selectedClub.website} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
                         Visit Website
                       </a>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="font-medium italic text-muted-foreground">Not specified</span>
+                    )}
+                  </div>
 
-                  {selectedClub.address && (
-                    <div className="col-span-full">
-                      <span className="text-muted-foreground">Address:</span>
-                      <p className="font-medium">{selectedClub.address}</p>
-                    </div>
-                  )}
+                  <div className="col-span-full">
+                    <span className="text-muted-foreground">Address:</span>
+                    <p className={selectedClub.address ? "font-medium" : "font-medium italic text-muted-foreground"}>
+                      {selectedClub.address || 'Address not specified'}
+                    </p>
+                  </div>
 
-                  {(selectedClub.city || selectedClub.province) && (
-                    <div>
-                      <span className="text-muted-foreground">Location:</span>
-                      <p className="font-medium">{[selectedClub.city, selectedClub.province].filter(Boolean).join(', ')}</p>
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-muted-foreground">Location:</span>
+                    <p className={selectedClub.city || selectedClub.province ? "font-medium" : "font-medium italic text-muted-foreground"}>
+                      {selectedClub.city && selectedClub.province
+                        ? `${selectedClub.city}, ${selectedClub.province}`
+                        : selectedClub.city || selectedClub.province || 'Location not specified'}
+                    </p>
+                  </div>
 
-                  {selectedClub.established && (
-                    <div>
-                      <span className="text-muted-foreground">Established:</span>
-                      <p className="font-medium">{selectedClub.established}</p>
-                    </div>
-                  )}
+                  <div>
+                    <span className="text-muted-foreground">Established:</span>
+                    <p className={selectedClub.established ? "font-medium" : "font-medium italic text-muted-foreground"}>
+                      {selectedClub.established || 'Not specified'}
+                    </p>
+                  </div>
 
                   <div>
                     <span className="text-muted-foreground">Members:</span>
-                    <p className="font-medium">{selectedClub.memberCount}</p>
+                    <p className="font-medium">{selectedClub.memberCount || 0}</p>
                   </div>
                 </div>
               </div>
 
-              {selectedClub.description && (
-                <div>
-                  <h4 className="font-semibold mb-2">About</h4>
-                  <p className="text-sm text-muted-foreground">{selectedClub.description}</p>
-                </div>
-              )}
+              <div>
+                <h4 className="font-semibold mb-2">About</h4>
+                <p className={selectedClub.description ? "text-sm text-muted-foreground" : "text-sm text-muted-foreground italic"}>
+                  {selectedClub.description || 'No description available'}
+                </p>
+              </div>
 
               {selectedClub.facilities && selectedClub.facilities.length > 0 && (
                 <div>

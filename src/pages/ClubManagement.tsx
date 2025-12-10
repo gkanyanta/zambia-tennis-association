@@ -26,8 +26,10 @@ export function ClubManagement() {
     established: '',
     description: '',
     website: '',
+    facilities: [] as string[],
     status: 'active' as 'active' | 'inactive'
   })
+  const [facilityInput, setFacilityInput] = useState('')
 
   useEffect(() => {
     fetchClubs()
@@ -58,8 +60,10 @@ export function ClubManagement() {
       established: '',
       description: '',
       website: '',
+      facilities: [],
       status: 'active'
     })
+    setFacilityInput('')
     setShowModal(true)
   }
 
@@ -76,9 +80,28 @@ export function ClubManagement() {
       established: club.established?.toString() || '',
       description: club.description || '',
       website: club.website || '',
+      facilities: club.facilities || [],
       status: club.status
     })
+    setFacilityInput('')
     setShowModal(true)
+  }
+
+  const handleAddFacility = () => {
+    if (facilityInput.trim()) {
+      setFormData({
+        ...formData,
+        facilities: [...formData.facilities, facilityInput.trim()]
+      })
+      setFacilityInput('')
+    }
+  }
+
+  const handleRemoveFacility = (index: number) => {
+    setFormData({
+      ...formData,
+      facilities: formData.facilities.filter((_, i) => i !== index)
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -386,6 +409,42 @@ export function ClubManagement() {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label>Facilities</Label>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        placeholder="Add a facility (e.g., Clay Courts, Locker Rooms)"
+                        value={facilityInput}
+                        onChange={(e) => setFacilityInput(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddFacility()
+                          }
+                        }}
+                      />
+                      <Button type="button" onClick={handleAddFacility}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {formData.facilities.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {formData.facilities.map((facility, index) => (
+                          <Badge key={index} variant="outline" className="flex items-center gap-1">
+                            {facility}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFacility(index)}
+                              className="ml-1 hover:text-destructive"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
