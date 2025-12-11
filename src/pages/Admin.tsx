@@ -115,7 +115,7 @@ export function Admin() {
       title: 'Manage Leagues',
       description: 'Manage leagues, teams, fixtures, and standings',
       icon: Trophy,
-      action: () => navigate('/leagues'),
+      action: () => navigate('/admin/leagues'),
       color: 'text-red-500'
     }
   ];

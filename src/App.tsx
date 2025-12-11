@@ -44,6 +44,7 @@ import { RankingsImport } from '@/pages/RankingsImport'
 import { ExecutiveMembersManagement } from '@/pages/ExecutiveMembersManagement'
 import { AffiliationsManagement } from '@/pages/AffiliationsManagement'
 import { AboutContentEditor } from '@/pages/AboutContentEditor'
+import { LeagueManagement } from '@/pages/LeagueManagement'
 
 function App() {
   return (
@@ -69,6 +70,7 @@ function App() {
               <Route path="/admin/executive-members" element={<ExecutiveMembersManagement />} />
               <Route path="/admin/affiliations" element={<AffiliationsManagement />} />
               <Route path="/admin/about-content" element={<AboutContentEditor />} />
+              <Route path="/admin/leagues" element={<LeagueManagement />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />
