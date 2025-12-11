@@ -431,14 +431,22 @@ export function Leagues() {
                               <div className="grid grid-cols-3 gap-4 items-center">
                                 <div className="text-right">
                                   <div className="font-semibold text-lg">{fixture.homeTeam.name}</div>
-                                  <div className="text-sm text-muted-foreground">{fixture.homeTeam.city}</div>
+                                  <div className={`text-sm ${fixture.homeTeam.city ? 'text-muted-foreground' : 'text-muted-foreground italic'}`}>
+                                    {fixture.homeTeam.city && fixture.homeTeam.province
+                                      ? `${fixture.homeTeam.city}, ${fixture.homeTeam.province}`
+                                      : fixture.homeTeam.city || fixture.homeTeam.province || 'Location not specified'}
+                                  </div>
                                 </div>
                                 <div className="text-center font-bold text-2xl text-muted-foreground">
                                   vs
                                 </div>
                                 <div className="text-left">
                                   <div className="font-semibold text-lg">{fixture.awayTeam.name}</div>
-                                  <div className="text-sm text-muted-foreground">{fixture.awayTeam.city}</div>
+                                  <div className={`text-sm ${fixture.awayTeam.city ? 'text-muted-foreground' : 'text-muted-foreground italic'}`}>
+                                    {fixture.awayTeam.city && fixture.awayTeam.province
+                                      ? `${fixture.awayTeam.city}, ${fixture.awayTeam.province}`
+                                      : fixture.awayTeam.city || fixture.awayTeam.province || 'Location not specified'}
+                                  </div>
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-3 mt-3 text-sm text-muted-foreground">
@@ -584,7 +592,11 @@ export function Leagues() {
                             <div className="grid grid-cols-3 gap-4 items-center mb-6">
                               <div className="text-right">
                                 <div className="font-semibold text-lg">{fixture.homeTeam.name}</div>
-                                <div className="text-sm text-muted-foreground">{fixture.homeTeam.city}</div>
+                                <div className={`text-sm ${fixture.homeTeam.city ? 'text-muted-foreground' : 'text-muted-foreground italic'}`}>
+                                  {fixture.homeTeam.city && fixture.homeTeam.province
+                                    ? `${fixture.homeTeam.city}, ${fixture.homeTeam.province}`
+                                    : fixture.homeTeam.city || fixture.homeTeam.province || 'Location not specified'}
+                                </div>
                               </div>
                               <div className="text-center">
                                 <div className="text-3xl font-bold">
@@ -593,7 +605,11 @@ export function Leagues() {
                               </div>
                               <div className="text-left">
                                 <div className="font-semibold text-lg">{fixture.awayTeam.name}</div>
-                                <div className="text-sm text-muted-foreground">{fixture.awayTeam.city}</div>
+                                <div className={`text-sm ${fixture.awayTeam.city ? 'text-muted-foreground' : 'text-muted-foreground italic'}`}>
+                                  {fixture.awayTeam.city && fixture.awayTeam.province
+                                    ? `${fixture.awayTeam.city}, ${fixture.awayTeam.province}`
+                                    : fixture.awayTeam.city || fixture.awayTeam.province || 'Location not specified'}
+                                </div>
                               </div>
                             </div>
 
