@@ -29,38 +29,11 @@ interface Set {
   };
 }
 
-interface Match {
-  matchType: string;
-  homePlayer?: string;
-  awayPlayer?: string;
-  homePlayers?: string[];
-  awayPlayers?: string[];
-  sets: Set[];
-  status: string;
-  homeSetsWon?: number;
-  awaySetsWon?: number;
-  winner?: string;
-}
-
-interface Fixture {
-  _id: string;
-  homeTeam: any;
-  awayTeam: any;
-  scheduledDate: string;
-  venue: string;
-  status: string;
-  matches: Match[];
-  overallScore: {
-    homeWins: number;
-    awayWins: number;
-  };
-}
-
 const FixtureScoreEntry: React.FC = () => {
   const { leagueId, fixtureId } = useParams<{ leagueId: string; fixtureId: string }>();
   const navigate = useNavigate();
 
-  const [fixture, setFixture] = useState<Fixture | null>(null);
+  const [fixture, setFixture] = useState<any | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -94,20 +67,25 @@ const FixtureScoreEntry: React.FC = () => {
 
         // Pre-fill existing player selections
         if (fixtureData.data.matches && fixtureData.data.matches.length > 0) {
-          const matches = fixtureData.data.matches;
+          const matches: any[] = fixtureData.data.matches;
+          const getPlayerId = (player: string | { _id: string } | undefined) => {
+            if (!player) return '';
+            return typeof player === 'string' ? player : player._id;
+          };
+
           if (matches[0]) {
-            setSingles1Home(matches[0].homePlayer?._id || matches[0].homePlayer || '');
-            setSingles1Away(matches[0].awayPlayer?._id || matches[0].awayPlayer || '');
+            setSingles1Home(getPlayerId(matches[0].homePlayer));
+            setSingles1Away(getPlayerId(matches[0].awayPlayer));
           }
           if (matches[1]) {
-            setSingles2Home(matches[1].homePlayer?._id || matches[1].homePlayer || '');
-            setSingles2Away(matches[1].awayPlayer?._id || matches[1].awayPlayer || '');
+            setSingles2Home(getPlayerId(matches[1].homePlayer));
+            setSingles2Away(getPlayerId(matches[1].awayPlayer));
           }
           if (matches[2]) {
-            setDoublesHome1(matches[2].homePlayers?.[0]?._id || matches[2].homePlayers?.[0] || '');
-            setDoublesHome2(matches[2].homePlayers?.[1]?._id || matches[2].homePlayers?.[1] || '');
-            setDoublesAway1(matches[2].awayPlayers?.[0]?._id || matches[2].awayPlayers?.[0] || '');
-            setDoublesAway2(matches[2].awayPlayers?.[1]?._id || matches[2].awayPlayers?.[1] || '');
+            setDoublesHome1(getPlayerId(matches[2].homePlayers?.[0]));
+            setDoublesHome2(getPlayerId(matches[2].homePlayers?.[1]));
+            setDoublesAway1(getPlayerId(matches[2].awayPlayers?.[0]));
+            setDoublesAway2(getPlayerId(matches[2].awayPlayers?.[1]));
           }
 
           // If players are already assigned and some matches have scores, go to scores step
@@ -166,11 +144,6 @@ const FixtureScoreEntry: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  };
-
-  const getPlayerName = (playerId: string) => {
-    const player = players.find(p => p._id === playerId);
-    return player ? `${player.firstName} ${player.lastName}` : '';
   };
 
   const handleSaveMatchScore = async (matchIndex: number, sets: Set[], status: string) => {

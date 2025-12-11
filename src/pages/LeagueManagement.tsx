@@ -71,25 +71,25 @@ export function LeagueManagement() {
     province: '',
     homeVenue: {
       name: '',
-      address: '',
-      numberOfCourts: 0,
-      courtSurface: ''
+      address: undefined as string | undefined,
+      numberOfCourts: undefined as number | undefined,
+      courtSurface: undefined as string | undefined
     },
     captain: {
-      name: '',
-      email: '',
-      phone: ''
+      name: undefined as string | undefined,
+      email: undefined as string | undefined,
+      phone: undefined as string | undefined
     },
     coach: {
-      name: '',
-      email: '',
-      phone: ''
+      name: undefined as string | undefined,
+      email: undefined as string | undefined,
+      phone: undefined as string | undefined
     },
     contactEmail: '',
     contactPhone: '',
     colors: {
-      primary: '',
-      secondary: ''
+      primary: undefined as string | undefined,
+      secondary: undefined as string | undefined
     },
     isActive: true
   })
@@ -178,11 +178,12 @@ export function LeagueManagement() {
   const handleSubmitLeague = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const { teams, ...leagueData } = leagueFormData
       if (editingLeague) {
-        await updateLeague(editingLeague._id, leagueFormData)
+        await updateLeague(editingLeague._id, leagueData)
         alert('League updated successfully!')
       } else {
-        await createLeague(leagueFormData)
+        await createLeague(leagueData)
         alert('League created successfully!')
       }
       setShowLeagueModal(false)
@@ -230,25 +231,25 @@ export function LeagueManagement() {
       province: '',
       homeVenue: {
         name: '',
-        address: '',
-        numberOfCourts: 0,
-        courtSurface: ''
+        address: undefined,
+        numberOfCourts: undefined,
+        courtSurface: undefined
       },
       captain: {
-        name: '',
-        email: '',
-        phone: ''
+        name: undefined,
+        email: undefined,
+        phone: undefined
       },
       coach: {
-        name: '',
-        email: '',
-        phone: ''
+        name: undefined,
+        email: undefined,
+        phone: undefined
       },
       contactEmail: '',
       contactPhone: '',
       colors: {
-        primary: '',
-        secondary: ''
+        primary: undefined,
+        secondary: undefined
       },
       isActive: true
     })
@@ -263,17 +264,28 @@ export function LeagueManagement() {
       region: team.region,
       city: team.city || '',
       province: team.province || '',
-      homeVenue: team.homeVenue || {
-        name: '',
-        address: '',
-        numberOfCourts: 0,
-        courtSurface: ''
+      homeVenue: {
+        name: team.homeVenue?.name || '',
+        address: team.homeVenue?.address || undefined,
+        numberOfCourts: team.homeVenue?.numberOfCourts || undefined,
+        courtSurface: team.homeVenue?.courtSurface || undefined
       },
-      captain: team.captain || { name: '', email: '', phone: '' },
-      coach: team.coach || { name: '', email: '', phone: '' },
+      captain: {
+        name: team.captain?.name || undefined,
+        email: team.captain?.email || undefined,
+        phone: team.captain?.phone || undefined
+      },
+      coach: {
+        name: team.coach?.name || undefined,
+        email: team.coach?.email || undefined,
+        phone: team.coach?.phone || undefined
+      },
       contactEmail: team.contactEmail || '',
       contactPhone: team.contactPhone || '',
-      colors: team.colors || { primary: '', secondary: '' },
+      colors: {
+        primary: team.colors?.primary || undefined,
+        secondary: team.colors?.secondary || undefined
+      },
       isActive: team.isActive
     })
     setShowTeamModal(true)
@@ -733,10 +745,10 @@ export function LeagueManagement() {
                     <Label htmlFor="venueAddress">Venue Address</Label>
                     <Input
                       id="venueAddress"
-                      value={teamFormData.homeVenue.address}
+                      value={teamFormData.homeVenue.address || ''}
                       onChange={(e) => setTeamFormData({
                         ...teamFormData,
-                        homeVenue: { ...teamFormData.homeVenue, address: e.target.value }
+                        homeVenue: { ...teamFormData.homeVenue, address: e.target.value || undefined }
                       })}
                     />
                   </div>
@@ -745,10 +757,10 @@ export function LeagueManagement() {
                     <Label htmlFor="captainName">Captain Name</Label>
                     <Input
                       id="captainName"
-                      value={teamFormData.captain.name}
+                      value={teamFormData.captain.name || ''}
                       onChange={(e) => setTeamFormData({
                         ...teamFormData,
-                        captain: { ...teamFormData.captain, name: e.target.value }
+                        captain: { ...teamFormData.captain, name: e.target.value || undefined }
                       })}
                     />
                   </div>
@@ -758,10 +770,10 @@ export function LeagueManagement() {
                     <Input
                       id="captainEmail"
                       type="email"
-                      value={teamFormData.captain.email}
+                      value={teamFormData.captain.email || ''}
                       onChange={(e) => setTeamFormData({
                         ...teamFormData,
-                        captain: { ...teamFormData.captain, email: e.target.value }
+                        captain: { ...teamFormData.captain, email: e.target.value || undefined }
                       })}
                     />
                   </div>

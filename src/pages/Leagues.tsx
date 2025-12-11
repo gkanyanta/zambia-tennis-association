@@ -496,10 +496,10 @@ export function Leagues() {
                             <div className="mt-6 pt-6 border-t">
                               <h4 className="font-semibold mb-4">Enter Match Scores</h4>
                               <div className="text-sm text-muted-foreground mb-4">
-                                Format: {currentLeague.settings.matchFormat === '2singles_1doubles' ? '2 Singles + 1 Doubles' : '3 Singles + 2 Doubles'}
+                                Format: {currentLeague?.settings?.matchFormat === '2singles_1doubles' ? '2 Singles + 1 Doubles' : '3 Singles + 2 Doubles'}
                               </div>
                               <div className="space-y-4">
-                                {getMatchTypesForFormat(currentLeague.settings.matchFormat).map((matchType) => (
+                                {getMatchTypesForFormat(currentLeague?.settings?.matchFormat || '2singles_1doubles').map((matchType) => (
                                   <div key={matchType} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                                     <div className="font-medium">{getMatchLabel(matchType)}</div>
                                     <div className="flex items-center gap-2">
@@ -538,7 +538,7 @@ export function Leagues() {
                                       setEditingFixture(null)
                                       // Clear scores for this fixture
                                       const updatedScores = { ...scores }
-                                      getMatchTypesForFormat(currentLeague.settings.matchFormat).forEach(mt => {
+                                      getMatchTypesForFormat(currentLeague?.settings?.matchFormat || '2singles_1doubles').forEach(mt => {
                                         delete updatedScores[`${fixture._id}-${mt}`]
                                       })
                                       setScores(updatedScores)
