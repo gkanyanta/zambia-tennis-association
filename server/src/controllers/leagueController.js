@@ -725,6 +725,19 @@ export const updatePlayerPosition = async (req, res) => {
 // Helper function to generate round-robin fixtures
 function generateRoundRobinFixtures(clubs, numberOfRounds, startDate, fixtureIntervalDays = 7) {
   const fixtures = [];
+
+  // Validate clubs array
+  if (!clubs || clubs.length === 0) {
+    throw new Error('No clubs provided for fixture generation');
+  }
+
+  // Check if clubs are populated objects or just IDs
+  const isPopulated = clubs[0] && typeof clubs[0] === 'object' && clubs[0].name;
+
+  if (!isPopulated) {
+    throw new Error('Clubs must be populated to generate fixtures. Please ensure teams are populated when fetching the league.');
+  }
+
   const clubIds = clubs.map(club => club._id);
   const n = clubIds.length;
 
@@ -762,9 +775,10 @@ function generateRoundRobinFixtures(clubs, numberOfRounds, startDate, fixtureInt
         const homeClub = clubs[home];
         const awayClub = clubs[away];
 
-        // Use club name as venue (clubs play at their own facilities)
-        const venueName = homeClub.name || 'TBD';
-        const venueAddress = homeClub.address || '';
+        // Validate club objects
+        if (!homeClub || !awayClub) {
+          throw new Error(`Invalid club data at indices ${home} or ${away}`);
+        }
 
         // Alternate home/away for return rounds
         const isReturnRound = round % 2 === 1;
