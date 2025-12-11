@@ -39,7 +39,7 @@ const leagueSchema = new mongoose.Schema({
   },
   teams: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LeagueTeam'
+    ref: 'Club'
   }],
   settings: {
     pointsForWin: {

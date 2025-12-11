@@ -253,7 +253,7 @@ export const generateFixtures = async (req, res) => {
     if (league.teams.length < 2) {
       return res.status(400).json({
         success: false,
-        error: 'League must have at least 2 teams'
+        error: 'League must have at least 2 clubs'
       });
     }
 
@@ -269,7 +269,7 @@ export const generateFixtures = async (req, res) => {
     const { startDate } = req.body;
     const fixtureStartDate = startDate ? new Date(startDate) : league.startDate;
 
-    // Generate round-robin fixtures
+    // Generate round-robin fixtures using clubs
     const fixtures = generateRoundRobinFixtures(
       league.teams,
       league.settings.numberOfRounds,
@@ -723,54 +723,53 @@ export const updatePlayerPosition = async (req, res) => {
 };
 
 // Helper function to generate round-robin fixtures
-function generateRoundRobinFixtures(teams, numberOfRounds, startDate, fixtureIntervalDays = 7) {
+function generateRoundRobinFixtures(clubs, numberOfRounds, startDate, fixtureIntervalDays = 7) {
   const fixtures = [];
-  const teamIds = teams.map(team => team._id);
-  const n = teamIds.length;
+  const clubIds = clubs.map(club => club._id);
+  const n = clubIds.length;
 
-  // If odd number of teams, add a bye
+  // If odd number of clubs, add a bye
   const hasBye = n % 2 === 1;
-  const totalTeams = hasBye ? n + 1 : n;
+  const totalClubs = hasBye ? n + 1 : n;
 
   for (let round = 0; round < numberOfRounds; round++) {
-    const roundOffset = round * (totalTeams - 1);
+    const roundOffset = round * (totalClubs - 1);
 
-    for (let matchday = 0; matchday < totalTeams - 1; matchday++) {
+    for (let matchday = 0; matchday < totalClubs - 1; matchday++) {
       const actualMatchday = matchday + roundOffset;
       const fixtureDate = new Date(startDate);
       fixtureDate.setDate(fixtureDate.getDate() + actualMatchday * fixtureIntervalDays);
 
-      for (let match = 0; match < totalTeams / 2; match++) {
+      for (let match = 0; match < totalClubs / 2; match++) {
         let home, away;
 
         if (matchday === 0) {
           home = match;
-          away = totalTeams - 1 - match;
+          away = totalClubs - 1 - match;
         } else {
           const offset = matchday;
-          home = (match + offset) % (totalTeams - 1);
-          away = (totalTeams - 1 - match + offset) % (totalTeams - 1);
+          home = (match + offset) % (totalClubs - 1);
+          away = (totalClubs - 1 - match + offset) % (totalClubs - 1);
 
           if (match === 0) {
-            away = totalTeams - 1;
+            away = totalClubs - 1;
           }
         }
 
-        // Skip if either team is a bye
+        // Skip if either club is a bye
         if (home >= n || away >= n) continue;
 
-        const homeTeam = teams[home];
-        const awayTeam = teams[away];
+        const homeClub = clubs[home];
+        const awayClub = clubs[away];
 
-        // Validate that home team has venue info
-        if (!homeTeam.homeVenue || !homeTeam.homeVenue.name) {
-          throw new Error(`Team ${homeTeam.name} does not have home venue information`);
-        }
+        // Use club name as venue (clubs play at their own facilities)
+        const venueName = homeClub.name || 'TBD';
+        const venueAddress = homeClub.address || '';
 
         // Alternate home/away for return rounds
         const isReturnRound = round % 2 === 1;
-        const actualHome = isReturnRound ? awayTeam : homeTeam;
-        const actualAway = isReturnRound ? homeTeam : awayTeam;
+        const actualHome = isReturnRound ? awayClub : homeClub;
+        const actualAway = isReturnRound ? homeClub : awayClub;
 
         fixtures.push({
           round: actualMatchday + 1,
@@ -778,8 +777,8 @@ function generateRoundRobinFixtures(teams, numberOfRounds, startDate, fixtureInt
           homeTeam: actualHome._id,
           awayTeam: actualAway._id,
           scheduledDate: fixtureDate,
-          venue: actualHome.homeVenue?.name || 'TBD',
-          venueAddress: actualHome.homeVenue?.address || '',
+          venue: actualHome.name || 'TBD',
+          venueAddress: actualHome.address || '',
           status: 'scheduled',
           matches: [],
           overallScore: { homeWins: 0, awayWins: 0 }

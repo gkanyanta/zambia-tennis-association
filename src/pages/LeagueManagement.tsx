@@ -5,25 +5,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, Plus, Edit, Trash2, Trophy, Users, Calendar, PlayCircle } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Calendar, PlayCircle } from 'lucide-react'
 import {
   fetchLeagues,
-  fetchLeagueTeams,
   createLeague,
   updateLeague,
   deleteLeague,
-  createLeagueTeam,
-  updateLeagueTeam,
-  deleteLeagueTeam,
   generateLeagueFixtures,
-  League,
-  LeagueTeam
+  League
 } from '@/services/leagueService'
 import { clubService, Club } from '@/services/clubService'
 
 export function LeagueManagement() {
-  const [activeTab, setActiveTab] = useState<'leagues' | 'teams'>('leagues')
 
   // Leagues state
   const [leagues, setLeagues] = useState<League[]>([])
@@ -32,14 +25,7 @@ export function LeagueManagement() {
   const [editingLeague, setEditingLeague] = useState<League | null>(null)
   const [loadingLeagues, setLoadingLeagues] = useState(true)
 
-  // Teams state
-  const [teams, setTeams] = useState<LeagueTeam[]>([])
-  const [searchTeam, setSearchTeam] = useState('')
-  const [showTeamModal, setShowTeamModal] = useState(false)
-  const [editingTeam, setEditingTeam] = useState<LeagueTeam | null>(null)
-  const [loadingTeams, setLoadingTeams] = useState(true)
-
-  // Clubs state
+  // Clubs state (for league selection)
   const [clubs, setClubs] = useState<Club[]>([])
 
   // League form data
@@ -58,7 +44,7 @@ export function LeagueManagement() {
       pointsForWin: 3,
       pointsForDraw: 1,
       pointsForLoss: 0,
-      matchFormat: '2 Singles + 1 Doubles',
+      matchFormat: '2singles_1doubles' as '2singles_1doubles' | '3singles_2doubles' | 'custom',
       numberOfRounds: 1
     },
     organizer: '',
@@ -66,47 +52,10 @@ export function LeagueManagement() {
     contactPhone: ''
   })
 
-  // Team form data
-  const [teamFormData, setTeamFormData] = useState({
-    name: '',
-    shortName: '',
-    region: 'northern' as 'northern' | 'southern',
-    city: '',
-    province: '',
-    clubAffiliation: '' as string,
-    homeVenue: {
-      name: '',
-      address: undefined as string | undefined,
-      numberOfCourts: undefined as number | undefined,
-      courtSurface: undefined as string | undefined
-    },
-    captain: {
-      name: undefined as string | undefined,
-      email: undefined as string | undefined,
-      phone: undefined as string | undefined
-    },
-    coach: {
-      name: undefined as string | undefined,
-      email: undefined as string | undefined,
-      phone: undefined as string | undefined
-    },
-    contactEmail: '',
-    contactPhone: '',
-    colors: {
-      primary: undefined as string | undefined,
-      secondary: undefined as string | undefined
-    },
-    isActive: true
-  })
-
   useEffect(() => {
-    if (activeTab === 'leagues') {
-      loadLeagues()
-    } else {
-      loadTeams()
-      loadClubs()
-    }
-  }, [activeTab])
+    loadLeagues()
+    loadClubs()
+  }, [])
 
   const loadLeagues = async () => {
     try {
@@ -117,18 +66,6 @@ export function LeagueManagement() {
       alert(err.message || 'Failed to load leagues')
     } finally {
       setLoadingLeagues(false)
-    }
-  }
-
-  const loadTeams = async () => {
-    try {
-      setLoadingTeams(true)
-      const response = await fetchLeagueTeams()
-      setTeams(response.data)
-    } catch (err: any) {
-      alert(err.message || 'Failed to load teams')
-    } finally {
-      setLoadingTeams(false)
     }
   }
 
@@ -159,7 +96,7 @@ export function LeagueManagement() {
         pointsForWin: 3,
         pointsForDraw: 1,
         pointsForLoss: 0,
-        matchFormat: '2 Singles + 1 Doubles',
+        matchFormat: '2singles_1doubles',
         numberOfRounds: 1
       },
       organizer: '',
@@ -182,7 +119,10 @@ export function LeagueManagement() {
       endDate: league.endDate.split('T')[0],
       status: league.status,
       teams: league.teams.map(t => t._id),
-      settings: league.settings,
+      settings: {
+        ...league.settings,
+        matchFormat: league.settings.matchFormat as '2singles_1doubles' | '3singles_2doubles' | 'custom'
+      },
       organizer: league.organizer || '',
       contactEmail: league.contactEmail || '',
       contactPhone: league.contactPhone || ''
@@ -193,12 +133,19 @@ export function LeagueManagement() {
   const handleSubmitLeague = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const { teams, ...leagueData } = leagueFormData
+      if (leagueFormData.teams.length < 2) {
+        alert('Please select at least 2 clubs for the league')
+        return
+      }
+
+      // Send as any to avoid type conflict - backend expects club IDs
+      const payload = leagueFormData as any
+
       if (editingLeague) {
-        await updateLeague(editingLeague._id, leagueData)
+        await updateLeague(editingLeague._id, payload)
         alert('League updated successfully!')
       } else {
-        await createLeague(leagueData)
+        await createLeague(payload)
         alert('League created successfully!')
       }
       setShowLeagueModal(false)
@@ -235,140 +182,17 @@ export function LeagueManagement() {
     }
   }
 
-  // Team handlers
-  const handleCreateTeam = () => {
-    setEditingTeam(null)
-    setTeamFormData({
-      name: '',
-      shortName: '',
-      region: 'northern',
-      city: '',
-      province: '',
-      clubAffiliation: '',
-      homeVenue: {
-        name: '',
-        address: undefined,
-        numberOfCourts: undefined,
-        courtSurface: undefined
-      },
-      captain: {
-        name: undefined,
-        email: undefined,
-        phone: undefined
-      },
-      coach: {
-        name: undefined,
-        email: undefined,
-        phone: undefined
-      },
-      contactEmail: '',
-      contactPhone: '',
-      colors: {
-        primary: undefined,
-        secondary: undefined
-      },
-      isActive: true
-    })
-    setShowTeamModal(true)
-  }
-
-  const handleEditTeam = (team: LeagueTeam) => {
-    setEditingTeam(team)
-    const clubId = typeof team.clubAffiliation === 'string' ? team.clubAffiliation : team.clubAffiliation?._id || ''
-    setTeamFormData({
-      name: team.name,
-      shortName: team.shortName,
-      region: team.region,
-      city: team.city || '',
-      province: team.province || '',
-      clubAffiliation: clubId,
-      homeVenue: {
-        name: team.homeVenue?.name || '',
-        address: team.homeVenue?.address || undefined,
-        numberOfCourts: team.homeVenue?.numberOfCourts || undefined,
-        courtSurface: team.homeVenue?.courtSurface || undefined
-      },
-      captain: {
-        name: team.captain?.name || undefined,
-        email: team.captain?.email || undefined,
-        phone: team.captain?.phone || undefined
-      },
-      coach: {
-        name: team.coach?.name || undefined,
-        email: team.coach?.email || undefined,
-        phone: team.coach?.phone || undefined
-      },
-      contactEmail: team.contactEmail || '',
-      contactPhone: team.contactPhone || '',
-      colors: {
-        primary: team.colors?.primary || undefined,
-        secondary: team.colors?.secondary || undefined
-      },
-      isActive: team.isActive
-    })
-    setShowTeamModal(true)
-  }
-
-  const handleSubmitTeam = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (editingTeam) {
-        await updateLeagueTeam(editingTeam._id, teamFormData)
-        alert('Team updated successfully!')
-      } else {
-        await createLeagueTeam(teamFormData)
-        alert('Team created successfully!')
-      }
-      setShowTeamModal(false)
-      loadTeams()
-    } catch (err: any) {
-      alert(err.message || 'Failed to save team')
-    }
-  }
-
-  const handleDeleteTeam = async (team: LeagueTeam) => {
-    if (!confirm(`Are you sure you want to delete "${team.name}"? This cannot be undone.`)) {
-      return
-    }
-    try {
-      await deleteLeagueTeam(team._id)
-      alert('Team deleted successfully!')
-      loadTeams()
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete team')
-    }
-  }
-
   const filteredLeagues = leagues.filter(league =>
     league.name.toLowerCase().includes(searchLeague.toLowerCase()) ||
     league.season.toLowerCase().includes(searchLeague.toLowerCase())
   )
 
-  const filteredTeams = teams.filter(team =>
-    team.name.toLowerCase().includes(searchTeam.toLowerCase()) ||
-    team.city?.toLowerCase().includes(searchTeam.toLowerCase())
-  )
-
   return (
     <div className="flex flex-col">
-      <Hero title="League Management" description="Manage leagues, teams, and fixtures" gradient />
+      <Hero title="League Management" description="Manage leagues and fixtures using clubs as teams" gradient />
 
       <section className="py-16">
         <div className="container-custom">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="mb-6">
-              <TabsTrigger value="leagues">
-                <Trophy className="h-4 w-4 mr-2" />
-                Leagues
-              </TabsTrigger>
-              <TabsTrigger value="teams">
-                <Users className="h-4 w-4 mr-2" />
-                Teams
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Leagues Tab */}
-            <TabsContent value="leagues">
               <div className="flex justify-between items-center mb-6 gap-4">
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -450,102 +274,6 @@ export function LeagueManagement() {
                   No leagues found
                 </div>
               )}
-            </TabsContent>
-
-            {/* Teams Tab */}
-            <TabsContent value="teams">
-              <div className="flex justify-between items-center mb-6 gap-4">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search teams..."
-                    value={searchTeam}
-                    onChange={(e) => setSearchTeam(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Button onClick={handleCreateTeam}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Team
-                </Button>
-              </div>
-
-              {loadingTeams ? (
-                <div className="text-center py-12 text-muted-foreground">Loading teams...</div>
-              ) : (
-                <Card>
-                  <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="border-b bg-muted/50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold">Region</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold">Venue</th>
-                            <th className="px-4 py-3 text-center text-sm font-semibold">Status</th>
-                            <th className="px-4 py-3 text-center text-sm font-semibold">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                          {filteredTeams.map((team) => {
-                            const clubName = typeof team.clubAffiliation === 'string'
-                              ? clubs.find(c => c._id === team.clubAffiliation)?.name
-                              : team.clubAffiliation?.name
-                            return (
-                            <tr key={team._id} className="hover:bg-muted/50">
-                              <td className="px-4 py-3 font-medium">{team.name}</td>
-                              <td className="px-4 py-3 text-sm">{clubName || 'N/A'}</td>
-                              <td className="px-4 py-3">
-                                <Badge variant="outline">{team.region}</Badge>
-                              </td>
-                              <td className="px-4 py-3 text-sm">
-                                {team.city && team.province
-                                  ? `${team.city}, ${team.province}`
-                                  : team.city || team.province || 'N/A'}
-                              </td>
-                              <td className="px-4 py-3 text-sm">{team.homeVenue?.name || 'N/A'}</td>
-                              <td className="px-4 py-3 text-center">
-                                <Badge variant={team.isActive ? 'default' : 'secondary'}>
-                                  {team.isActive ? 'Active' : 'Inactive'}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleEditTeam(team)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleDeleteTeam(team)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {filteredTeams.length === 0 && (
-                      <div className="py-12 text-center text-muted-foreground">
-                        No teams found
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
         </div>
       </section>
 
@@ -662,6 +390,45 @@ export function LeagueManagement() {
                   </div>
 
                   <div className="col-span-2">
+                    <Label htmlFor="clubs">Select Clubs (Teams) *</Label>
+                    <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2">
+                      {clubs.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No clubs available</div>
+                      ) : (
+                        clubs.map((club) => (
+                          <label key={club._id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
+                            <input
+                              type="checkbox"
+                              checked={leagueFormData.teams.includes(club._id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setLeagueFormData({
+                                    ...leagueFormData,
+                                    teams: [...leagueFormData.teams, club._id]
+                                  })
+                                } else {
+                                  setLeagueFormData({
+                                    ...leagueFormData,
+                                    teams: leagueFormData.teams.filter(id => id !== club._id)
+                                  })
+                                }
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm">
+                              {club.name}
+                              {club.city && <span className="text-muted-foreground"> ({club.city})</span>}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Select clubs to participate in this {leagueFormData.gender === 'men' ? "men's" : "women's"} league
+                    </p>
+                  </div>
+
+                  <div className="col-span-2">
                     <Label htmlFor="description">Description</Label>
                     <textarea
                       id="description"
@@ -678,168 +445,6 @@ export function LeagueManagement() {
                   </Button>
                   <Button type="submit">
                     {editingLeague ? 'Update League' : 'Create League'}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Team Create/Edit Modal */}
-      {showTeamModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-          onClick={() => setShowTeamModal(false)}
-        >
-          <Card
-            className="max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardHeader>
-              <CardTitle>{editingTeam ? 'Edit Team' : 'Create New Team'}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmitTeam} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <Label htmlFor="teamName">Team Name *</Label>
-                    <Input
-                      id="teamName"
-                      value={teamFormData.name}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, name: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="shortName">Short Name *</Label>
-                    <Input
-                      id="shortName"
-                      value={teamFormData.shortName}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, shortName: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="teamRegion">Region *</Label>
-                    <select
-                      id="teamRegion"
-                      value={teamFormData.region}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, region: e.target.value as any })}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      required
-                    >
-                      <option value="northern">Northern</option>
-                      <option value="southern">Southern</option>
-                    </select>
-                  </div>
-
-                  <div className="col-span-2">
-                    <Label htmlFor="clubAffiliation">Club Affiliation</Label>
-                    <select
-                      id="clubAffiliation"
-                      value={teamFormData.clubAffiliation}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, clubAffiliation: e.target.value })}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="">-- No Club Affiliation --</option>
-                      {clubs.map((club) => (
-                        <option key={club._id} value={club._id}>
-                          {club.name} {club.city ? `(${club.city})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="teamCity">City</Label>
-                    <Input
-                      id="teamCity"
-                      value={teamFormData.city}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, city: e.target.value })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="teamProvince">Province</Label>
-                    <Input
-                      id="teamProvince"
-                      value={teamFormData.province}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, province: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <Label htmlFor="venueName">Home Venue Name</Label>
-                    <Input
-                      id="venueName"
-                      value={teamFormData.homeVenue.name}
-                      onChange={(e) => setTeamFormData({
-                        ...teamFormData,
-                        homeVenue: { ...teamFormData.homeVenue, name: e.target.value }
-                      })}
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <Label htmlFor="venueAddress">Venue Address</Label>
-                    <Input
-                      id="venueAddress"
-                      value={teamFormData.homeVenue.address || ''}
-                      onChange={(e) => setTeamFormData({
-                        ...teamFormData,
-                        homeVenue: { ...teamFormData.homeVenue, address: e.target.value || undefined }
-                      })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="captainName">Captain Name</Label>
-                    <Input
-                      id="captainName"
-                      value={teamFormData.captain.name || ''}
-                      onChange={(e) => setTeamFormData({
-                        ...teamFormData,
-                        captain: { ...teamFormData.captain, name: e.target.value || undefined }
-                      })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="captainEmail">Captain Email</Label>
-                    <Input
-                      id="captainEmail"
-                      type="email"
-                      value={teamFormData.captain.email || ''}
-                      onChange={(e) => setTeamFormData({
-                        ...teamFormData,
-                        captain: { ...teamFormData.captain, email: e.target.value || undefined }
-                      })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="isActive">Status</Label>
-                    <select
-                      id="isActive"
-                      value={teamFormData.isActive ? 'active' : 'inactive'}
-                      onChange={(e) => setTeamFormData({ ...teamFormData, isActive: e.target.value === 'active' })}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 justify-end pt-4">
-                  <Button type="button" variant="outline" onClick={() => setShowTeamModal(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingTeam ? 'Update Team' : 'Create Team'}
                   </Button>
                 </div>
               </form>

@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { Club } from './clubService';
 
 const API_URL = '/leagues';
 
@@ -13,7 +14,7 @@ export interface League {
   startDate: string;
   endDate: string;
   status: 'upcoming' | 'active' | 'completed' | 'cancelled';
-  teams: LeagueTeam[];
+  teams: Club[];
   settings: {
     pointsForWin: number;
     pointsForDraw: number;
@@ -86,8 +87,8 @@ export interface LeagueFixture {
   league: string;
   round: number;
   roundName?: string;
-  homeTeam: LeagueTeam;
-  awayTeam: LeagueTeam;
+  homeTeam: Club;
+  awayTeam: Club;
   scheduledDate: string;
   scheduledTime?: string;
   venue: string;
@@ -98,7 +99,7 @@ export interface LeagueFixture {
     homeWins: number;
     awayWins: number;
   };
-  winner?: LeagueTeam;
+  winner?: Club;
   isDraw: boolean;
   notes?: string;
   referee?: string;
@@ -109,7 +110,7 @@ export interface LeagueFixture {
 }
 
 export interface LeagueStanding {
-  team: LeagueTeam;
+  team: Club;
   played: number;
   won: number;
   drawn: number;

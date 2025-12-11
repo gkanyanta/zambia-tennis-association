@@ -105,12 +105,12 @@ const leagueFixtureSchema = new mongoose.Schema({
   roundName: String, // e.g., "Round 1", "Round 2"
   homeTeam: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LeagueTeam',
+    ref: 'Club',
     required: true
   },
   awayTeam: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LeagueTeam',
+    ref: 'Club',
     required: true
   },
   scheduledDate: {
@@ -141,7 +141,7 @@ const leagueFixtureSchema = new mongoose.Schema({
   },
   winner: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LeagueTeam'
+    ref: 'Club'
   },
   isDraw: {
     type: Boolean,
@@ -154,7 +154,7 @@ const leagueFixtureSchema = new mongoose.Schema({
   postponementReason: String,
   walkoverTeam: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'LeagueTeam'
+    ref: 'Club'
   },
   walkoverReason: String
 }, {

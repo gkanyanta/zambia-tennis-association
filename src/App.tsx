@@ -7,6 +7,7 @@ import { News } from '@/pages/News'
 import { NewsDetail } from '@/pages/NewsDetail'
 import { Membership } from '@/pages/Membership'
 import { Tournaments } from '@/pages/Tournaments'
+import { TournamentDetail } from '@/pages/TournamentDetail'
 import { Rankings } from '@/pages/Rankings'
 import { Play } from '@/pages/Play'
 import { Calendar } from '@/pages/Calendar'
@@ -79,6 +80,7 @@ function App() {
               <Route path="/clubs" element={<Clubs />} />
               <Route path="/membership" element={<Membership />} />
               <Route path="/tournaments" element={<Tournaments />} />
+              <Route path="/tournaments/:id" element={<TournamentDetail />} />
               <Route path="/rankings" element={<Rankings />} />
               <Route path="/play" element={<Play />} />
               <Route path="/calendar" element={<Calendar />} />

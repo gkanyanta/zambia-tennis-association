@@ -30,10 +30,11 @@ export function TournamentAdmin() {
 
   const fetchTournaments = async () => {
     try {
-      // TODO: Replace with actual API call
-      setTournaments([])
+      const data = await tournamentService.getTournaments()
+      setTournaments(data as any)
     } catch (error) {
       console.error('Error fetching tournaments:', error)
+      alert('Failed to load tournaments. Please try again.')
     }
   }
 

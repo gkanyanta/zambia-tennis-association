@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import {
 import { tournamentService, Tournament } from '@/services/tournamentService'
 
 export function Tournaments() {
+  const navigate = useNavigate()
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'ongoing' | 'completed'>('all')
@@ -185,18 +187,30 @@ export function Tournaments() {
 
                     {/* Action Button */}
                     {tournament.status === 'upcoming' && (
-                      <Button className="w-full" variant="default">
+                      <Button
+                        className="w-full"
+                        variant="default"
+                        onClick={() => navigate(`/tournaments/${tournament._id}`)}
+                      >
                         <Trophy className="h-4 w-4 mr-2" />
                         Register
                       </Button>
                     )}
                     {tournament.status === 'ongoing' && (
-                      <Button className="w-full" variant="outline">
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => navigate(`/tournaments/${tournament._id}`)}
+                      >
                         View Details
                       </Button>
                     )}
                     {tournament.status === 'completed' && (
-                      <Button className="w-full" variant="outline">
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => navigate(`/tournaments/${tournament._id}`)}
+                      >
                         View Results
                       </Button>
                     )}
