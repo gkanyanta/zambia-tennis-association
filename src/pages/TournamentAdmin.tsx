@@ -8,8 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
 import { Plus, Users, Trophy, Grid3x3, Settings } from 'lucide-react'
-import type { Tournament, TournamentCategory, Draw } from '@/types/tournament'
-import { tournamentService } from '@/services/tournamentService'
+import type { Draw } from '@/types/tournament'
+import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
 
 export function TournamentAdmin() {
   const navigate = useNavigate()
@@ -23,7 +23,7 @@ export function TournamentAdmin() {
 
   useEffect(() => {
     if (tournamentId && tournaments.length > 0) {
-      const tournament = tournaments.find(t => t.id === tournamentId)
+      const tournament = tournaments.find(t => t._id === tournamentId)
       setSelectedTournament(tournament || null)
     }
   }, [tournamentId, tournaments])
@@ -122,7 +122,7 @@ function TournamentList({ tournaments, onSelect }: { tournaments: Tournament[]; 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {tournaments.map((tournament) => (
-                <Card key={tournament.id} className="card-elevated-hover cursor-pointer" onClick={() => onSelect(tournament.id)}>
+                <Card key={tournament._id} className="card-elevated-hover cursor-pointer" onClick={() => onSelect(tournament._id)}>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg">{tournament.name}</CardTitle>
@@ -139,11 +139,11 @@ function TournamentList({ tournaments, onSelect }: { tournaments: Tournament[]; 
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Categories:</span>
-                        <span>{tournament.categories.length}</span>
+                        <span>{tournament.categories?.length || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Total Entries:</span>
-                        <span>{tournament.categories.reduce((sum, cat) => sum + cat.entries.length, 0)}</span>
+                        <span>{tournament.categories?.reduce((sum, cat) => sum + (cat.entries?.length || 0), 0) || 0}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -192,7 +192,7 @@ function TournamentOverview({ tournament }: { tournament: Tournament }) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {tournament.categories.filter(cat => cat.draw).length} / {tournament.categories.length}
+            {tournament.categories?.filter((cat: any) => cat.draw).length || 0} / {tournament.categories?.length || 0}
           </div>
         </CardContent>
       </Card>
@@ -203,8 +203,8 @@ function TournamentOverview({ tournament }: { tournament: Tournament }) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {tournament.categories.map((category) => (
-              <div key={category.id} className="flex items-center justify-between p-4 border rounded-lg">
+            {tournament.categories?.map((category) => (
+              <div key={category._id} className="flex items-center justify-between p-4 border rounded-lg">
                 <div>
                   <div className="font-medium">{category.name}</div>
                   <div className="text-sm text-muted-foreground">
@@ -213,14 +213,14 @@ function TournamentOverview({ tournament }: { tournament: Tournament }) {
                 </div>
                 <div className="flex items-center gap-4">
                   <Badge variant="outline">
-                    {category.entries.filter(e => e.status === 'accepted').length} / {category.maxEntries} entries
+                    {category.entries?.filter((e: any) => e.status === 'accepted').length || 0} / {category.maxEntries} entries
                   </Badge>
-                  {category.draw && (
+                  {(category as any).draw && (
                     <Badge variant="default">Draw Generated</Badge>
                   )}
                 </div>
               </div>
-            ))}
+            )) || []}
           </div>
         </CardContent>
       </Card>
@@ -237,8 +237,8 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
     try {
       if (!selectedCategory) return
       await tournamentService.updateEntryStatus(
-        tournament.id,
-        selectedCategory.id,
+        tournament._id,
+        selectedCategory._id,
         entryId,
         data
       )
@@ -254,7 +254,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
   const handleAutoSeed = async () => {
     try {
       if (!selectedCategory) return
-      await tournamentService.autoSeedCategory(tournament.id, selectedCategory.id)
+      await tournamentService.autoSeedCategory(tournament._id, selectedCategory._id)
       // Refresh tournament data
       window.location.reload()
     } catch (error) {
@@ -277,20 +277,20 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
   return (
     <div className="space-y-6">
       {/* Category Selector */}
-      {tournament.categories.length > 1 && (
+      {tournament.categories && tournament.categories.length > 1 && (
         <Card>
           <CardContent className="pt-6">
             <label className="text-sm font-medium mb-2 block">Select Category</label>
             <select
               className="w-full p-2 border rounded-md"
-              value={selectedCategory.id}
+              value={selectedCategory._id}
               onChange={(e) => {
-                const category = tournament.categories.find(c => c.id === e.target.value)
+                const category = tournament.categories.find((c: any) => c._id === e.target.value)
                 setSelectedCategory(category || null)
               }}
             >
-              {tournament.categories.map((category) => (
-                <option key={category.id} value={category.id}>
+              {tournament.categories.map((category: any) => (
+                <option key={category._id} value={category._id}>
                   {category.name} - {category.type} {category.gender} {category.ageGroup || 'Open'}
                 </option>
               ))}
@@ -300,7 +300,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
       )}
 
       <EntryManagement
-        category={selectedCategory}
+        category={selectedCategory as any}
         onUpdateEntry={handleUpdateEntry}
         onAutoSeed={handleAutoSeed}
       />
@@ -316,7 +316,7 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
   const handleGenerateDraw = async (draw: Draw) => {
     try {
       if (!selectedCategory) return
-      await tournamentService.generateDraw(tournament.id, selectedCategory.id, draw)
+      await tournamentService.generateDraw(tournament._id, selectedCategory._id, draw)
       // Refresh tournament data
       window.location.reload()
     } catch (error) {
@@ -330,8 +330,8 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
     try {
       if (!selectedCategory) return
       await tournamentService.updateMatchResult(
-        tournament.id,
-        selectedCategory.id,
+        tournament._id,
+        selectedCategory._id,
         matchId,
         result
       )
@@ -357,20 +357,20 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
   return (
     <div className="space-y-6">
       {/* Category Selector */}
-      {tournament.categories.length > 1 && (
+      {tournament.categories && tournament.categories.length > 1 && (
         <Card>
           <CardContent className="pt-6">
             <label className="text-sm font-medium mb-2 block">Select Category</label>
             <select
               className="w-full p-2 border rounded-md"
-              value={selectedCategory.id}
+              value={selectedCategory._id}
               onChange={(e) => {
-                const category = tournament.categories.find(c => c.id === e.target.value)
+                const category = tournament.categories.find((c: any) => c._id === e.target.value)
                 setSelectedCategory(category || null)
               }}
             >
-              {tournament.categories.map((category) => (
-                <option key={category.id} value={category.id}>
+              {tournament.categories.map((category: any) => (
+                <option key={category._id} value={category._id}>
                   {category.name} - {category.type} {category.gender} {category.ageGroup || 'Open'}
                 </option>
               ))}
@@ -380,7 +380,7 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
       )}
 
       <DrawGeneration
-        category={selectedCategory}
+        category={selectedCategory as any}
         onGenerateDraw={handleGenerateDraw}
         onUpdateMatch={handleUpdateMatch}
       />
