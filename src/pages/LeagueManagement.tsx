@@ -20,6 +20,7 @@ import {
   League,
   LeagueTeam
 } from '@/services/leagueService'
+import { clubService, Club } from '@/services/clubService'
 
 export function LeagueManagement() {
   const [activeTab, setActiveTab] = useState<'leagues' | 'teams'>('leagues')
@@ -37,6 +38,9 @@ export function LeagueManagement() {
   const [showTeamModal, setShowTeamModal] = useState(false)
   const [editingTeam, setEditingTeam] = useState<LeagueTeam | null>(null)
   const [loadingTeams, setLoadingTeams] = useState(true)
+
+  // Clubs state
+  const [clubs, setClubs] = useState<Club[]>([])
 
   // League form data
   const [leagueFormData, setLeagueFormData] = useState({
@@ -69,6 +73,7 @@ export function LeagueManagement() {
     region: 'northern' as 'northern' | 'southern',
     city: '',
     province: '',
+    clubAffiliation: '' as string,
     homeVenue: {
       name: '',
       address: undefined as string | undefined,
@@ -99,6 +104,7 @@ export function LeagueManagement() {
       loadLeagues()
     } else {
       loadTeams()
+      loadClubs()
     }
   }, [activeTab])
 
@@ -123,6 +129,15 @@ export function LeagueManagement() {
       alert(err.message || 'Failed to load teams')
     } finally {
       setLoadingTeams(false)
+    }
+  }
+
+  const loadClubs = async () => {
+    try {
+      const clubsData = await clubService.getClubs()
+      setClubs(clubsData)
+    } catch (err: any) {
+      console.error('Failed to load clubs:', err)
     }
   }
 
@@ -229,6 +244,7 @@ export function LeagueManagement() {
       region: 'northern',
       city: '',
       province: '',
+      clubAffiliation: '',
       homeVenue: {
         name: '',
         address: undefined,
@@ -258,12 +274,14 @@ export function LeagueManagement() {
 
   const handleEditTeam = (team: LeagueTeam) => {
     setEditingTeam(team)
+    const clubId = typeof team.clubAffiliation === 'string' ? team.clubAffiliation : team.clubAffiliation?._id || ''
     setTeamFormData({
       name: team.name,
       shortName: team.shortName,
       region: team.region,
       city: team.city || '',
       province: team.province || '',
+      clubAffiliation: clubId,
       homeVenue: {
         name: team.homeVenue?.name || '',
         address: team.homeVenue?.address || undefined,
@@ -462,6 +480,7 @@ export function LeagueManagement() {
                         <thead className="border-b bg-muted/50">
                           <tr>
                             <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
                             <th className="px-4 py-3 text-left text-sm font-semibold">Region</th>
                             <th className="px-4 py-3 text-left text-sm font-semibold">Location</th>
                             <th className="px-4 py-3 text-left text-sm font-semibold">Venue</th>
@@ -470,9 +489,14 @@ export function LeagueManagement() {
                           </tr>
                         </thead>
                         <tbody className="divide-y">
-                          {filteredTeams.map((team) => (
+                          {filteredTeams.map((team) => {
+                            const clubName = typeof team.clubAffiliation === 'string'
+                              ? clubs.find(c => c._id === team.clubAffiliation)?.name
+                              : team.clubAffiliation?.name
+                            return (
                             <tr key={team._id} className="hover:bg-muted/50">
                               <td className="px-4 py-3 font-medium">{team.name}</td>
+                              <td className="px-4 py-3 text-sm">{clubName || 'N/A'}</td>
                               <td className="px-4 py-3">
                                 <Badge variant="outline">{team.region}</Badge>
                               </td>
@@ -506,7 +530,8 @@ export function LeagueManagement() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            )
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -708,6 +733,23 @@ export function LeagueManagement() {
                     >
                       <option value="northern">Northern</option>
                       <option value="southern">Southern</option>
+                    </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label htmlFor="clubAffiliation">Club Affiliation</Label>
+                    <select
+                      id="clubAffiliation"
+                      value={teamFormData.clubAffiliation}
+                      onChange={(e) => setTeamFormData({ ...teamFormData, clubAffiliation: e.target.value })}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">-- No Club Affiliation --</option>
+                      {clubs.map((club) => (
+                        <option key={club._id} value={club._id}>
+                          {club.name} {club.city ? `(${club.city})` : ''}
+                        </option>
+                      ))}
                     </select>
                   </div>
 

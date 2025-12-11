@@ -41,6 +41,12 @@ export interface LeagueTeam {
     numberOfCourts?: number;
     courtSurface?: string;
   };
+  clubAffiliation?: string | {
+    _id: string;
+    name: string;
+    city?: string;
+    province?: string;
+  };
   captain?: {
     name?: string;
     email?: string;
