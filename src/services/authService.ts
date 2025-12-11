@@ -31,6 +31,7 @@ export const authService = {
 
     if (response.success) {
       localStorage.setItem('user', JSON.stringify(response.data));
+      localStorage.setItem('token', response.data.token);
     }
 
     return response.data;
@@ -44,6 +45,7 @@ export const authService = {
 
     if (response.success) {
       localStorage.setItem('user', JSON.stringify(response.data));
+      localStorage.setItem('token', response.data.token);
     }
 
     return response.data;
@@ -51,6 +53,7 @@ export const authService = {
 
   logout() {
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
   },
 
   async getMe(): Promise<User> {
