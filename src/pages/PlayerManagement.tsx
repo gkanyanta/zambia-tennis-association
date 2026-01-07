@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Edit, Trash2 } from 'lucide-react'
+import { Search, Edit, Trash2, Download } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { clubService, type Club } from '@/services/clubService'
 
@@ -13,6 +13,7 @@ export function PlayerManagement() {
   const [players, setPlayers] = useState<User[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'junior' | 'adult'>('all')
   const [showModal, setShowModal] = useState(false)
@@ -147,6 +148,57 @@ export function PlayerManagement() {
     }
   }
 
+  const handleExportToExcel = async () => {
+    try {
+      setExporting(true)
+
+      // Get the API URL and auth token
+      const API_URL = import.meta.env.VITE_API_URL || 'https://zta-backend-y10h.onrender.com'
+      const user = localStorage.getItem('user')
+      const token = user ? JSON.parse(user).token : null
+
+      if (!token) {
+        alert('You must be logged in to export players')
+        return
+      }
+
+      // Fetch the Excel file
+      const response = await fetch(`${API_URL}/api/players/export/excel`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to export players')
+      }
+
+      // Get the blob data
+      const blob = await response.blob()
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `ZTA_Players_Export_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+
+      // Cleanup
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      alert('Players exported successfully!')
+    } catch (err: any) {
+      console.error('Export error:', err)
+      alert(err.message || 'Failed to export players to Excel')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const filteredPlayers = players.filter(player => {
     const matchesSearch =
       player.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -239,6 +291,14 @@ export function PlayerManagement() {
                 onClick={() => setFilterType('adult')}
               >
                 Seniors
+              </Button>
+              <Button
+                onClick={handleExportToExcel}
+                disabled={exporting || players.length === 0}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {exporting ? 'Exporting...' : 'Export to Excel'}
               </Button>
             </div>
           </div>
