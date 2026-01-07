@@ -40,7 +40,7 @@ const setSchema = new mongoose.Schema({
 const matchResultSchema = new mongoose.Schema({
   matchType: {
     type: String,
-    enum: ['singles1', 'singles2', 'doubles'],
+    enum: ['singles1', 'singles2', 'singles3', 'doubles', 'doubles2'],
     required: true
   },
   // Player references for singles
@@ -216,9 +216,16 @@ leagueFixtureSchema.pre('save', function(next) {
     } else if (awayWins > homeWins) {
       this.winner = this.awayTeam;
       this.isDraw = false;
-    } else if (homeWins === awayWins && this.status === 'completed') {
+    } else if (homeWins === awayWins) {
+      // Equal wins = draw (regardless of completion status)
       this.isDraw = true;
       this.winner = null;
+    }
+
+    // Clear winner if fixture not completed
+    if (this.status !== 'completed') {
+      this.winner = null;
+      this.isDraw = false;
     }
   }
   next();

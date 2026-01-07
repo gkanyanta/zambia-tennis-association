@@ -186,8 +186,13 @@ export const getLeagueStandings = async (req, res) => {
       status: 'completed'
     }).populate('homeTeam awayTeam');
 
-    // Calculate standings
-    const standings = calculateStandings(league.teams, fixtures, league.settings);
+    // Calculate standings (with null safety on settings)
+    const settings = league.settings || {
+      pointsForWin: 3,
+      pointsForDraw: 1,
+      pointsForLoss: 0
+    };
+    const standings = calculateStandings(league.teams, fixtures, settings);
 
     // Cache the result
     standingsCache.set(cacheKey, {
@@ -318,10 +323,43 @@ export const updateFixtureResult = async (req, res) => {
 
     // Update matches
     if (matches) {
-      fixture.matches = matches.map(match => ({
-        ...match,
-        completedAt: new Date()
-      }));
+      // Convert simple format (homeScore/awayScore) to detailed format (sets array)
+      const convertedMatches = matches.map(match => {
+        // If simple format (has homeScore/awayScore but no sets), convert to sets
+        if (match.homeScore !== undefined && match.awayScore !== undefined && (!match.sets || match.sets.length === 0)) {
+          const sets = [];
+          const homeSetsWon = match.homeScore;
+          const awaySetsWon = match.awayScore;
+          const totalSets = Math.max(homeSetsWon, awaySetsWon);
+
+          for (let i = 0; i < totalSets; i++) {
+            if (i < homeSetsWon) {
+              // Home won this set
+              sets.push({setNumber: i + 1, homeGames: 6, awayGames: 4});
+            } else {
+              // Away won this set
+              sets.push({setNumber: i + 1, homeGames: 4, awayGames: 6});
+            }
+          }
+
+          // Return match with sets array (remove homeScore/awayScore)
+          const {homeScore, awayScore, ...restMatch} = match;
+          return {
+            ...restMatch,
+            sets,
+            status: 'completed',
+            completedAt: new Date()
+          };
+        }
+
+        // If already has sets or is detailed format, use as-is
+        return {
+          ...match,
+          completedAt: new Date()
+        };
+      });
+
+      fixture.matches = convertedMatches;
     }
 
     // Update status

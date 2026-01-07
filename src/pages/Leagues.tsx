@@ -220,7 +220,11 @@ export function Leagues() {
     }
   }
 
-  const getMatchScore = (results: MatchResult[]) => {
+  const getMatchScore = (results: MatchResult[] | undefined) => {
+    if (!results || results.length === 0) {
+      return { homeWins: 0, awayWins: 0 };
+    }
+
     let homeWins = 0
     let awayWins = 0
     results.forEach(result => {
