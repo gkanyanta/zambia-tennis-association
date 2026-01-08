@@ -75,13 +75,15 @@ function OrgNodeCard({ member }: { member: ExecutiveMember }) {
 // Build hierarchical tree structure from flat array
 function buildHierarchy(executives: ExecutiveMember[]): OrgNode | null {
   // Find root (person with no reportsTo or hierarchyLevel = 0)
-  const root = executives.find(e => !e.reportsTo || e.hierarchyLevel === 0);
+  const root = executives.find(e => !e.reportsTo || (e.hierarchyLevel !== undefined && e.hierarchyLevel === 0));
 
   if (!root) {
     // If no clear root, use the first person sorted by hierarchyLevel and displayOrder
     const sorted = [...executives].sort((a, b) => {
-      if (a.hierarchyLevel !== b.hierarchyLevel) {
-        return a.hierarchyLevel - b.hierarchyLevel;
+      const aLevel = a.hierarchyLevel || 0;
+      const bLevel = b.hierarchyLevel || 0;
+      if (aLevel !== bLevel) {
+        return aLevel - bLevel;
       }
       return a.displayOrder - b.displayOrder;
     });
@@ -100,8 +102,10 @@ function buildNode(member: ExecutiveMember, allMembers: ExecutiveMember[]): OrgN
     .filter(e => e.reportsTo === member._id)
     .sort((a, b) => {
       // Sort by hierarchyLevel first, then displayOrder
-      if (a.hierarchyLevel !== b.hierarchyLevel) {
-        return a.hierarchyLevel - b.hierarchyLevel;
+      const aLevel = a.hierarchyLevel || 0;
+      const bLevel = b.hierarchyLevel || 0;
+      if (aLevel !== bLevel) {
+        return aLevel - bLevel;
       }
       return a.displayOrder - b.displayOrder;
     });

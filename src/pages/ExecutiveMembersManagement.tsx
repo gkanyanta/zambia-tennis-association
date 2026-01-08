@@ -478,7 +478,7 @@ export function ExecutiveMembersManagement() {
                         <SelectItem value="">None (Top Level)</SelectItem>
                         {members
                           .filter(m => m._id !== editingMember?._id)
-                          .sort((a, b) => a.hierarchyLevel - b.hierarchyLevel)
+                          .sort((a, b) => (a.hierarchyLevel || 0) - (b.hierarchyLevel || 0))
                           .map(member => (
                             <SelectItem key={member._id} value={member._id}>
                               {member.name} ({member.position})
