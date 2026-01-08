@@ -89,24 +89,43 @@ export function ExecutiveMembersManagement() {
   };
 
   const handleEdit = (member: ExecutiveMember) => {
-    setEditingMember(member);
-    setFormData({
-      name: member.name,
-      position: member.position,
-      profileImage: member.profileImage || '',
-      bio: member.bio || '',
-      email: member.email || '',
-      phone: member.phone || '',
-      region: member.region,
-      displayOrder: member.displayOrder,
-      hierarchyLevel: member.hierarchyLevel || 0,
-      reportsTo: member.reportsTo || '',
-      department: member.department || '',
-      startDate: member.startDate ? new Date(member.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      endDate: member.endDate ? new Date(member.endDate).toISOString().split('T')[0] : '',
-      isActive: member.isActive
-    });
-    setShowModal(true);
+    try {
+      setEditingMember(member);
+
+      // Validate reportsTo - ensure it exists in the members list
+      let validReportsTo = '';
+      if (member.reportsTo && typeof member.reportsTo === 'string') {
+        const reportsToExists = members.some(m => m._id === member.reportsTo && m._id !== member._id);
+        if (reportsToExists) {
+          validReportsTo = member.reportsTo;
+        }
+      }
+
+      setFormData({
+        name: member.name || '',
+        position: member.position || '',
+        profileImage: member.profileImage || '',
+        bio: member.bio || '',
+        email: member.email || '',
+        phone: member.phone || '',
+        region: member.region || 'national',
+        displayOrder: member.displayOrder ?? 0,
+        hierarchyLevel: member.hierarchyLevel ?? 0,
+        reportsTo: validReportsTo,
+        department: member.department || '',
+        startDate: member.startDate ? new Date(member.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        endDate: member.endDate ? new Date(member.endDate).toISOString().split('T')[0] : '',
+        isActive: member.isActive ?? true
+      });
+      setShowModal(true);
+    } catch (error: any) {
+      console.error('Error in handleEdit:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to open edit form: ${error.message}`,
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -476,12 +495,12 @@ export function ExecutiveMembersManagement() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">None (Top Level)</SelectItem>
-                        {members
-                          .filter(m => m._id !== editingMember?._id)
+                        {Array.isArray(members) && members
+                          .filter(m => m && m._id && m._id !== editingMember?._id)
                           .sort((a, b) => (a.hierarchyLevel || 0) - (b.hierarchyLevel || 0))
                           .map(member => (
                             <SelectItem key={member._id} value={member._id}>
-                              {member.name} ({member.position})
+                              {member.name || 'Unknown'} ({member.position || 'No position'})
                             </SelectItem>
                           ))
                         }
