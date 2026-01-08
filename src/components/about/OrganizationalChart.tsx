@@ -118,18 +118,18 @@ function MemberDetailModal({ member, open, onOpenChange }: { member: ExecutiveMe
 function OrgNodeCard({ member, isTopLevel, onClick }: { member: ExecutiveMember; isTopLevel?: boolean; onClick: () => void }) {
   return (
     <Card
-      className={`${isTopLevel ? 'w-56' : 'w-48'} hover:shadow-2xl hover:scale-105 hover:z-10 transition-all duration-300 border-2 border-primary/30 bg-white shadow-md cursor-pointer`}
+      className={`${isTopLevel ? 'w-40' : 'w-36'} hover:shadow-2xl hover:scale-110 hover:z-10 transition-all duration-300 border-2 border-primary/30 bg-white shadow-md cursor-pointer`}
       onClick={onClick}
     >
-      <CardContent className="p-3">
+      <CardContent className="p-2">
         <div className="flex flex-col items-center text-center">
           {/* Profile Image */}
-          <div className="mb-2">
+          <div className="mb-1.5">
             {member.profileImage ? (
               <img
                 src={member.profileImage}
                 alt={member.name}
-                className={`${isTopLevel ? 'w-16 h-16' : 'w-14 h-14'} rounded-full object-cover border-3 border-primary/20 shadow-sm`}
+                className={`${isTopLevel ? 'w-12 h-12' : 'w-10 h-10'} rounded-full object-cover border-2 border-primary/20 shadow-sm`}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
@@ -139,24 +139,24 @@ function OrgNodeCard({ member, isTopLevel, onClick }: { member: ExecutiveMember;
               />
             ) : null}
             <div
-              className={`${isTopLevel ? 'w-16 h-16' : 'w-14 h-14'} rounded-full bg-gradient-to-br from-primary/10 to-primary/5 border-3 border-primary/20 flex items-center justify-center ${member.profileImage ? 'hidden' : ''}`}
+              className={`${isTopLevel ? 'w-12 h-12' : 'w-10 h-10'} rounded-full bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/20 flex items-center justify-center ${member.profileImage ? 'hidden' : ''}`}
             >
-              <User className={`${isTopLevel ? 'w-8 h-8' : 'w-7 h-7'} text-primary/40`} />
+              <User className={`${isTopLevel ? 'w-6 h-6' : 'w-5 h-5'} text-primary/40`} />
             </div>
           </div>
 
           {/* Name and Position */}
-          <h3 className={`font-bold ${isTopLevel ? 'text-sm' : 'text-xs'} mb-0.5 text-gray-900 line-clamp-2`}>
+          <h3 className={`font-bold ${isTopLevel ? 'text-xs' : 'text-[10px]'} mb-0.5 text-gray-900 line-clamp-2 leading-tight`}>
             {member.name}
           </h3>
-          <p className={`${isTopLevel ? 'text-xs' : 'text-[10px]'} font-semibold text-primary mb-1 line-clamp-2 leading-tight`}>
+          <p className={`${isTopLevel ? 'text-[9px]' : 'text-[8px]'} font-semibold text-primary mb-0.5 line-clamp-2 leading-tight`}>
             {member.position}
           </p>
 
           {/* Department/Region Badge - only show region for non-national */}
           {member.region !== 'national' && (
-            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-800 rounded-full capitalize">
-              <MapPin className="w-2.5 h-2.5 mr-0.5" />
+            <span className="inline-flex items-center px-1 py-0.5 text-[8px] font-medium bg-green-100 text-green-800 rounded-full capitalize">
+              <MapPin className="w-2 h-2 mr-0.5" />
               {member.region}
             </span>
           )}
@@ -239,8 +239,8 @@ function renderNode(node: OrgNode, onMemberClick: (member: ExecutiveMember) => v
           <div className="relative w-full mb-8">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/20"></div>
 
-            {/* Grid of children - increased spacing to prevent overlap */}
-            <div className={`grid ${node.children.length === 1 ? 'grid-cols-1' : node.children.length === 2 ? 'grid-cols-2' : node.children.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-x-12 gap-y-16 mt-8`}>
+            {/* Grid of children - compact spacing */}
+            <div className={`grid ${node.children.length === 1 ? 'grid-cols-1' : node.children.length === 2 ? 'grid-cols-2' : node.children.length === 3 ? 'grid-cols-3' : node.children.length <= 5 ? 'grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'} gap-x-6 gap-y-10 mt-8`}>
               {node.children.map((child, index) => (
                 <div key={child.member._id || index} className="relative">
                   {/* Vertical connector from horizontal line to child */}
