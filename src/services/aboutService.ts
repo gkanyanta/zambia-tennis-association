@@ -11,6 +11,9 @@ export interface ExecutiveMember {
   bio?: string;
   displayOrder: number;
   region: 'national' | 'northern' | 'southern' | 'eastern' | 'western';
+  hierarchyLevel: number;
+  reportsTo?: string | null;
+  department?: string;
   isActive: boolean;
   socialMedia?: {
     linkedin?: string;

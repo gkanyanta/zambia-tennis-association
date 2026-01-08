@@ -34,6 +34,25 @@ const executiveMemberSchema = new mongoose.Schema({
     enum: ['national', 'northern', 'southern'],
     default: 'national'
   },
+  // Organizational hierarchy fields
+  hierarchyLevel: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 10,
+    comment: '0=President/CEO, 1=Vice President/Executive, 2=Directors, 3=Managers, etc.'
+  },
+  reportsTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ExecutiveMember',
+    default: null,
+    comment: 'Reference to the executive member this person reports to'
+  },
+  department: {
+    type: String,
+    trim: true,
+    comment: 'Department or area of responsibility (e.g., Technical, Marketing, Finance)'
+  },
   isActive: {
     type: Boolean,
     default: true

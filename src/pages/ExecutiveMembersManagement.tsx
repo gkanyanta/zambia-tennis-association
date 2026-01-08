@@ -39,6 +39,9 @@ export function ExecutiveMembersManagement() {
     phone: '',
     region: 'national' as 'national' | 'northern' | 'southern' | 'eastern' | 'western',
     displayOrder: 0,
+    hierarchyLevel: 0,
+    reportsTo: '',
+    department: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: '',
     isActive: true
@@ -75,6 +78,9 @@ export function ExecutiveMembersManagement() {
       phone: '',
       region: 'national',
       displayOrder: members.length + 1,
+      hierarchyLevel: 0,
+      reportsTo: '',
+      department: '',
       startDate: new Date().toISOString().split('T')[0],
       endDate: '',
       isActive: true
@@ -93,6 +99,9 @@ export function ExecutiveMembersManagement() {
       phone: member.phone || '',
       region: member.region,
       displayOrder: member.displayOrder,
+      hierarchyLevel: member.hierarchyLevel || 0,
+      reportsTo: member.reportsTo || '',
+      department: member.department || '',
       startDate: member.startDate ? new Date(member.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       endDate: member.endDate ? new Date(member.endDate).toISOString().split('T')[0] : '',
       isActive: member.isActive
@@ -146,6 +155,8 @@ export function ExecutiveMembersManagement() {
     try {
       const memberData = {
         ...formData,
+        reportsTo: formData.reportsTo || null,
+        department: formData.department || undefined,
         startDate: formData.startDate ? formData.startDate : undefined,
         endDate: formData.endDate ? formData.endDate : undefined
       };
@@ -428,6 +439,64 @@ export function ExecutiveMembersManagement() {
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              {/* Organizational Hierarchy Section */}
+              <div className="border-t pt-4 mt-2">
+                <h3 className="text-sm font-semibold mb-3 text-gray-700">Organizational Hierarchy</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="hierarchyLevel">Hierarchy Level</Label>
+                    <Select
+                      value={formData.hierarchyLevel.toString()}
+                      onValueChange={(value) => setFormData({ ...formData, hierarchyLevel: parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0 - President/CEO</SelectItem>
+                        <SelectItem value="1">1 - Vice President</SelectItem>
+                        <SelectItem value="2">2 - Director</SelectItem>
+                        <SelectItem value="3">3 - Manager</SelectItem>
+                        <SelectItem value="4">4 - Coordinator</SelectItem>
+                        <SelectItem value="5">5 - Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reportsTo">Reports To</Label>
+                    <Select
+                      value={formData.reportsTo}
+                      onValueChange={(value) => setFormData({ ...formData, reportsTo: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select supervisor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None (Top Level)</SelectItem>
+                        {members
+                          .filter(m => m._id !== editingMember?._id)
+                          .sort((a, b) => a.hierarchyLevel - b.hierarchyLevel)
+                          .map(member => (
+                            <SelectItem key={member._id} value={member._id}>
+                              {member.name} ({member.position})
+                            </SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Department</Label>
+                    <Input
+                      id="department"
+                      value={formData.department}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      placeholder="e.g., Technical, Marketing"
+                    />
+                  </div>
                 </div>
               </div>
 

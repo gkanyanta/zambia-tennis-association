@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Hero } from '@/components/Hero';
 import { ExecutiveCard } from '@/components/about/ExecutiveCard';
 import { AffiliationCard } from '@/components/about/AffiliationCard';
-import { Loader2, Users, Globe } from 'lucide-react';
+import { OrganizationalChart } from '@/components/about/OrganizationalChart';
+import { Loader2, Users, Globe, LayoutGrid, Network } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 import {
   fetchExecutiveMembers,
   fetchAffiliations,
@@ -19,6 +21,7 @@ export function About() {
   const [affiliations, setAffiliations] = useState<Affiliation[]>([]);
   const [content, setContent] = useState<{ [key: string]: AboutContent }>({});
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'cards' | 'chart'>('chart'); // Default to org chart
 
   useEffect(() => {
     loadPageData();
@@ -144,40 +147,70 @@ export function About() {
       {executives.length > 0 && (
         <section className="py-16 bg-white">
           <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
+            <div className="text-center mb-8">
               <Users className="w-12 h-12 text-primary mx-auto mb-4" />
               <h2 className="text-3xl font-bold mb-2">Executive Committee</h2>
-              <p className="text-gray-600">
+              <p className="text-gray-600 mb-6">
                 Meet the dedicated leaders of the Zambia Tennis Association
               </p>
+
+              {/* View Mode Toggle */}
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant={viewMode === 'chart' ? 'default' : 'outline'}
+                  onClick={() => setViewMode('chart')}
+                  className="flex items-center gap-2"
+                >
+                  <Network className="w-4 h-4" />
+                  Organizational Chart
+                </Button>
+                <Button
+                  variant={viewMode === 'cards' ? 'default' : 'outline'}
+                  onClick={() => setViewMode('cards')}
+                  className="flex items-center gap-2"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  Card View
+                </Button>
+              </div>
             </div>
 
-            {/* National Leadership */}
-            {nationalLeadership.length > 0 && (
-              <div className="mb-12">
-                <h3 className="text-2xl font-semibold mb-6 text-center">
-                  National Leadership
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {nationalLeadership.map((member) => (
-                    <ExecutiveCard key={member._id} member={member} />
-                  ))}
-                </div>
-              </div>
+            {/* Organizational Chart View */}
+            {viewMode === 'chart' && (
+              <OrganizationalChart executives={executives} />
             )}
 
-            {/* Regional Leadership */}
-            {regionalLeadership.length > 0 && (
-              <div>
-                <h3 className="text-2xl font-semibold mb-6 text-center">
-                  Regional Leadership
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {regionalLeadership.map((member) => (
-                    <ExecutiveCard key={member._id} member={member} />
-                  ))}
-                </div>
-              </div>
+            {/* Card Grid View */}
+            {viewMode === 'cards' && (
+              <>
+                {/* National Leadership */}
+                {nationalLeadership.length > 0 && (
+                  <div className="mb-12">
+                    <h3 className="text-2xl font-semibold mb-6 text-center">
+                      National Leadership
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {nationalLeadership.map((member) => (
+                        <ExecutiveCard key={member._id} member={member} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Regional Leadership */}
+                {regionalLeadership.length > 0 && (
+                  <div>
+                    <h3 className="text-2xl font-semibold mb-6 text-center">
+                      Regional Leadership
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                      {regionalLeadership.map((member) => (
+                        <ExecutiveCard key={member._id} member={member} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>
