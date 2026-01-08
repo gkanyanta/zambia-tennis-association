@@ -216,6 +216,14 @@ function renderNode(node: OrgNode, onMemberClick: (member: ExecutiveMember) => v
   const hasChildren = node.children.length > 0;
   const isTopLevel = node.level === 0;
 
+  // Check if children are mostly regional positions
+  const hasRegionalChildren = hasChildren && node.children.some(child => child.member.region !== 'national');
+
+  // Adjust spacing based on whether children are regional
+  const connectorHeight = hasRegionalChildren ? 'h-16' : 'h-8';
+  const verticalGap = hasRegionalChildren ? 'gap-y-16' : 'gap-y-10';
+  const horizontalGap = hasRegionalChildren ? 'gap-x-10' : 'gap-x-6';
+
   return (
     <div className="flex flex-col items-center">
       {/* The node card */}
@@ -227,24 +235,24 @@ function renderNode(node: OrgNode, onMemberClick: (member: ExecutiveMember) => v
         />
       </div>
 
-      {/* Vertical connector line */}
+      {/* Vertical connector line - longer for regional children */}
       {hasChildren && (
-        <div className="w-0.5 h-8 bg-gradient-to-b from-primary/40 to-primary/20"></div>
+        <div className={`w-0.5 ${connectorHeight} bg-gradient-to-b from-primary/40 to-primary/20`}></div>
       )}
 
       {/* Children container */}
       {hasChildren && (
         <div className="flex flex-col items-center">
           {/* Horizontal line across all children */}
-          <div className="relative w-full mb-8">
+          <div className={`relative w-full ${hasRegionalChildren ? 'mb-12' : 'mb-8'}`}>
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/20"></div>
 
-            {/* Grid of children - compact spacing */}
-            <div className={`grid ${node.children.length === 1 ? 'grid-cols-1' : node.children.length === 2 ? 'grid-cols-2' : node.children.length === 3 ? 'grid-cols-3' : node.children.length <= 5 ? 'grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'} gap-x-6 gap-y-10 mt-8`}>
+            {/* Grid of children - spacing adjusted for regional positions */}
+            <div className={`grid ${node.children.length === 1 ? 'grid-cols-1' : node.children.length === 2 ? 'grid-cols-2' : node.children.length === 3 ? 'grid-cols-3' : node.children.length <= 5 ? 'grid-cols-3 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-3 lg:grid-cols-4 xl:grid-cols-6'} ${horizontalGap} ${verticalGap} ${hasRegionalChildren ? 'mt-12' : 'mt-8'}`}>
               {node.children.map((child, index) => (
                 <div key={child.member._id || index} className="relative">
-                  {/* Vertical connector from horizontal line to child */}
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 w-0.5 h-8 bg-gradient-to-b from-primary/20 to-primary/40"></div>
+                  {/* Vertical connector from horizontal line to child - longer for regional */}
+                  <div className={`absolute ${hasRegionalChildren ? '-top-12' : '-top-8'} left-1/2 transform -translate-x-1/2 w-0.5 ${hasRegionalChildren ? 'h-12' : 'h-8'} bg-gradient-to-b from-primary/20 to-primary/40`}></div>
                   {renderNode(child, onMemberClick)}
                 </div>
               ))}
