@@ -16,56 +16,58 @@ interface OrgNode {
 // Custom styled node component
 function OrgNodeCard({ member }: { member: ExecutiveMember }) {
   return (
-    <Card className="w-64 hover:shadow-lg transition-shadow border-2 border-primary/20">
-      <CardContent className="p-4">
+    <Card className="w-56 hover:shadow-lg transition-shadow border-2 border-primary/20 bg-white">
+      <CardContent className="p-3">
         <div className="flex flex-col items-center text-center">
           {/* Profile Image */}
-          <div className="mb-3">
+          <div className="mb-2">
             <img
               src={member.profileImage}
               alt={member.name}
-              className="w-20 h-20 rounded-full object-cover border-4 border-primary/10"
+              className="w-16 h-16 rounded-full object-cover border-3 border-primary/10"
             />
           </div>
 
           {/* Name and Position */}
-          <h3 className="font-bold text-base mb-1">{member.name}</h3>
-          <p className="text-sm font-medium text-primary mb-2">
+          <h3 className="font-bold text-sm mb-0.5">{member.name}</h3>
+          <p className="text-xs font-medium text-primary mb-2">
             {member.position}
           </p>
 
           {/* Department/Region Badge */}
           {(member.department || member.region !== 'national') && (
-            <div className="flex gap-1 mb-3 flex-wrap justify-center">
+            <div className="flex gap-1 mb-2 flex-wrap justify-center">
               {member.department && (
-                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
                   {member.department}
                 </span>
               )}
               {member.region !== 'national' && (
-                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded capitalize">
-                  <MapPin className="w-3 h-3 mr-1" />
+                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded capitalize">
+                  <MapPin className="w-3 h-3 mr-0.5" />
                   {member.region}
                 </span>
               )}
             </div>
           )}
 
-          {/* Contact Info */}
-          <div className="w-full space-y-1">
-            {member.email && (
-              <div className="flex items-center justify-center text-xs text-gray-600">
-                <Mail className="w-3 h-3 mr-1" />
-                <span className="truncate max-w-[200px]">{member.email}</span>
-              </div>
-            )}
-            {member.phone && (
-              <div className="flex items-center justify-center text-xs text-gray-600">
-                <Phone className="w-3 h-3 mr-1" />
-                <span>{member.phone}</span>
-              </div>
-            )}
-          </div>
+          {/* Contact Info - More compact */}
+          {(member.email || member.phone) && (
+            <div className="w-full space-y-0.5 text-xs text-gray-500">
+              {member.email && (
+                <div className="flex items-center justify-center">
+                  <Mail className="w-3 h-3 mr-1" />
+                  <span className="truncate max-w-[180px]">{member.email}</span>
+                </div>
+              )}
+              {member.phone && (
+                <div className="flex items-center justify-center">
+                  <Phone className="w-3 h-3 mr-1" />
+                  <span>{member.phone}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -150,12 +152,12 @@ export function OrganizationalChart({ executives }: OrganizationalChartProps) {
   }
 
   return (
-    <div className="w-full overflow-x-auto py-8">
-      <div className="min-w-max mx-auto">
+    <div className="w-full overflow-x-auto py-8 bg-gray-50">
+      <div className="flex justify-center min-w-fit px-8">
         <Tree
           lineWidth="2px"
-          lineColor="#cbd5e1"
-          lineBorderRadius="10px"
+          lineColor="#94a3b8"
+          lineBorderRadius="8px"
           label={<OrgNodeCard member={hierarchyRoot.member} />}
         >
           {hierarchyRoot.children.map((child, index) => (
