@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ExecutiveMember } from '@/services/aboutService';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mail, Phone, MapPin, User } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Mail, Phone, MapPin, User, Calendar } from 'lucide-react';
 
 interface OrganizationalChartProps {
   executives: ExecutiveMember[];
@@ -13,19 +14,122 @@ interface OrgNode {
   level: number;
 }
 
-// Custom styled node component
-function OrgNodeCard({ member, isTopLevel }: { member: ExecutiveMember; isTopLevel?: boolean }) {
+// Modal for showing full member details
+function MemberDetailModal({ member, open, onOpenChange }: { member: ExecutiveMember; open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
-    <Card className={`${isTopLevel ? 'w-72' : 'w-64'} hover:shadow-xl transition-all duration-200 border-2 border-primary/30 bg-white shadow-md`}>
-      <CardContent className="p-4">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Executive Member Details</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6">
+          {/* Header with image and name */}
+          <div className="flex items-start gap-6">
+            <div className="flex-shrink-0">
+              {member.profileImage ? (
+                <img
+                  src={member.profileImage}
+                  alt={member.name}
+                  className="w-32 h-32 rounded-full object-cover border-4 border-primary/20 shadow-lg"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div
+                className={`w-32 h-32 rounded-full bg-gradient-to-br from-primary/10 to-primary/5 border-4 border-primary/20 flex items-center justify-center ${member.profileImage ? 'hidden' : ''}`}
+              >
+                <User className="w-16 h-16 text-primary/40" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">{member.name}</h2>
+              <p className="text-lg font-semibold text-primary mb-3">{member.position}</p>
+              <div className="flex gap-2 flex-wrap">
+                {member.department && (
+                  <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800 rounded-full">
+                    {member.department}
+                  </span>
+                )}
+                <span className="inline-flex items-center px-3 py-1 text-sm font-medium bg-green-100 text-green-800 rounded-full capitalize">
+                  <MapPin className="w-4 h-4 mr-1" />
+                  {member.region}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bio */}
+          {member.bio && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Biography</h3>
+              <p className="text-gray-600 leading-relaxed">{member.bio}</p>
+            </div>
+          )}
+
+          {/* Contact Information */}
+          {(member.email || member.phone) && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Contact Information</h3>
+              <div className="space-y-2">
+                {member.email && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Mail className="w-4 h-4 text-primary" />
+                    <a href={`mailto:${member.email}`} className="hover:text-primary hover:underline">
+                      {member.email}
+                    </a>
+                  </div>
+                )}
+                {member.phone && (
+                  <div className="flex items-center gap-2 text-gray-600">
+                    <Phone className="w-4 h-4 text-primary" />
+                    <a href={`tel:${member.phone}`} className="hover:text-primary hover:underline">
+                      {member.phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Tenure */}
+          {member.startDate && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Tenure</h3>
+              <div className="flex items-center gap-2 text-gray-600">
+                <Calendar className="w-4 h-4 text-primary" />
+                <span>
+                  {new Date(member.startDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  {member.endDate ? ` - ${new Date(member.endDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` : ' - Present'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Custom styled node component - smaller with hover effect
+function OrgNodeCard({ member, isTopLevel, onClick }: { member: ExecutiveMember; isTopLevel?: boolean; onClick: () => void }) {
+  return (
+    <Card
+      className={`${isTopLevel ? 'w-56' : 'w-48'} hover:shadow-2xl hover:scale-105 hover:z-10 transition-all duration-300 border-2 border-primary/30 bg-white shadow-md cursor-pointer`}
+      onClick={onClick}
+    >
+      <CardContent className="p-3">
         <div className="flex flex-col items-center text-center">
           {/* Profile Image */}
-          <div className="mb-3">
+          <div className="mb-2">
             {member.profileImage ? (
               <img
                 src={member.profileImage}
                 alt={member.name}
-                className={`${isTopLevel ? 'w-20 h-20' : 'w-16 h-16'} rounded-full object-cover border-4 border-primary/20 shadow-sm`}
+                className={`${isTopLevel ? 'w-16 h-16' : 'w-14 h-14'} rounded-full object-cover border-3 border-primary/20 shadow-sm`}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
@@ -35,53 +139,26 @@ function OrgNodeCard({ member, isTopLevel }: { member: ExecutiveMember; isTopLev
               />
             ) : null}
             <div
-              className={`${isTopLevel ? 'w-20 h-20' : 'w-16 h-16'} rounded-full bg-gradient-to-br from-primary/10 to-primary/5 border-4 border-primary/20 flex items-center justify-center ${member.profileImage ? 'hidden' : ''}`}
+              className={`${isTopLevel ? 'w-16 h-16' : 'w-14 h-14'} rounded-full bg-gradient-to-br from-primary/10 to-primary/5 border-3 border-primary/20 flex items-center justify-center ${member.profileImage ? 'hidden' : ''}`}
             >
-              <User className={`${isTopLevel ? 'w-10 h-10' : 'w-8 h-8'} text-primary/40`} />
+              <User className={`${isTopLevel ? 'w-8 h-8' : 'w-7 h-7'} text-primary/40`} />
             </div>
           </div>
 
           {/* Name and Position */}
-          <h3 className={`font-bold ${isTopLevel ? 'text-base' : 'text-sm'} mb-1 text-gray-900`}>
+          <h3 className={`font-bold ${isTopLevel ? 'text-sm' : 'text-xs'} mb-0.5 text-gray-900 line-clamp-2`}>
             {member.name}
           </h3>
-          <p className={`${isTopLevel ? 'text-sm' : 'text-xs'} font-semibold text-primary mb-2`}>
+          <p className={`${isTopLevel ? 'text-xs' : 'text-[10px]'} font-semibold text-primary mb-1 line-clamp-2 leading-tight`}>
             {member.position}
           </p>
 
-          {/* Department/Region Badge */}
-          {(member.department || member.region !== 'national') && (
-            <div className="flex gap-1.5 mb-2 flex-wrap justify-center">
-              {member.department && (
-                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                  {member.department}
-                </span>
-              )}
-              {member.region !== 'national' && (
-                <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full capitalize">
-                  <MapPin className="w-3 h-3 mr-0.5" />
-                  {member.region}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Contact Info */}
-          {(member.email || member.phone) && (
-            <div className="w-full pt-2 border-t border-gray-100 space-y-1 text-xs text-gray-600">
-              {member.email && (
-                <div className="flex items-center justify-center gap-1">
-                  <Mail className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{member.email}</span>
-                </div>
-              )}
-              {member.phone && (
-                <div className="flex items-center justify-center gap-1">
-                  <Phone className="w-3 h-3 flex-shrink-0" />
-                  <span>{member.phone}</span>
-                </div>
-              )}
-            </div>
+          {/* Department/Region Badge - only show region for non-national */}
+          {member.region !== 'national' && (
+            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-green-100 text-green-800 rounded-full capitalize">
+              <MapPin className="w-2.5 h-2.5 mr-0.5" />
+              {member.region}
+            </span>
           )}
         </div>
       </CardContent>
@@ -135,7 +212,7 @@ function buildNode(member: ExecutiveMember, allMembers: ExecutiveMember[], level
 }
 
 // Render a node and its children with custom layout
-function renderNode(node: OrgNode): React.ReactElement {
+function renderNode(node: OrgNode, onMemberClick: (member: ExecutiveMember) => void): React.ReactElement {
   const hasChildren = node.children.length > 0;
   const isTopLevel = node.level === 0;
 
@@ -143,7 +220,11 @@ function renderNode(node: OrgNode): React.ReactElement {
     <div className="flex flex-col items-center">
       {/* The node card */}
       <div className="mb-6">
-        <OrgNodeCard member={node.member} isTopLevel={isTopLevel} />
+        <OrgNodeCard
+          member={node.member}
+          isTopLevel={isTopLevel}
+          onClick={() => onMemberClick(node.member)}
+        />
       </div>
 
       {/* Vertical connector line */}
@@ -158,13 +239,13 @@ function renderNode(node: OrgNode): React.ReactElement {
           <div className="relative w-full mb-8">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary/20"></div>
 
-            {/* Grid of children */}
-            <div className={`grid ${node.children.length === 1 ? 'grid-cols-1' : node.children.length === 2 ? 'grid-cols-2' : node.children.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-x-8 gap-y-12 mt-8`}>
+            {/* Grid of children - increased spacing to prevent overlap */}
+            <div className={`grid ${node.children.length === 1 ? 'grid-cols-1' : node.children.length === 2 ? 'grid-cols-2' : node.children.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-x-12 gap-y-16 mt-8`}>
               {node.children.map((child, index) => (
                 <div key={child.member._id || index} className="relative">
                   {/* Vertical connector from horizontal line to child */}
                   <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 w-0.5 h-8 bg-gradient-to-b from-primary/20 to-primary/40"></div>
-                  {renderNode(child)}
+                  {renderNode(child, onMemberClick)}
                 </div>
               ))}
             </div>
@@ -176,11 +257,19 @@ function renderNode(node: OrgNode): React.ReactElement {
 }
 
 export function OrganizationalChart({ executives }: OrganizationalChartProps) {
+  const [selectedMember, setSelectedMember] = useState<ExecutiveMember | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
   // Build hierarchy
   const hierarchyRoot = buildHierarchy(executives);
 
   // Debug: Check if any members have reportsTo set
   const membersWithReportsTo = executives.filter(e => e.reportsTo);
+
+  const handleMemberClick = (member: ExecutiveMember) => {
+    setSelectedMember(member);
+    setModalOpen(true);
+  };
 
   if (!hierarchyRoot) {
     return (
@@ -217,12 +306,26 @@ export function OrganizationalChart({ executives }: OrganizationalChartProps) {
   }
 
   return (
-    <div className="w-full overflow-x-auto py-12 bg-gradient-to-b from-gray-50 to-white">
-      <div className="flex justify-center min-w-fit px-8">
-        <div className="max-w-[1600px]">
-          {renderNode(hierarchyRoot)}
+    <>
+      <div className="w-full overflow-x-auto py-12 bg-gradient-to-b from-gray-50 to-white">
+        <div className="flex justify-center min-w-fit px-8">
+          <div className="max-w-[1600px]">
+            <div className="text-center mb-8 text-sm text-gray-500">
+              Click on any member to view their full details
+            </div>
+            {renderNode(hierarchyRoot, handleMemberClick)}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Member detail modal */}
+      {selectedMember && (
+        <MemberDetailModal
+          member={selectedMember}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+        />
+      )}
+    </>
   );
 }
