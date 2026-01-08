@@ -79,7 +79,7 @@ export function ExecutiveMembersManagement() {
       region: 'national',
       displayOrder: members.length + 1,
       hierarchyLevel: 0,
-      reportsTo: '',
+      reportsTo: 'none',
       department: '',
       startDate: new Date().toISOString().split('T')[0],
       endDate: '',
@@ -93,7 +93,7 @@ export function ExecutiveMembersManagement() {
       setEditingMember(member);
 
       // Validate reportsTo - ensure it exists in the members list
-      let validReportsTo = '';
+      let validReportsTo = 'none';
       if (member.reportsTo && typeof member.reportsTo === 'string') {
         const reportsToExists = members.some(m => m._id === member.reportsTo && m._id !== member._id);
         if (reportsToExists) {
@@ -174,7 +174,7 @@ export function ExecutiveMembersManagement() {
     try {
       const memberData = {
         ...formData,
-        reportsTo: formData.reportsTo || null,
+        reportsTo: formData.reportsTo === 'none' ? null : formData.reportsTo,
         department: formData.department || undefined,
         startDate: formData.startDate ? formData.startDate : undefined,
         endDate: formData.endDate ? formData.endDate : undefined
@@ -494,7 +494,7 @@ export function ExecutiveMembersManagement() {
                         <SelectValue placeholder="Select supervisor" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None (Top Level)</SelectItem>
+                        <SelectItem value="none">None (Top Level)</SelectItem>
                         {Array.isArray(members) && members
                           .filter(m => m && m._id && m._id !== editingMember?._id)
                           .sort((a, b) => (a.hierarchyLevel || 0) - (b.hierarchyLevel || 0))
