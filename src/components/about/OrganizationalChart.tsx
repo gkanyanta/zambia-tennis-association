@@ -143,10 +143,43 @@ export function OrganizationalChart({ executives }: OrganizationalChartProps) {
   // Build hierarchy
   const hierarchyRoot = buildHierarchy(executives);
 
+  // Debug: Check if any members have reportsTo set
+  const membersWithReportsTo = executives.filter(e => e.reportsTo);
+  const membersWithoutReportsTo = executives.filter(e => !e.reportsTo);
+
+  console.log('Total executives:', executives.length);
+  console.log('Members WITH reportsTo:', membersWithReportsTo.length);
+  console.log('Members WITHOUT reportsTo (top level):', membersWithoutReportsTo.length);
+  console.log('Root member:', hierarchyRoot?.member.name);
+
   if (!hierarchyRoot) {
     return (
       <div className="text-center py-12 text-gray-500">
         <p>No organizational structure data available</p>
+      </div>
+    );
+  }
+
+  // If no hierarchy is set up yet, show a message
+  if (membersWithReportsTo.length === 0 && executives.length > 1) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-2xl mx-auto">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Organizational Hierarchy Not Set Up</h3>
+          <p className="text-yellow-700 mb-4">
+            The organizational chart requires hierarchy relationships to be configured.
+            Please go to the Executive Members Management page and set the "Reports To" field for each member.
+          </p>
+          <div className="text-sm text-yellow-600">
+            <strong>Current members ({executives.length}):</strong>
+            <ul className="list-disc list-inside mt-2">
+              {executives.slice(0, 5).map(e => (
+                <li key={e._id}>{e.name} - {e.position}</li>
+              ))}
+              {executives.length > 5 && <li>... and {executives.length - 5} more</li>}
+            </ul>
+          </div>
+        </div>
       </div>
     );
   }
