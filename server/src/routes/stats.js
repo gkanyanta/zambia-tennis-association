@@ -1,5 +1,5 @@
 import express from 'express';
-import Player from '../models/Player.js';
+import User from '../models/User.js';
 import Club from '../models/Club.js';
 import Tournament from '../models/Tournament.js';
 
@@ -9,8 +9,9 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     // Get counts from database
+    // Players are Users with role='player'
     const [playersCount, clubsCount, tournamentsCount] = await Promise.all([
-      Player.countDocuments({}),
+      User.countDocuments({ role: 'player' }),
       Club.countDocuments({}),
       Tournament.countDocuments({})
     ]);
@@ -36,7 +37,7 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
-    res.status(500).json({ error: 'Failed to fetch statistics' });
+    res.status(500).json({ error: 'Failed to fetch statistics', message: error.message });
   }
 });
 
