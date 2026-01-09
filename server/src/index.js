@@ -42,6 +42,7 @@ import leagueTeamRoutes from './routes/leagueTeams.js';
 import executiveMemberRoutes from './routes/executiveMembers.js';
 import affiliationRoutes from './routes/affiliations.js';
 import aboutContentRoutes from './routes/aboutContent.js';
+import statsRoutes from './routes/stats.js';
 
 // Initialize app
 const app = express();
@@ -123,6 +124,7 @@ app.use('/api/league-teams', leagueTeamRoutes);
 app.use('/api/executive-members', executiveMemberRoutes);
 app.use('/api/affiliations', affiliationRoutes);
 app.use('/api/about-content', aboutContentRoutes);
+app.use('/api/stats', statsRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

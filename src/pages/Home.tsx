@@ -6,13 +6,7 @@ import { Trophy, Users, Calendar, TrendingUp } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { galleryService } from '@/services/galleryService'
 import { newsService, NewsArticle } from '@/services/newsService'
-
-const stats = [
-  { icon: Users, label: 'Active Members', value: '2,500+' },
-  { icon: Trophy, label: 'Tournaments Yearly', value: '50+' },
-  { icon: Calendar, label: 'Years of Excellence', value: '35+' },
-  { icon: TrendingUp, label: 'Growing Clubs', value: '45+' },
-]
+import { statsService, Stats } from '@/services/statsService'
 
 export function Home() {
   const navigate = useNavigate()
@@ -20,10 +14,13 @@ export function Home() {
   const [loadingSlides, setLoadingSlides] = useState(true)
   const [latestNews, setLatestNews] = useState<NewsArticle[]>([])
   const [loadingNews, setLoadingNews] = useState(true)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
     fetchSlides()
     fetchLatestNews()
+    fetchStats()
   }, [])
 
   const fetchSlides = async () => {
@@ -71,6 +68,25 @@ export function Home() {
     }
   }
 
+  const fetchStats = async () => {
+    try {
+      setLoadingStats(true)
+      const data = await statsService.getStats()
+      setStats(data)
+    } catch (err) {
+      console.error('Failed to load stats:', err)
+      // Set fallback stats if API fails
+      setStats({
+        activeMembers: 0,
+        tournamentsYearly: 0,
+        yearsOfExcellence: 35,
+        growingClubs: 0
+      })
+    } finally {
+      setLoadingStats(false)
+    }
+  }
+
   const handleNewsClick = (articleId?: string) => {
     if (articleId) {
       navigate(`/news/${articleId}`)
@@ -99,19 +115,56 @@ export function Home() {
       {/* Stats Section */}
       <section className="py-16 bg-muted/50">
         <div className="container-custom">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
+          {loadingStats ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mb-4 animate-pulse"></div>
+                  <div className="h-8 bg-muted rounded w-20 mx-auto mb-2 animate-pulse"></div>
+                  <div className="h-4 bg-muted rounded w-24 mx-auto animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          ) : stats ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+              <div className="text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
-                  <stat.icon className="h-6 w-6 text-primary" />
+                  <Users className="h-6 w-6 text-primary" />
                 </div>
                 <div className="text-3xl font-bold text-foreground mb-1">
-                  {stat.value}
+                  {stats.activeMembers.toLocaleString()}
                 </div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+                <div className="text-sm text-muted-foreground">Active Members</div>
               </div>
-            ))}
-          </div>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
+                  <Trophy className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-3xl font-bold text-foreground mb-1">
+                  {stats.tournamentsYearly}
+                </div>
+                <div className="text-sm text-muted-foreground">Tournaments This Year</div>
+              </div>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
+                  <Calendar className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-3xl font-bold text-foreground mb-1">
+                  {stats.yearsOfExcellence}
+                </div>
+                <div className="text-sm text-muted-foreground">Years of Excellence</div>
+              </div>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
+                  <TrendingUp className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-3xl font-bold text-foreground mb-1">
+                  {stats.growingClubs}
+                </div>
+                <div className="text-sm text-muted-foreground">Registered Clubs</div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
