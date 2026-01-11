@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import axios from 'axios'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { MapPin, Phone, Mail, Clock } from 'lucide-react'
+import { MapPin, Phone, Mail, Clock, MessageCircle } from 'lucide-react'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 export function Contact() {
   const [formData, setFormData] = useState({
@@ -14,11 +17,35 @@ export function Contact() {
     subject: '',
     message: '',
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState<{
+    type: 'success' | 'error' | null
+    message: string
+  }>({ type: null, message: '' })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    alert('Thank you for your message! We will get back to you soon.')
-    setFormData({ name: '', email: '', phone: '', subject: '', message: '' })
+    setIsSubmitting(true)
+    setSubmitStatus({ type: null, message: '' })
+
+    try {
+      const response = await axios.post(`${API_URL}/api/contact`, formData)
+
+      if (response.data.success) {
+        setSubmitStatus({
+          type: 'success',
+          message: 'Thank you for your message! We will get back to you soon.',
+        })
+        setFormData({ name: '', email: '', phone: '', subject: '', message: '' })
+      }
+    } catch (error: any) {
+      setSubmitStatus({
+        type: 'error',
+        message: error.response?.data?.message || 'Failed to send message. Please try again.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleChange = (
@@ -135,8 +162,20 @@ export function Contact() {
                       />
                     </div>
 
-                    <Button type="submit" size="lg">
-                      Send Message
+                    {submitStatus.type && (
+                      <div
+                        className={`p-4 rounded-md ${
+                          submitStatus.type === 'success'
+                            ? 'bg-green-50 text-green-800 border border-green-200'
+                            : 'bg-red-50 text-red-800 border border-red-200'
+                        }`}
+                      >
+                        {submitStatus.message}
+                      </div>
+                    )}
+
+                    <Button type="submit" size="lg" disabled={isSubmitting}>
+                      {isSubmitting ? 'Sending...' : 'Send Message'}
                     </Button>
                   </form>
                 </CardContent>
@@ -171,9 +210,27 @@ export function Contact() {
                     <div>
                       <p className="font-medium text-foreground mb-1">Phone</p>
                       <p className="text-sm text-muted-foreground">
-                        +260 211 123 456<br />
-                        +260 211 123 457
+                        <a href="tel:+260979326778" className="hover:text-primary">
+                          +260 979 326 778
+                        </a>
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <MessageCircle className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground mb-1">WhatsApp</p>
+                      <a
+                        href="https://wa.me/260979326778"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Chat with us on WhatsApp
+                      </a>
                     </div>
                   </div>
 
@@ -184,8 +241,13 @@ export function Contact() {
                     <div>
                       <p className="font-medium text-foreground mb-1">Email</p>
                       <p className="text-sm text-muted-foreground">
-                        info@zambiatennis.org<br />
-                        tournaments@zambiatennis.org
+                        <a href="mailto:info@zambiatennis.com" className="hover:text-primary">
+                          info@zambiatennis.com
+                        </a>
+                        <br />
+                        <a href="mailto:admin@zambiatennis.com" className="hover:text-primary">
+                          admin@zambiatennis.com
+                        </a>
                       </p>
                     </div>
                   </div>
@@ -209,8 +271,14 @@ export function Contact() {
               <Card className="card-elevated bg-muted/50">
                 <CardContent className="pt-6">
                   <p className="text-sm text-muted-foreground">
-                    For tournament inquiries, please contact our tournament
-                    department directly at tournaments@zambiatennis.org
+                    For general inquiries, contact us at{' '}
+                    <a href="mailto:info@zambiatennis.com" className="text-primary hover:underline">
+                      info@zambiatennis.com
+                    </a>
+                    . For administrative matters, reach us at{' '}
+                    <a href="mailto:admin@zambiatennis.com" className="text-primary hover:underline">
+                      admin@zambiatennis.com
+                    </a>
                   </p>
                 </CardContent>
               </Card>

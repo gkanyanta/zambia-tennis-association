@@ -130,7 +130,7 @@ export function Footer() {
             {/* Social Links */}
             <div className="flex gap-4">
               <a
-                href="https://facebook.com"
+                href="https://web.facebook.com/profile.php?id=61553884656266"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-muted-foreground hover:text-primary transition-colors"
