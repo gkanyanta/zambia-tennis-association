@@ -73,6 +73,8 @@ const allowedOrigins = [
   'http://localhost:5173',
   'https://zambia-tennis-association.vercel.app',
   'https://zambia-tennis-association-gq8i.vercel.app',
+  'https://www.zambiatennis.com',
+  'https://zambiatennis.com',
   process.env.CLIENT_URL
 ].filter(Boolean);
 
