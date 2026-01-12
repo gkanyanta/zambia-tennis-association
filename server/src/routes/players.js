@@ -2,6 +2,7 @@ import express from 'express';
 import User from '../models/User.js';
 import { protect, authorize } from '../middleware/auth.js';
 import xlsx from 'xlsx';
+import { generateNextZPIN } from '../utils/generateZPIN.js';
 
 const router = express.Router();
 
@@ -23,6 +24,39 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message
+    });
+  }
+});
+
+// @desc    Get next available ZPIN for a membership type
+// @route   GET /api/players/next-zpin/:membershipType
+// @access  Private (admin, staff)
+router.get('/next-zpin/:membershipType', protect, authorize('admin', 'staff'), async (req, res) => {
+  try {
+    const { membershipType } = req.params;
+
+    if (!['junior', 'adult', 'family'].includes(membershipType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid membership type. Must be junior, adult, or family'
+      });
+    }
+
+    const nextZpin = await generateNextZPIN(membershipType);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        zpin: nextZpin,
+        membershipType
+      }
+    });
+  } catch (error) {
+    console.error('Get next ZPIN error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate next ZPIN',
+      error: error.message
     });
   }
 });

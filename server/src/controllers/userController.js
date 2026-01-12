@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import { generateNextZPIN, zpinExists } from '../utils/generateZPIN.js';
 
 // @desc    Get all users (admin only)
 // @route   GET /api/users?role=player
@@ -69,7 +70,11 @@ export const createUser = async (req, res) => {
       dateOfBirth,
       gender,
       phone,
-      address
+      address,
+      zpin,
+      membershipType,
+      membershipStatus,
+      club
     } = req.body;
 
     // Check if user already exists
@@ -90,6 +95,29 @@ export const createUser = async (req, res) => {
       });
     }
 
+    // Auto-generate ZPIN if not provided and user is a player with membership type
+    let finalZpin = zpin;
+    if (!finalZpin && role === 'player' && membershipType) {
+      try {
+        finalZpin = await generateNextZPIN(membershipType);
+        console.log(`Auto-generated ZPIN: ${finalZpin} for ${membershipType} player`);
+      } catch (error) {
+        console.error('Failed to auto-generate ZPIN:', error);
+        // Continue without ZPIN rather than failing the whole request
+      }
+    }
+
+    // If ZPIN is provided, check for duplicates
+    if (finalZpin) {
+      const zpinInUse = await zpinExists(finalZpin);
+      if (zpinInUse) {
+        return res.status(400).json({
+          success: false,
+          message: `ZPIN ${finalZpin} is already in use. Please use a different ZPIN or leave blank to auto-generate.`
+        });
+      }
+    }
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -104,7 +132,11 @@ export const createUser = async (req, res) => {
       dateOfBirth,
       gender,
       phone,
-      address
+      address,
+      zpin: finalZpin,
+      membershipType,
+      membershipStatus,
+      club
     });
 
     // Remove password from response

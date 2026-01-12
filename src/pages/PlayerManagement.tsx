@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import axios from 'axios'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Search, Edit, Trash2, Download, Plus } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { clubService, type Club } from '@/services/clubService'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 export function PlayerManagement() {
   const [players, setPlayers] = useState<User[]>([])
@@ -51,6 +54,36 @@ export function PlayerManagement() {
       setLoading(false)
     }
   }
+
+  // Auto-fetch next ZPIN when membership type changes in create mode
+  useEffect(() => {
+    const fetchNextZpin = async () => {
+      if (mode === 'create' && formData.membershipType) {
+        try {
+          const user = localStorage.getItem('user')
+          const token = user ? JSON.parse(user).token : null
+
+          if (!token) return
+
+          const response = await axios.get(
+            `${API_URL}/api/players/next-zpin/${formData.membershipType}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+
+          if (response.data.success) {
+            setFormData(prev => ({ ...prev, zpin: response.data.data.zpin }))
+          }
+        } catch (error) {
+          console.error('Failed to fetch next ZPIN:', error)
+        }
+      } else if (mode === 'create' && !formData.membershipType) {
+        // Clear ZPIN if no membership type selected
+        setFormData(prev => ({ ...prev, zpin: '' }))
+      }
+    }
+
+    fetchNextZpin()
+  }, [mode, formData.membershipType])
 
   const handleAddNewPlayer = () => {
     setMode('create')
