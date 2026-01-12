@@ -40,7 +40,8 @@ export const submitContactForm = async (req, res) => {
     await sendEmail({
       email: process.env.INFO_EMAIL || 'info@zambiatennis.com',
       subject: `Contact Form: ${subject}`,
-      html: emailHtml
+      html: emailHtml,
+      replyTo: email // Reply-to will be the person who submitted the form
     });
 
     // Send confirmation to user

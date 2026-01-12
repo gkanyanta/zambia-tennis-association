@@ -13,6 +13,7 @@ const sendEmail = async (options) => {
     const message = {
       to: options.email,
       from: process.env.EMAIL_FROM, // Must be a verified sender in SendGrid
+      replyTo: options.replyTo || process.env.EMAIL_FROM,
       subject: options.subject,
       html: options.html
     };
