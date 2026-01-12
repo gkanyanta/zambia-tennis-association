@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Edit, Trash2, Download } from 'lucide-react'
+import { Search, Edit, Trash2, Download, Plus } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { clubService, type Club } from '@/services/clubService'
 
@@ -17,11 +17,13 @@ export function PlayerManagement() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'junior' | 'adult'>('all')
   const [showModal, setShowModal] = useState(false)
+  const [mode, setMode] = useState<'create' | 'edit'>('edit')
   const [editingPlayer, setEditingPlayer] = useState<User | null>(null)
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
+    password: '',
     phone: '',
     club: '',
     gender: '',
@@ -50,12 +52,32 @@ export function PlayerManagement() {
     }
   }
 
+  const handleAddNewPlayer = () => {
+    setMode('create')
+    setEditingPlayer(null)
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      phone: '',
+      club: '',
+      gender: '',
+      membershipType: '',
+      membershipStatus: '',
+      zpin: ''
+    })
+    setShowModal(true)
+  }
+
   const handleEditPlayer = (player: User) => {
+    setMode('edit')
     setEditingPlayer(player)
     setFormData({
       firstName: player.firstName,
       lastName: player.lastName,
       email: player.email,
+      password: '',
       phone: player.phone || '',
       club: player.club || '',
       gender: player.gender || '',
@@ -68,9 +90,44 @@ export function PlayerManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!editingPlayer) return
 
     try {
+      if (mode === 'create') {
+        // Create new player
+        if (!formData.password || formData.password.length < 6) {
+          alert('Password must be at least 6 characters')
+          return
+        }
+
+        const createData = {
+          ...formData,
+          role: 'player',
+          membershipType: formData.membershipType || null,
+          membershipStatus: formData.membershipStatus || null,
+          gender: formData.gender || undefined,
+          phone: formData.phone || undefined,
+          club: formData.club || undefined
+        }
+
+        await userService.createUser(createData as any)
+
+        // Update member count for the new player's club
+        if (formData.club) {
+          const club = clubs.find(c => c.name === formData.club)
+          if (club) {
+            await clubService.updateMemberCount(club._id).catch(err => {
+              console.error('Failed to update club count:', err)
+              return null
+            })
+          }
+        }
+
+        alert('Player created successfully!')
+        setShowModal(false)
+        fetchData()
+      } else {
+        // Update existing player
+        if (!editingPlayer) return
       const updateData = {
         ...formData,
         membershipType: formData.membershipType || null,
@@ -112,12 +169,13 @@ export function PlayerManagement() {
         await Promise.all(countUpdatePromises)
       }
 
-      alert('Player updated successfully! Note: If club counts don\'t update, use the "Sync Counts" button on the Club Management page.')
-      setShowModal(false)
-      fetchData()
+        alert('Player updated successfully! Note: If club counts don\'t update, use the "Sync Counts" button on the Club Management page.')
+        setShowModal(false)
+        fetchData()
+      }
     } catch (err: any) {
-      console.error('Update player error:', err)
-      alert(err.message || 'Failed to update player')
+      console.error(mode === 'create' ? 'Create player error:' : 'Update player error:', err)
+      alert(err.message || (mode === 'create' ? 'Failed to create player' : 'Failed to update player'))
     }
   }
 
@@ -293,6 +351,13 @@ export function PlayerManagement() {
                 Seniors
               </Button>
               <Button
+                onClick={handleAddNewPlayer}
+                className="bg-primary hover:bg-primary/90 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Player
+              </Button>
+              <Button
                 onClick={handleExportToExcel}
                 disabled={exporting || players.length === 0}
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -373,8 +438,8 @@ export function PlayerManagement() {
         </div>
       </section>
 
-      {/* Edit Modal */}
-      {showModal && editingPlayer && (
+      {/* Create/Edit Modal */}
+      {showModal && (
         <div
           className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
           onClick={() => setShowModal(false)}
@@ -384,7 +449,12 @@ export function PlayerManagement() {
             onClick={(e) => e.stopPropagation()}
           >
             <CardHeader>
-              <CardTitle>Edit Player: {editingPlayer.firstName} {editingPlayer.lastName}</CardTitle>
+              <CardTitle>
+                {mode === 'create'
+                  ? 'Add New Player'
+                  : `Edit Player: ${editingPlayer?.firstName} ${editingPlayer?.lastName}`
+                }
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -420,6 +490,20 @@ export function PlayerManagement() {
                     />
                   </div>
 
+                  {mode === 'create' && (
+                    <div>
+                      <Label htmlFor="password">Password *</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        required
+                        placeholder="Min 6 characters"
+                      />
+                    </div>
+                  )}
+
                   <div>
                     <Label htmlFor="phone">Phone</Label>
                     <Input
@@ -435,8 +519,9 @@ export function PlayerManagement() {
                       id="zpin"
                       value={formData.zpin}
                       onChange={(e) => setFormData({ ...formData, zpin: e.target.value })}
-                      disabled
-                      className="bg-muted"
+                      disabled={mode === 'edit'}
+                      className={mode === 'edit' ? 'bg-muted' : ''}
+                      placeholder={mode === 'create' ? 'Optional' : ''}
                     />
                   </div>
 
@@ -507,7 +592,7 @@ export function PlayerManagement() {
                     Cancel
                   </Button>
                   <Button type="submit">
-                    Update Player
+                    {mode === 'create' ? 'Create Player' : 'Update Player'}
                   </Button>
                 </div>
               </form>
