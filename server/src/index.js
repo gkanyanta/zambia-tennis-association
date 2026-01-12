@@ -48,6 +48,10 @@ import contactRoutes from './routes/contact.js';
 // Initialize app
 const app = express();
 
+// Trust proxy - Required for Render, Heroku, and other platforms behind reverse proxies
+// This allows express-rate-limit to correctly identify users by IP
+app.set('trust proxy', 1);
+
 // Connect to database
 connectDatabase();
 
