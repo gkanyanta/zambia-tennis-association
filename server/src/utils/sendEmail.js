@@ -1,47 +1,33 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 const sendEmail = async (options) => {
   try {
-    console.log('Attempting to send email...');
-    console.log('SMTP Host:', process.env.SMTP_HOST);
-    console.log('SMTP Port:', process.env.SMTP_PORT);
-    console.log('SMTP User:', process.env.SMTP_USER);
+    console.log('Attempting to send email via SendGrid...');
+    console.log('From:', process.env.EMAIL_FROM);
+    console.log('To:', options.email);
+    console.log('Subject:', options.subject);
 
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT),
-      secure: true, // true for 465 (SSL), false for 587 (TLS)
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      },
-      connectionTimeout: 10000, // 10 second timeout
-      greetingTimeout: 10000,
-      socketTimeout: 15000
-    });
-
-    // Verify connection
-    console.log('Verifying SMTP connection...');
-    await transporter.verify();
-    console.log('SMTP connection verified successfully');
+    // Set SendGrid API Key
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     const message = {
-      from: `${process.env.EMAIL_FROM} <${process.env.SMTP_USER}>`,
       to: options.email,
+      from: process.env.EMAIL_FROM, // Must be a verified sender in SendGrid
       subject: options.subject,
       html: options.html
     };
 
-    console.log('Sending email to:', options.email);
-    const info = await transporter.sendMail(message);
-    console.log('Message sent successfully:', info.messageId);
-    return info;
+    console.log('Sending email via SendGrid...');
+    const response = await sgMail.send(message);
+    console.log('Email sent successfully via SendGrid');
+    console.log('Response status:', response[0].statusCode);
+
+    return response;
   } catch (error) {
-    console.error('Email sending error details:', {
+    console.error('SendGrid email error:', {
       message: error.message,
       code: error.code,
-      command: error.command,
-      response: error.response
+      response: error.response?.body
     });
     throw error;
   }
