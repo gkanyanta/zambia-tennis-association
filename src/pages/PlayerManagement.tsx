@@ -30,10 +30,16 @@ export function PlayerManagement() {
     phone: '',
     club: '',
     gender: '',
+    dateOfBirth: '',
     membershipType: '',
     membershipStatus: '',
-    zpin: ''
+    zpin: '',
+    parentGuardianName: '',
+    parentGuardianPhone: '',
+    parentGuardianEmail: ''
   })
+  const [calculatedAge, setCalculatedAge] = useState<number | null>(null)
+  const [suggestedMembershipType, setSuggestedMembershipType] = useState<string>('')
 
   useEffect(() => {
     fetchData()
@@ -85,6 +91,28 @@ export function PlayerManagement() {
     fetchNextZpin()
   }, [mode, formData.membershipType])
 
+  // Calculate age and suggest membership type when DOB changes
+  useEffect(() => {
+    if (formData.dateOfBirth) {
+      const birthDate = new Date(formData.dateOfBirth)
+      const today = new Date()
+      const age = Math.floor((today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+      setCalculatedAge(age)
+
+      // Suggest membership type based on age
+      const suggested = age < 18 ? 'junior' : 'adult'
+      setSuggestedMembershipType(suggested)
+
+      // Auto-fill if membership type not manually set in create mode
+      if (mode === 'create' && !formData.membershipType) {
+        setFormData(prev => ({ ...prev, membershipType: suggested }))
+      }
+    } else {
+      setCalculatedAge(null)
+      setSuggestedMembershipType('')
+    }
+  }, [formData.dateOfBirth, mode])
+
   const handleAddNewPlayer = () => {
     setMode('create')
     setEditingPlayer(null)
@@ -96,10 +124,16 @@ export function PlayerManagement() {
       phone: '',
       club: '',
       gender: '',
+      dateOfBirth: '',
       membershipType: '',
       membershipStatus: '',
-      zpin: ''
+      zpin: '',
+      parentGuardianName: '',
+      parentGuardianPhone: '',
+      parentGuardianEmail: ''
     })
+    setCalculatedAge(null)
+    setSuggestedMembershipType('')
     setShowModal(true)
   }
 
@@ -109,20 +143,40 @@ export function PlayerManagement() {
     setFormData({
       firstName: player.firstName,
       lastName: player.lastName,
-      email: player.email,
+      email: player.email && !player.email.includes('@noemail.zambiatennis.local')
+        ? player.email
+        : '',
       password: '',
       phone: player.phone || '',
       club: player.club || '',
       gender: player.gender || '',
+      dateOfBirth: player.dateOfBirth ? player.dateOfBirth.split('T')[0] : '',
       membershipType: player.membershipType || '',
       membershipStatus: player.membershipStatus || '',
-      zpin: player.zpin || ''
+      zpin: player.zpin || '',
+      parentGuardianName: player.parentGuardianName || '',
+      parentGuardianPhone: player.parentGuardianPhone || '',
+      parentGuardianEmail: player.parentGuardianEmail || ''
     })
     setShowModal(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validate at least one contact method
+    if (!formData.email && !formData.phone) {
+      alert('Please provide at least one contact method (email or phone)')
+      return
+    }
+
+    // Validate parent/guardian for juniors
+    if (calculatedAge !== null && calculatedAge < 18) {
+      if (!formData.parentGuardianName || !formData.parentGuardianPhone) {
+        alert('Parent/guardian name and phone are required for players under 18 years old')
+        return
+      }
+    }
 
     try {
       if (mode === 'create') {
@@ -423,7 +477,11 @@ export function PlayerManagement() {
                         <td className="px-4 py-3">
                           <div>
                             <div className="font-medium">{player.firstName} {player.lastName}</div>
-                            <div className="text-sm text-muted-foreground">{player.email}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {player.email && !player.email.includes('@noemail.zambiatennis.local')
+                                ? player.email
+                                : player.phone || 'No contact info'}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm">{player.club || 'N/A'}</td>
@@ -513,14 +571,44 @@ export function PlayerManagement() {
                   </div>
 
                   <div>
-                    <Label htmlFor="email">Email *</Label>
+                    <Label htmlFor="dateOfBirth">
+                      Date of Birth *
+                      {calculatedAge !== null && (
+                        <span className="text-muted-foreground ml-2">
+                          (Age: {calculatedAge})
+                        </span>
+                      )}
+                    </Label>
+                    <Input
+                      id="dateOfBirth"
+                      type="date"
+                      value={formData.dateOfBirth}
+                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      max={new Date().toISOString().split('T')[0]}
+                      required={mode === 'create'}
+                    />
+                    {suggestedMembershipType && mode === 'create' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Suggested: {suggestedMembershipType === 'junior' ? 'Junior' : 'Senior/Adult'}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="email">
+                      Email
+                      {!formData.phone && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
                     <Input
                       id="email"
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      required
+                      required={!formData.phone}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Required if no phone number provided
+                    </p>
                   </div>
 
                   {mode === 'create' && (
@@ -538,12 +626,19 @@ export function PlayerManagement() {
                   )}
 
                   <div>
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone">
+                      Phone
+                      {!formData.email && <span className="text-red-500 ml-1">*</span>}
+                    </Label>
                     <Input
                       id="phone"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      required={!formData.email}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Required if no email provided
+                    </p>
                   </div>
 
                   <div>
@@ -618,6 +713,51 @@ export function PlayerManagement() {
                       <option value="expired">Expired</option>
                     </select>
                   </div>
+
+                  {/* Parent/Guardian Section - show if junior or age < 18 */}
+                  {(formData.membershipType === 'junior' || (calculatedAge !== null && calculatedAge < 18)) && (
+                    <>
+                      <div className="col-span-2 pt-4 border-t">
+                        <h3 className="text-sm font-semibold mb-3">Parent/Guardian Information</h3>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="parentGuardianName">
+                          Parent/Guardian Name
+                          {calculatedAge !== null && calculatedAge < 18 && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                        <Input
+                          id="parentGuardianName"
+                          value={formData.parentGuardianName}
+                          onChange={(e) => setFormData({ ...formData, parentGuardianName: e.target.value })}
+                          required={calculatedAge !== null && calculatedAge < 18}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="parentGuardianPhone">
+                          Parent/Guardian Phone
+                          {calculatedAge !== null && calculatedAge < 18 && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                        <Input
+                          id="parentGuardianPhone"
+                          value={formData.parentGuardianPhone}
+                          onChange={(e) => setFormData({ ...formData, parentGuardianPhone: e.target.value })}
+                          required={calculatedAge !== null && calculatedAge < 18}
+                        />
+                      </div>
+
+                      <div className="col-span-2">
+                        <Label htmlFor="parentGuardianEmail">Parent/Guardian Email</Label>
+                        <Input
+                          id="parentGuardianEmail"
+                          type="email"
+                          value={formData.parentGuardianEmail}
+                          onChange={(e) => setFormData({ ...formData, parentGuardianEmail: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-2 justify-end pt-4">

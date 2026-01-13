@@ -14,6 +14,9 @@ export interface User {
   dateOfBirth?: string;
   gender?: 'male' | 'female';
   phone?: string;
+  parentGuardianName?: string;
+  parentGuardianPhone?: string;
+  parentGuardianEmail?: string;
   address?: {
     street: string;
     city: string;

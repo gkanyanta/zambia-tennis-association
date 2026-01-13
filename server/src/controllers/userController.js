@@ -74,17 +74,43 @@ export const createUser = async (req, res) => {
       zpin,
       membershipType,
       membershipStatus,
-      club
+      club,
+      parentGuardianName,
+      parentGuardianPhone,
+      parentGuardianEmail
     } = req.body;
 
-    // Check if user already exists
-    const userExists = await User.findOne({ email });
-
-    if (userExists) {
+    // Custom validation: require at least one contact method
+    if (!email && !phone) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists'
+        message: 'Please provide at least one contact method (email or phone)'
       });
+    }
+
+    // Validate parent/guardian info for juniors
+    if (dateOfBirth) {
+      const age = Math.floor((new Date() - new Date(dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+      if (age < 18) {
+        if (!parentGuardianName || !parentGuardianPhone) {
+          return res.status(400).json({
+            success: false,
+            message: 'Parent/guardian name and phone are required for players under 18 years old'
+          });
+        }
+      }
+    }
+
+    // Check if user already exists (only if email provided and not placeholder)
+    if (email && !email.includes('@noemail.zambiatennis.local')) {
+      const userExists = await User.findOne({ email });
+
+      if (userExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'User with this email already exists'
+        });
+      }
     }
 
     // Validate role - only admin can create admin/staff accounts
@@ -136,7 +162,10 @@ export const createUser = async (req, res) => {
       zpin: finalZpin,
       membershipType,
       membershipStatus,
-      club
+      club,
+      parentGuardianName,
+      parentGuardianPhone,
+      parentGuardianEmail
     });
 
     // Remove password from response
@@ -170,6 +199,44 @@ export const updateUser = async (req, res) => {
       });
     }
 
+    // Get existing user to check current values
+    const existingUser = await User.findById(req.params.id);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Custom validation: require at least one contact method
+    const finalEmail = updateData.email !== undefined ? updateData.email : existingUser.email;
+    const finalPhone = updateData.phone !== undefined ? updateData.phone : existingUser.phone;
+
+    if (!finalEmail && !finalPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least one contact method (email or phone)'
+      });
+    }
+
+    // Validate parent/guardian info for juniors if dateOfBirth is being updated or already exists
+    const finalDateOfBirth = updateData.dateOfBirth !== undefined ? updateData.dateOfBirth : existingUser.dateOfBirth;
+
+    if (finalDateOfBirth) {
+      const age = Math.floor((new Date() - new Date(finalDateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+      if (age < 18) {
+        const finalParentName = updateData.parentGuardianName !== undefined ? updateData.parentGuardianName : existingUser.parentGuardianName;
+        const finalParentPhone = updateData.parentGuardianPhone !== undefined ? updateData.parentGuardianPhone : existingUser.parentGuardianPhone;
+
+        if (!finalParentName || !finalParentPhone) {
+          return res.status(400).json({
+            success: false,
+            message: 'Parent/guardian name and phone are required for players under 18 years old'
+          });
+        }
+      }
+    }
+
     // If updating password, hash it
     if (updateData.password) {
       const salt = await bcrypt.genSalt(10);
@@ -184,13 +251,6 @@ export const updateUser = async (req, res) => {
         runValidators: true
       }
     ).select('-password');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
 
     res.status(200).json({
       success: true,

@@ -78,6 +78,11 @@ router.get('/export/excel', protect, authorize('admin', 'staff'), async (req, re
         ? Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
         : '';
 
+      // Filter out auto-generated emails
+      const displayEmail = player.email && !player.email.includes('@noemail.zambiatennis.local')
+        ? player.email
+        : '';
+
       // Format arrears as text
       const arrearsText = player.arrears && player.arrears.length > 0
         ? player.arrears.map(a => `${a.year}: K${a.amount}`).join('; ')
@@ -87,11 +92,14 @@ router.get('/export/excel', protect, authorize('admin', 'staff'), async (req, re
         'ZPIN': player.zpin || '',
         'First Name': player.firstName || '',
         'Last Name': player.lastName || '',
-        'Email': player.email || '',
+        'Email': displayEmail,
         'Phone': player.phone || '',
         'Gender': player.gender || '',
         'Date of Birth': player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString() : '',
         'Age': age,
+        'Parent/Guardian Name': player.parentGuardianName || '',
+        'Parent/Guardian Phone': player.parentGuardianPhone || '',
+        'Parent/Guardian Email': player.parentGuardianEmail || '',
         'Club': player.club || '',
         'Membership Type': player.membershipType || '',
         'Membership Status': player.membershipStatus || '',
@@ -120,6 +128,9 @@ router.get('/export/excel', protect, authorize('admin', 'staff'), async (req, re
       { wch: 10 }, // Gender
       { wch: 15 }, // Date of Birth
       { wch: 8 },  // Age
+      { wch: 20 }, // Parent/Guardian Name
+      { wch: 18 }, // Parent/Guardian Phone
+      { wch: 25 }, // Parent/Guardian Email
       { wch: 20 }, // Club
       { wch: 15 }, // Membership Type
       { wch: 18 }, // Membership Status

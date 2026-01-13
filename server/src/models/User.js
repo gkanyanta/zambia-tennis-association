@@ -14,8 +14,12 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: function() {
+      // Email required if no phone provided
+      return !this.phone;
+    },
     unique: true,
+    sparse: true,  // Allow multiple null values
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
   },
@@ -27,7 +31,10 @@ const userSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: false
+    required: function() {
+      // Phone required if no email provided or email is placeholder
+      return !this.email || (this.email && this.email.includes('@noemail.zambiatennis.local'));
+    }
   },
   club: {
     type: String,
@@ -43,6 +50,35 @@ const userSchema = new mongoose.Schema({
     required: function() {
       return this.role === 'player';
     }
+  },
+  parentGuardianName: {
+    type: String,
+    required: function() {
+      // Required for juniors under 18
+      if (this.dateOfBirth) {
+        const age = Math.floor((new Date() - new Date(this.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+        return age < 18;
+      }
+      return this.membershipType === 'junior';
+    },
+    trim: true
+  },
+  parentGuardianPhone: {
+    type: String,
+    required: function() {
+      // Required for juniors
+      if (this.dateOfBirth) {
+        const age = Math.floor((new Date() - new Date(this.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+        return age < 18;
+      }
+      return this.membershipType === 'junior';
+    }
+  },
+  parentGuardianEmail: {
+    type: String,
+    lowercase: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid guardian email'],
+    required: false
   },
   role: {
     type: String,
@@ -120,6 +156,15 @@ userSchema.pre('save', async function(next) {
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Auto-generate email for players without contact info
+userSchema.pre('save', async function(next) {
+  // If no email provided but phone exists, generate placeholder email
+  if (!this.email && this.phone && this.zpin) {
+    this.email = `${this.zpin}@noemail.zambiatennis.local`;
+  }
+  next();
 });
 
 // Compare password method
