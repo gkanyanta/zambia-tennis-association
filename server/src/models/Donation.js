@@ -47,7 +47,7 @@ const donationSchema = new mongoose.Schema({
   // Payment Gateway Details
   paymentGateway: {
     type: String,
-    enum: ['flutterwave', 'stripe', 'manual', 'bank_transfer', 'mobile_money', 'cash'],
+    enum: ['lenco', 'flutterwave', 'stripe', 'manual', 'bank_transfer', 'mobile_money', 'cash'],
     required: true
   },
   transactionId: {
@@ -56,6 +56,16 @@ const donationSchema = new mongoose.Schema({
     sparse: true
   },
   flutterwaveTransactionId: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  lencoReference: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  lencoTransactionId: {
     type: String,
     unique: true,
     sparse: true

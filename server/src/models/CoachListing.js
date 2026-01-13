@@ -16,11 +16,25 @@ const coachListingSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'other'],
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'lenco', 'other'],
     default: 'cash'
   },
   transactionReference: {
     type: String,
+    trim: true
+  },
+
+  // Lenco payment gateway fields
+  lencoReference: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true
+  },
+  lencoTransactionId: {
+    type: String,
+    unique: true,
+    sparse: true,
     trim: true
   },
 
