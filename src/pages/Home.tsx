@@ -32,7 +32,8 @@ export function Home() {
       const transformedSlides = images.map(img => ({
         image: img.imageUrl,
         title: img.title,
-        description: img.description || img.category
+        description: img.description || img.category,
+        focalPoint: img.focalPoint || 'center'
       }))
 
       setSlides(transformedSlides)

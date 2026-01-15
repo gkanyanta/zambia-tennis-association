@@ -27,6 +27,7 @@ export function GalleryAdmin() {
     description: '',
     category: 'Tournaments',
     isSlideshow: false,
+    focalPoint: 'center' as 'top' | 'center' | 'bottom',
     order: 0,
     date: ''
   });
@@ -89,6 +90,7 @@ export function GalleryAdmin() {
         description: '',
         category: 'Tournaments',
         isSlideshow: false,
+        focalPoint: 'center',
         order: 0,
         date: ''
       });
@@ -106,6 +108,7 @@ export function GalleryAdmin() {
       description: image.description || '',
       category: image.category,
       isSlideshow: image.isSlideshow,
+      focalPoint: image.focalPoint || 'center',
       order: image.order,
       date: image.date || ''
     });
@@ -157,6 +160,7 @@ export function GalleryAdmin() {
                   description: '',
                   category: 'Tournaments',
                   isSlideshow: false,
+                  focalPoint: 'center',
                   order: 0,
                   date: ''
                 });
@@ -286,6 +290,37 @@ export function GalleryAdmin() {
                       Show in Homepage Slideshow
                     </label>
                   </div>
+
+                  {/* Focal Point Selector - only shown for slideshow images */}
+                  {formData.isSlideshow && (
+                    <div className="p-4 bg-muted/50 rounded-lg border">
+                      <label className="text-sm font-medium mb-3 block">
+                        Image Focal Point
+                        <span className="text-xs text-muted-foreground ml-2">
+                          (Where should the image focus when cropped?)
+                        </span>
+                      </label>
+                      <div className="flex gap-3">
+                        {(['top', 'center', 'bottom'] as const).map((position) => (
+                          <button
+                            key={position}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, focalPoint: position })}
+                            className={`flex-1 py-2 px-4 rounded-md border text-sm font-medium transition-colors ${
+                              formData.focalPoint === position
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background hover:bg-muted border-input'
+                            }`}
+                          >
+                            {position.charAt(0).toUpperCase() + position.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Choose "Top" for portraits, "Center" for general images, "Bottom" for landscapes with sky
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex gap-2">
                     <Button type="submit">

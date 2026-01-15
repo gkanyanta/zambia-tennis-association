@@ -7,6 +7,7 @@ export interface GalleryImage {
   imageUrl: string;
   category: string;
   isSlideshow: boolean;
+  focalPoint?: 'top' | 'center' | 'bottom';
   order: number;
   date?: string;
   createdAt?: string;

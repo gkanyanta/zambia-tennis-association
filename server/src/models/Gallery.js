@@ -23,6 +23,11 @@ const gallerySchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  focalPoint: {
+    type: String,
+    enum: ['top', 'center', 'bottom'],
+    default: 'center'
+  },
   order: {
     type: Number,
     default: 0
