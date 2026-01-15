@@ -14,7 +14,8 @@ import {
   CreditCard,
   ArrowRight,
   RefreshCw,
-  Home
+  Home,
+  Download
 } from 'lucide-react'
 import { lencoPaymentService, LencoPaymentVerifyResponse } from '@/services/lencoPaymentService'
 
@@ -213,11 +214,23 @@ export function PaymentVerify() {
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
-                  <Button onClick={() => navigate(redirect.path)}>
+                  {paymentData?.receiptNumber && (
+                    <Button
+                      variant="default"
+                      onClick={() => {
+                        const apiUrl = import.meta.env.VITE_API_URL || '';
+                        window.open(`${apiUrl}/api/lenco/receipt/${paymentData.receiptNumber}`, '_blank');
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Receipt
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => navigate(redirect.path)}>
                     {redirect.label}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
-                  <Button variant="outline" onClick={() => navigate('/')}>
+                  <Button variant="ghost" onClick={() => navigate('/')}>
                     <Home className="h-4 w-4 mr-2" />
                     Go Home
                   </Button>

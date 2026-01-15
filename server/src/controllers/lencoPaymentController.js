@@ -3,7 +3,9 @@ import User from '../models/User.js';
 import Tournament from '../models/Tournament.js';
 import Donation from '../models/Donation.js';
 import CoachListing from '../models/CoachListing.js';
+import Transaction from '../models/Transaction.js';
 import sendEmail from '../utils/sendEmail.js';
+import { generateReceipt } from '../utils/generateReceipt.js';
 
 // Lenco API configuration
 const LENCO_BASE_URL = process.env.LENCO_BASE_URL || 'https://sandbox.lenco.co/access/v2/';
@@ -39,6 +41,79 @@ const verifyLencoPayment = async (reference) => {
       message: error.message,
       response: error.response?.data
     });
+    throw error;
+  }
+};
+
+// Helper function to create transaction record and send receipt
+const createTransactionAndSendReceipt = async (transactionData) => {
+  try {
+    // Create transaction record
+    const transaction = new Transaction({
+      reference: transactionData.reference,
+      transactionId: transactionData.transactionId,
+      type: transactionData.type,
+      amount: transactionData.amount,
+      currency: transactionData.currency || 'ZMW',
+      payerName: transactionData.payerName,
+      payerEmail: transactionData.payerEmail,
+      payerPhone: transactionData.payerPhone,
+      status: 'completed',
+      paymentGateway: 'lenco',
+      paymentMethod: transactionData.paymentMethod || 'card',
+      relatedId: transactionData.relatedId,
+      relatedModel: transactionData.relatedModel,
+      metadata: transactionData.metadata || {},
+      description: transactionData.description,
+      paymentDate: new Date()
+    });
+
+    await transaction.save();
+    console.log(`Transaction created: ${transaction.receiptNumber}`);
+
+    // Generate PDF receipt
+    const pdfBuffer = await generateReceipt(transaction);
+
+    // Send receipt email
+    try {
+      await sendEmail({
+        email: transaction.payerEmail,
+        subject: `Payment Receipt - ${transaction.receiptNumber} - ZTA`,
+        html: `
+          <h2>Payment Receipt</h2>
+          <p>Dear ${transaction.payerName},</p>
+          <p>Thank you for your payment to the Zambia Tennis Association.</p>
+          <p><strong>Receipt Details:</strong></p>
+          <ul>
+            <li>Receipt Number: ${transaction.receiptNumber}</li>
+            <li>Reference: ${transaction.reference}</li>
+            <li>Amount: K${parseFloat(transaction.amount).toFixed(2)}</li>
+            <li>Date: ${new Date(transaction.paymentDate).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            })}</li>
+          </ul>
+          <p>Please find your official receipt attached to this email.</p>
+          <p>Best regards,<br>Zambia Tennis Association</p>
+        `,
+        attachments: [{
+          filename: `ZTA-Receipt-${transaction.receiptNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }]
+      });
+
+      transaction.receiptSentAt = new Date();
+      await transaction.save();
+      console.log(`Receipt sent to ${transaction.payerEmail}`);
+    } catch (emailError) {
+      console.error('Failed to send receipt email:', emailError);
+    }
+
+    return transaction;
+  } catch (error) {
+    console.error('Error creating transaction:', error);
     throw error;
   }
 };
@@ -393,33 +468,27 @@ export const verifyPayment = async (req, res) => {
       donation.status = 'completed';
       donation.lencoTransactionId = transactionId;
       donation.paymentDate = new Date();
-      donation.paymentMethod = 'card'; // Default, could be extracted from Lenco response
+      donation.paymentMethod = 'card';
       await donation.save();
 
-      // Send thank you email
-      try {
-        await sendEmail({
-          email: donation.donorEmail,
-          subject: 'Thank You for Your Donation - ZTA',
-          html: `
-            <h2>Thank You for Your Generous Donation!</h2>
-            <p>Dear ${donation.donorName},</p>
-            <p>We have received your donation of <strong>K${amountPaid}</strong>.</p>
-            <p><strong>Receipt Details:</strong></p>
-            <ul>
-              <li>Receipt Number: ${donation.receiptNumber}</li>
-              <li>Reference: ${reference}</li>
-              <li>Amount: K${amountPaid}</li>
-              <li>Donation Type: ${donation.donationType.replace('_', ' ')}</li>
-              <li>Date: ${donation.paymentDate.toLocaleDateString()}</li>
-            </ul>
-            <p>Your support helps us promote and develop tennis in Zambia.</p>
-            <p>Best regards,<br>Zambia Tennis Association</p>
-          `
-        });
-      } catch (emailError) {
-        console.error('Email sending failed:', emailError);
-      }
+      // Create transaction record and send receipt
+      const transaction = await createTransactionAndSendReceipt({
+        reference,
+        transactionId,
+        type: 'donation',
+        amount: amountPaid,
+        payerName: donation.donorName,
+        payerEmail: donation.donorEmail,
+        payerPhone: donation.donorPhone,
+        relatedId: donation._id,
+        relatedModel: 'Donation',
+        description: `Donation - ${donation.donationType?.replace('_', ' ') || 'General'}`,
+        metadata: {
+          donationType: donation.donationType,
+          message: donation.message,
+          isAnonymous: donation.isAnonymous
+        }
+      });
 
       return res.status(200).json({
         success: true,
@@ -429,9 +498,10 @@ export const verifyPayment = async (req, res) => {
           transactionId,
           amount: amountPaid,
           status: 'successful',
+          receiptNumber: transaction.receiptNumber,
           donation: {
             id: donation._id,
-            receiptNumber: donation.receiptNumber,
+            receiptNumber: transaction.receiptNumber,
             donorName: donation.isAnonymous ? 'Anonymous' : donation.donorName,
             donationType: donation.donationType,
             status: donation.status
@@ -521,6 +591,136 @@ export const handleWebhook = async (req, res) => {
     res.status(200).json({
       success: false,
       message: 'Webhook processing failed',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Download receipt PDF
+// @route   GET /api/lenco/receipt/:receiptNumber
+// @access  Public
+export const downloadReceipt = async (req, res) => {
+  try {
+    const { receiptNumber } = req.params;
+
+    const transaction = await Transaction.findOne({ receiptNumber });
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Receipt not found'
+      });
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateReceipt(transaction);
+
+    // Set headers for PDF download
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="ZTA-Receipt-${receiptNumber}.pdf"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Download receipt error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate receipt',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get income statement/summary
+// @route   GET /api/lenco/income-statement
+// @access  Private (Admin)
+export const getIncomeStatement = async (req, res) => {
+  try {
+    const { startDate, endDate, type } = req.query;
+
+    // Build query
+    const query = { status: 'completed' };
+
+    if (startDate || endDate) {
+      query.paymentDate = {};
+      if (startDate) query.paymentDate.$gte = new Date(startDate);
+      if (endDate) query.paymentDate.$lte = new Date(endDate);
+    }
+
+    if (type) {
+      query.type = type;
+    }
+
+    // Get summary
+    const summary = await Transaction.getIncomeSummary(startDate, endDate);
+
+    // Get transactions
+    const transactions = await Transaction.find(query)
+      .sort({ paymentDate: -1 })
+      .limit(100);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary,
+        transactions,
+        filters: {
+          startDate: startDate || null,
+          endDate: endDate || null,
+          type: type || 'all'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get income statement error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get income statement',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get all transactions
+// @route   GET /api/lenco/transactions
+// @access  Private (Admin)
+export const getTransactions = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, type, status, startDate, endDate } = req.query;
+
+    const query = {};
+
+    if (type) query.type = type;
+    if (status) query.status = status;
+    if (startDate || endDate) {
+      query.paymentDate = {};
+      if (startDate) query.paymentDate.$gte = new Date(startDate);
+      if (endDate) query.paymentDate.$lte = new Date(endDate);
+    }
+
+    const total = await Transaction.countDocuments(query);
+    const transactions = await Transaction.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get transactions',
       error: error.message
     });
   }

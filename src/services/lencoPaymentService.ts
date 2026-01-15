@@ -19,6 +19,7 @@ export interface LencoPaymentVerifyResponse {
   transactionId: string;
   amount: number;
   status: string;
+  receiptNumber?: string;
   user?: {
     id: string;
     name: string;

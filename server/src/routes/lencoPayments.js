@@ -5,7 +5,10 @@ import {
   initializeDonation,
   initializeCoachListingPayment,
   verifyPayment,
-  handleWebhook
+  handleWebhook,
+  downloadReceipt,
+  getIncomeStatement,
+  getTransactions
 } from '../controllers/lencoPaymentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -22,5 +25,12 @@ router.get('/verify/:reference', verifyPayment); // Public, but some types requi
 
 // Webhook
 router.post('/webhook', handleWebhook); // Public - called by Lenco
+
+// Receipt download (public - anyone with receipt number can download)
+router.get('/receipt/:receiptNumber', downloadReceipt);
+
+// Admin routes for income tracking
+router.get('/income-statement', protect, authorize('admin'), getIncomeStatement);
+router.get('/transactions', protect, authorize('admin'), getTransactions);
 
 export default router;
