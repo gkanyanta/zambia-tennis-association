@@ -54,9 +54,9 @@ export function Slideshow({ slides, autoPlay = true, interval = 5000 }: Slidesho
             src={slide.image}
             alt={slide.title}
             className={`w-full h-full object-cover ${
-              slide.focalPoint === 'top' ? 'object-top' :
+              slide.focalPoint === 'center' ? 'object-center' :
               slide.focalPoint === 'bottom' ? 'object-bottom' :
-              'object-center'
+              'object-top'
             }`}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />

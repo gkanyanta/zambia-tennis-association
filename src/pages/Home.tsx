@@ -33,7 +33,7 @@ export function Home() {
         image: img.imageUrl,
         title: img.title,
         description: img.description || img.category,
-        focalPoint: img.focalPoint || 'center'
+        focalPoint: img.focalPoint || 'top'
       }))
 
       setSlides(transformedSlides)

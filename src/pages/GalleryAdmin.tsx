@@ -27,7 +27,7 @@ export function GalleryAdmin() {
     description: '',
     category: 'Tournaments',
     isSlideshow: false,
-    focalPoint: 'center' as 'top' | 'center' | 'bottom',
+    focalPoint: 'top' as 'top' | 'center' | 'bottom',
     order: 0,
     date: ''
   });
@@ -90,7 +90,7 @@ export function GalleryAdmin() {
         description: '',
         category: 'Tournaments',
         isSlideshow: false,
-        focalPoint: 'center',
+        focalPoint: 'top',
         order: 0,
         date: ''
       });
@@ -160,7 +160,7 @@ export function GalleryAdmin() {
                   description: '',
                   category: 'Tournaments',
                   isSlideshow: false,
-                  focalPoint: 'center',
+                  focalPoint: 'top',
                   order: 0,
                   date: ''
                 });
