@@ -76,17 +76,17 @@ export function Footer() {
               Promoting excellence, development, and participation in tennis at all levels across Zambia.
             </p>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary transition-colors">
-                <MapPin className="h-4 w-4 flex-shrink-0" />
-                <span>Olympic Youth Development Centre, Lusaka</span>
-              </a>
-              <a href="tel:+260211123456" className="flex items-center gap-2 hover:text-primary transition-colors">
+              <div className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>Olympic Youth Development Centre<br />Independence Avenue, Lusaka</span>
+              </div>
+              <a href="tel:+260979326778" className="flex items-center gap-2 hover:text-primary transition-colors">
                 <Phone className="h-4 w-4 flex-shrink-0" />
-                <span>+260 211 123 456</span>
+                <span>+260 979 326 778</span>
               </a>
-              <a href="mailto:info@zambiatennis.org" className="flex items-center gap-2 hover:text-primary transition-colors">
+              <a href="mailto:info@zambiatennis.com" className="flex items-center gap-2 hover:text-primary transition-colors">
                 <Mail className="h-4 w-4 flex-shrink-0" />
-                <span>info@zambiatennis.org</span>
+                <span>info@zambiatennis.com</span>
               </a>
             </div>
 
