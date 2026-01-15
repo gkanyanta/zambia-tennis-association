@@ -29,6 +29,8 @@ import { About } from '@/pages/About'
 import { Contact } from '@/pages/Contact'
 import { Donate } from '@/pages/Donate'
 import { DonateVerify } from '@/pages/DonateVerify'
+import { MembershipPayment } from '@/pages/MembershipPayment'
+import { PaymentVerify } from '@/pages/PaymentVerify'
 import { Sponsors } from '@/pages/Sponsors'
 import { Privacy } from '@/pages/Privacy'
 import { Terms } from '@/pages/Terms'
@@ -79,6 +81,7 @@ function App() {
               <Route path="/players" element={<Players />} />
               <Route path="/clubs" element={<Clubs />} />
               <Route path="/membership" element={<Membership />} />
+              <Route path="/membership/pay" element={<MembershipPayment />} />
               <Route path="/tournaments" element={<Tournaments />} />
               <Route path="/tournaments/:id" element={<TournamentDetail />} />
               <Route path="/rankings" element={<Rankings />} />
@@ -96,6 +99,7 @@ function App() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/donate" element={<Donate />} />
               <Route path="/donate/verify" element={<DonateVerify />} />
+              <Route path="/payment/verify" element={<PaymentVerify />} />
               <Route path="/sponsors" element={<Sponsors />} />
               <Route path="/partnerships" element={<Sponsors />} />
               <Route path="/privacy" element={<Privacy />} />

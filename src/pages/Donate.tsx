@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Heart, Users, Trophy, GraduationCap, Building2, Sparkles, CreditCard, Loader2 } from 'lucide-react'
-import { donationService } from '@/services/donationService'
+import { lencoPaymentService } from '@/services/lencoPaymentService'
+import { initializeLencoWidget } from '@/utils/lencoWidget'
 
 const impactAreas = [
   {
@@ -66,6 +68,7 @@ const donationOptions = [
 ]
 
 export function Donate() {
+  const navigate = useNavigate()
   const [donationForm, setDonationForm] = useState({
     amount: '',
     donorName: '',
@@ -77,18 +80,22 @@ export function Donate() {
   })
   const [processing, setProcessing] = useState(false)
   const [showOnlineForm, setShowOnlineForm] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleQuickAmount = (amount: number) => {
     setDonationForm({ ...donationForm, amount: amount.toString() })
     setShowOnlineForm(true)
+    setError(null)
   }
 
   const handleDonationSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setProcessing(true)
+    setError(null)
 
     try {
-      const response = await donationService.initializeDonation({
+      // Initialize donation with Lenco backend
+      const paymentData = await lencoPaymentService.initializeDonation({
         amount: parseFloat(donationForm.amount),
         donorName: donationForm.donorName,
         donorEmail: donationForm.donorEmail,
@@ -98,13 +105,28 @@ export function Donate() {
         isAnonymous: donationForm.isAnonymous
       })
 
-      if (response.success && response.paymentLink) {
-        // Redirect to Flutterwave payment page
-        window.location.href = response.paymentLink
-      }
+      // Launch Lenco payment widget
+      await initializeLencoWidget({
+        key: paymentData.publicKey,
+        reference: paymentData.reference,
+        email: paymentData.email,
+        amount: paymentData.amount,
+        currency: 'ZMW',
+        channels: ['card', 'mobile-money'],
+        onSuccess: (response) => {
+          // Redirect to verification page
+          navigate(`/payment/verify?reference=${response.reference}&type=donation`)
+        },
+        onClose: () => {
+          setProcessing(false)
+        },
+        onConfirmationPending: () => {
+          navigate(`/payment/verify?reference=${paymentData.reference}&type=donation&pending=true`)
+        }
+      })
     } catch (error: any) {
       console.error('Donation error:', error)
-      alert(error.response?.data?.message || 'Failed to process donation. Please try again.')
+      setError(error.message || 'Failed to process donation. Please try again.')
       setProcessing(false)
     }
   }
@@ -200,10 +222,15 @@ export function Donate() {
                   Donate Online
                 </CardTitle>
                 <p className="text-center text-muted-foreground">
-                  Secure payment via Flutterwave - Supports cards, mobile money (MTN, Airtel, Zamtel), and bank transfers
+                  Secure payment via Lenco - Supports cards and mobile money (MTN, Airtel, Zamtel)
                 </p>
               </CardHeader>
               <CardContent className="pt-6">
+                {error && (
+                  <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <p className="text-sm text-destructive">{error}</p>
+                  </div>
+                )}
                 <form onSubmit={handleDonationSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -334,7 +361,7 @@ export function Donate() {
                     Donate Online Securely
                   </h3>
                   <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                    Make an instant donation using your card, mobile money (MTN, Airtel, Zamtel), or bank transfer
+                    Make an instant donation using your card or mobile money (MTN, Airtel, Zamtel)
                   </p>
                   <Button size="lg" onClick={() => setShowOnlineForm(true)}>
                     <CreditCard className="h-5 w-5 mr-2" />

@@ -13,18 +13,25 @@ import {
   ArrowLeft,
   Clock,
   Mail,
-  Phone
+  Phone,
+  CreditCard,
+  Loader2
 } from 'lucide-react'
 import { tournamentService, Tournament } from '@/services/tournamentService'
+import { lencoPaymentService } from '@/services/lencoPaymentService'
+import { initializeLencoWidget } from '@/utils/lencoWidget'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/context/AuthContext'
 
 export function TournamentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { isAuthenticated } = useAuth()
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [loading, setLoading] = useState(true)
   const [registering, setRegistering] = useState(false)
+  const [payingEntryFee, setPayingEntryFee] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('')
 
   useEffect(() => {
@@ -77,6 +84,47 @@ export function TournamentDetail() {
       })
     } finally {
       setRegistering(false)
+    }
+  }
+
+  const handlePayEntryFee = async () => {
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=/tournaments/${id}`)
+      return
+    }
+
+    try {
+      setPayingEntryFee(true)
+
+      // Initialize payment with Lenco
+      const paymentData = await lencoPaymentService.initializeTournamentPayment(id!)
+
+      // Launch Lenco widget
+      await initializeLencoWidget({
+        key: paymentData.publicKey,
+        reference: paymentData.reference,
+        email: paymentData.email,
+        amount: paymentData.amount,
+        currency: 'ZMW',
+        channels: ['card', 'mobile-money'],
+        onSuccess: (response) => {
+          navigate(`/payment/verify?reference=${response.reference}&type=tournament`)
+        },
+        onClose: () => {
+          setPayingEntryFee(false)
+        },
+        onConfirmationPending: () => {
+          navigate(`/payment/verify?reference=${paymentData.reference}&type=tournament&pending=true`)
+        }
+      })
+    } catch (err: any) {
+      console.error('Payment initialization failed:', err)
+      toast({
+        title: 'Payment Error',
+        description: err.message || 'Failed to initialize payment. Please try again.',
+        variant: 'destructive'
+      })
+      setPayingEntryFee(false)
     }
   }
 
@@ -313,6 +361,27 @@ export function TournamentDetail() {
                             <Trophy className="h-4 w-4 mr-2" />
                             {registering ? 'Registering...' : 'Register Now'}
                           </Button>
+
+                          {tournament.entryFee > 0 && (
+                            <Button
+                              className="w-full"
+                              variant="outline"
+                              onClick={handlePayEntryFee}
+                              disabled={payingEntryFee}
+                            >
+                              {payingEntryFee ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="h-4 w-4 mr-2" />
+                                  Pay Entry Fee (K{tournament.entryFee})
+                                </>
+                              )}
+                            </Button>
+                          )}
 
                           <p className="text-xs text-muted-foreground text-center">
                             Entry fee: K{tournament.entryFee}

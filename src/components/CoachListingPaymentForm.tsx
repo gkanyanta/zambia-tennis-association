@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -6,7 +7,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { coachService, type Coach, type PricingPlan } from '@/services/coachService'
-import { DollarSign, Calendar, CreditCard } from 'lucide-react'
+import { lencoPaymentService } from '@/services/lencoPaymentService'
+import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { DollarSign, Calendar, CreditCard, Loader2, Wallet } from 'lucide-react'
 
 interface CoachListingPaymentFormProps {
   coach: Coach
@@ -15,8 +18,11 @@ interface CoachListingPaymentFormProps {
 }
 
 export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachListingPaymentFormProps) {
+  const navigate = useNavigate()
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([])
   const [loading, setLoading] = useState(false)
+  const [payingOnline, setPayingOnline] = useState(false)
+  const [paymentMode, setPaymentMode] = useState<'online' | 'manual'>('online')
   const [formData, setFormData] = useState({
     duration: '',
     amount: '',
@@ -59,6 +65,46 @@ export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachLis
       })
     } else {
       setFormData({ ...formData, duration })
+    }
+  }
+
+  const handlePayOnline = async () => {
+    if (!formData.duration || !formData.amount) {
+      alert('Please select a listing plan first')
+      return
+    }
+
+    setPayingOnline(true)
+
+    try {
+      // Initialize payment with Lenco
+      const paymentData = await lencoPaymentService.initializeCoachListingPayment({
+        amount: parseFloat(formData.amount),
+        duration: parseInt(formData.duration),
+        coachId: coach._id
+      })
+
+      // Launch Lenco widget
+      await initializeLencoWidget({
+        key: paymentData.publicKey,
+        reference: paymentData.reference,
+        email: paymentData.email || coach.email,
+        amount: paymentData.amount,
+        currency: 'ZMW',
+        channels: ['card', 'mobile-money'],
+        onSuccess: (response) => {
+          navigate(`/payment/verify?reference=${response.reference}&type=coach`)
+        },
+        onClose: () => {
+          setPayingOnline(false)
+        },
+        onConfirmationPending: () => {
+          navigate(`/payment/verify?reference=${paymentData.reference}&type=coach&pending=true`)
+        }
+      })
+    } catch (err: any) {
+      alert(err.message || 'Failed to initialize online payment')
+      setPayingOnline(false)
     }
   }
 
@@ -128,6 +174,28 @@ export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachLis
         </CardContent>
       </Card>
 
+      {/* Payment Mode Selection */}
+      <div className="flex gap-2 p-1 bg-muted rounded-lg">
+        <Button
+          type="button"
+          variant={paymentMode === 'online' ? 'default' : 'ghost'}
+          className="flex-1"
+          onClick={() => setPaymentMode('online')}
+        >
+          <CreditCard className="h-4 w-4 mr-2" />
+          Pay Online
+        </Button>
+        <Button
+          type="button"
+          variant={paymentMode === 'manual' ? 'default' : 'ghost'}
+          className="flex-1"
+          onClick={() => setPaymentMode('manual')}
+        >
+          <Wallet className="h-4 w-4 mr-2" />
+          Manual Record
+        </Button>
+      </div>
+
       {/* Pricing Plans */}
       {pricingPlans.length > 0 && (
         <div>
@@ -155,7 +223,62 @@ export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachLis
         </div>
       )}
 
-      {/* Payment Details */}
+      {/* Online Payment Button */}
+      {paymentMode === 'online' && (
+        <div className="space-y-4">
+          {expiryDate && (
+            <Card className="bg-muted">
+              <CardContent className="pt-6">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between font-medium">
+                    <span>Listing Duration:</span>
+                    <span>{formData.duration} months</span>
+                  </div>
+                  <div className="flex justify-between font-medium text-primary">
+                    <span>Listing Expires:</span>
+                    <span>{expiryDate.toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                    <span>Total Amount:</span>
+                    <span>K{parseFloat(formData.amount || '0').toFixed(2)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={payingOnline}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handlePayOnline}
+              disabled={payingOnline || !formData.duration}
+            >
+              {payingOnline ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Pay Online Now
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Secure payment via Lenco - Supports cards and mobile money
+          </p>
+        </div>
+      )}
+
+      {/* Manual Payment Details */}
+      {paymentMode === 'manual' && (
+        <>
+          {/* Payment Details */}
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -280,6 +403,8 @@ export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachLis
           {loading ? 'Processing...' : 'Process Payment'}
         </Button>
       </div>
+        </>
+      )}
     </form>
   )
 }
