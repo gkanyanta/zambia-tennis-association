@@ -350,6 +350,7 @@ export const verifyPayment = async (req, res) => {
           reference,
           transactionId,
           amount: amountPaid,
+          status: 'successful',
           user: {
             id: user._id,
             name: `${user.firstName} ${user.lastName}`,
@@ -371,7 +372,8 @@ export const verifyPayment = async (req, res) => {
         data: {
           reference,
           transactionId,
-          amount: amountPaid
+          amount: amountPaid,
+          status: 'successful'
         }
       });
     }
@@ -426,6 +428,7 @@ export const verifyPayment = async (req, res) => {
           reference,
           transactionId,
           amount: amountPaid,
+          status: 'successful',
           donation: {
             id: donation._id,
             receiptNumber: donation.receiptNumber,
@@ -446,7 +449,8 @@ export const verifyPayment = async (req, res) => {
         data: {
           reference,
           transactionId,
-          amount: amountPaid
+          amount: amountPaid,
+          status: 'successful'
         }
       });
     }
