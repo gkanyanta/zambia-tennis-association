@@ -1,74 +1,72 @@
+import { useState, useEffect } from 'react'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Calendar as CalendarIcon, MapPin } from 'lucide-react'
+import { Calendar as CalendarIcon, MapPin, Loader2 } from 'lucide-react'
+import { calendarService, CalendarEvent } from '@/services/calendarService'
 
-const events = [
-  {
-    date: 'Jan 20-22',
-    month: 'January',
-    title: 'ZTA Circuit Tournament #1',
-    location: 'Various Clubs',
-    type: 'Tournament',
-  },
-  {
-    date: 'Feb 10-14',
-    month: 'February',
-    title: 'Junior Open Championship',
-    location: 'Lusaka Tennis Club',
-    type: 'Tournament',
-  },
-  {
-    date: 'Feb 25-27',
-    month: 'February',
-    title: 'Madalas Invitational',
-    location: 'Ndola Sports Complex',
-    type: 'Tournament',
-  },
-  {
-    date: 'Mar 5',
-    month: 'March',
-    title: 'Coaching Certification Workshop',
-    location: 'Olympic Youth Development Centre',
-    type: 'Education',
-  },
-  {
-    date: 'Mar 15-20',
-    month: 'March',
-    title: 'National Championships 2025',
-    location: 'Olympic Youth Development Centre, Lusaka',
-    type: 'Tournament',
-  },
-  {
-    date: 'Apr 5-8',
-    month: 'April',
-    title: 'Copperbelt Regional Open',
-    location: 'Kitwe Tennis Centre',
-    type: 'Tournament',
-  },
-  {
-    date: 'Apr 18',
-    month: 'April',
-    title: 'ZTA Annual General Meeting',
-    location: 'Lusaka',
-    type: 'Meeting',
-  },
-  {
-    date: 'May 12-15',
-    month: 'May',
-    title: 'Southern Province Championships',
-    location: 'Livingstone Sports Complex',
-    type: 'Tournament',
-  },
-]
+const typeColors: Record<string, string> = {
+  tournament: 'bg-blue-500',
+  education: 'bg-green-500',
+  meeting: 'bg-purple-500',
+  social: 'bg-orange-500',
+  other: 'bg-gray-500',
+}
 
-const typeColors: Record<string, 'default' | 'secondary' | 'outline'> = {
-  Tournament: 'default',
-  Education: 'secondary',
-  Meeting: 'outline',
+const typeLabels: Record<string, string> = {
+  tournament: 'Tournament',
+  education: 'Education',
+  meeting: 'Meeting',
+  social: 'Social',
+  other: 'Other',
 }
 
 export function Calendar() {
+  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchEvents()
+  }, [])
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true)
+      const data = await calendarService.getEvents({ upcoming: true })
+      setEvents(data)
+    } catch (err: any) {
+      console.error('Failed to fetch events:', err)
+      setError('Failed to load events')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatDateRange = (start: string, end: string) => {
+    const startDate = new Date(start)
+    const endDate = new Date(end)
+
+    const startDay = startDate.getDate()
+    const endDay = endDate.getDate()
+    const month = startDate.toLocaleDateString('en-GB', { month: 'short' })
+
+    if (startDate.toDateString() === endDate.toDateString()) {
+      return `${month} ${startDay}`
+    }
+
+    if (startDate.getMonth() === endDate.getMonth()) {
+      return `${month} ${startDay}-${endDay}`
+    }
+
+    const endMonth = endDate.toLocaleDateString('en-GB', { month: 'short' })
+    return `${month} ${startDay} - ${endMonth} ${endDay}`
+  }
+
+  const getMonthName = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-GB', { month: 'long' })
+  }
+
   return (
     <div className="flex flex-col">
       <Hero
@@ -85,42 +83,69 @@ export function Calendar() {
               <h2 className="text-2xl font-bold text-foreground mb-6">
                 Upcoming Events
               </h2>
-              <div className="space-y-4">
-                {events.map((event, index) => (
-                  <Card key={index} className="card-elevated-hover">
-                    <CardContent className="p-6">
-                      <div className="flex gap-4">
-                        <div className="flex-shrink-0 w-16 text-center">
-                          <div className="text-3xl font-bold text-primary">
-                            {event.date.split(' ')[0].split('-')[0]}
+
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : error ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-muted-foreground">{error}</p>
+                  </CardContent>
+                </Card>
+              ) : events.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <CalendarIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-muted-foreground">No upcoming events scheduled</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {events.map((event) => (
+                    <Card key={event._id} className="card-elevated-hover">
+                      <CardContent className="p-6">
+                        <div className="flex gap-4">
+                          <div className="flex-shrink-0 w-16 text-center">
+                            <div className="text-3xl font-bold text-primary">
+                              {new Date(event.startDate).getDate()}
+                            </div>
+                            <div className="text-xs text-muted-foreground uppercase">
+                              {getMonthName(event.startDate).slice(0, 3)}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground uppercase">
-                            {event.month.slice(0, 3)}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <h3 className="font-semibold text-foreground">
+                                {event.title}
+                              </h3>
+                              <Badge className={`${typeColors[event.type]} text-white`}>
+                                {typeLabels[event.type]}
+                              </Badge>
+                            </div>
+                            {event.description && (
+                              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                                {event.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                              <CalendarIcon className="h-4 w-4" />
+                              <span>{formatDateRange(event.startDate, event.endDate)}</span>
+                            </div>
+                            {event.location && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <MapPin className="h-4 w-4" />
+                                <span>{event.location}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="font-semibold text-foreground">
-                              {event.title}
-                            </h3>
-                            <Badge variant={typeColors[event.type]}>
-                              {event.type}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <CalendarIcon className="h-4 w-4" />
-                            <span>{event.date}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4" />
-                            <span>{event.location}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}
@@ -131,21 +156,27 @@ export function Calendar() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <Badge variant="default">Tournament</Badge>
+                    <Badge className="bg-blue-500 text-white">Tournament</Badge>
                     <span className="text-sm text-muted-foreground">
                       Competitive Events
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">Education</Badge>
+                    <Badge className="bg-green-500 text-white">Education</Badge>
                     <span className="text-sm text-muted-foreground">
                       Training & Workshops
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">Meeting</Badge>
+                    <Badge className="bg-purple-500 text-white">Meeting</Badge>
                     <span className="text-sm text-muted-foreground">
                       Official Meetings
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-orange-500 text-white">Social</Badge>
+                    <span className="text-sm text-muted-foreground">
+                      Social Events
                     </span>
                   </div>
                 </CardContent>
@@ -153,15 +184,20 @@ export function Calendar() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Subscribe</CardTitle>
+                  <CardTitle>Stay Updated</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Get event reminders and updates delivered to your email
+                    Follow us on social media for event updates and announcements
                   </p>
-                  <button className="btn-primary w-full">
-                    Subscribe to Calendar
-                  </button>
+                  <a
+                    href="https://web.facebook.com/profile.php?id=61553884656266"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary w-full inline-block text-center"
+                  >
+                    Follow on Facebook
+                  </a>
                 </CardContent>
               </Card>
             </div>

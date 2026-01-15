@@ -45,6 +45,7 @@ import affiliationRoutes from './routes/affiliations.js';
 import aboutContentRoutes from './routes/aboutContent.js';
 import statsRoutes from './routes/stats.js';
 import contactRoutes from './routes/contact.js';
+import calendarRoutes from './routes/calendar.js';
 
 // Initialize app
 const app = express();
@@ -135,6 +136,7 @@ app.use('/api/affiliations', affiliationRoutes);
 app.use('/api/about-content', aboutContentRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
