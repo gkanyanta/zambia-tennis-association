@@ -5,31 +5,38 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 
-const navigation = [
-  { name: 'Home', href: '/' },
-  { name: 'News', href: '/news' },
-  { name: 'Leagues', href: '/leagues' },
+// Dropdown menu configurations
+const tennisMenu = [
   { name: 'Tournaments', href: '/tournaments' },
+  { name: 'Leagues', href: '/leagues' },
   { name: 'Rankings', href: '/rankings' },
-  { name: 'Membership', href: '/membership' },
-  { name: 'Gallery', href: '/gallery' },
-  { name: 'About', href: '/about' },
-  { name: 'Contact', href: '/contact' },
+  { name: 'News', href: '/news' },
+  { name: 'Calendar', href: '/calendar' },
 ]
 
-const communityMenu = [
+const connectMenu = [
   { name: 'Players', href: '/players' },
   { name: 'Clubs', href: '/clubs' },
-  { name: 'Play', href: '/play' },
+  { name: 'Coaches', href: '/coaches' },
   { name: 'Juniors', href: '/juniors' },
   { name: 'Madalas', href: '/madalas' },
-  { name: 'Coaches', href: '/coaches' },
+  { name: 'Play', href: '/play' },
 ]
+
+const aboutMenu = [
+  { name: 'About ZTA', href: '/about' },
+  { name: 'Contact', href: '/contact' },
+  { name: 'Gallery', href: '/gallery' },
+  { name: 'Membership', href: '/membership' },
+]
+
+type DropdownKey = 'tennis' | 'connect' | 'about'
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [communityDropdownOpen, setCommunityDropdownOpen] = useState(false)
+  const [openDropdown, setOpenDropdown] = useState<DropdownKey | null>(null)
   const [dropdownTimeout, setDropdownTimeout] = useState<number | null>(null)
+  const [mobileExpandedMenu, setMobileExpandedMenu] = useState<DropdownKey | null>(null)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
@@ -39,20 +46,128 @@ export function Header() {
     navigate('/')
   }
 
-  const handleDropdownEnter = () => {
+  const handleDropdownEnter = (key: DropdownKey) => {
     if (dropdownTimeout) {
       clearTimeout(dropdownTimeout)
       setDropdownTimeout(null)
     }
-    setCommunityDropdownOpen(true)
+    setOpenDropdown(key)
   }
 
   const handleDropdownLeave = () => {
     const timeout = setTimeout(() => {
-      setCommunityDropdownOpen(false)
-    }, 500) // 500ms delay before closing
+      setOpenDropdown(null)
+    }, 300)
     setDropdownTimeout(timeout as unknown as number)
   }
+
+  const isMenuActive = (menu: { href: string }[]) => {
+    return menu.some(item => location.pathname === item.href)
+  }
+
+  const toggleMobileMenu = (key: DropdownKey) => {
+    setMobileExpandedMenu(mobileExpandedMenu === key ? null : key)
+  }
+
+  const DropdownMenu = ({
+    label,
+    menuKey,
+    items
+  }: {
+    label: string
+    menuKey: DropdownKey
+    items: { name: string; href: string }[]
+  }) => (
+    <div
+      className="relative"
+      onMouseEnter={() => handleDropdownEnter(menuKey)}
+      onMouseLeave={handleDropdownLeave}
+    >
+      <button
+        className={cn(
+          "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1",
+          isMenuActive(items) ? "text-primary" : "text-muted-foreground"
+        )}
+      >
+        {label}
+        <ChevronDown className={cn(
+          "h-4 w-4 transition-transform",
+          openDropdown === menuKey && "rotate-180"
+        )} />
+      </button>
+
+      {openDropdown === menuKey && (
+        <div
+          className="absolute left-0 top-full mt-1 w-48 rounded-md shadow-lg bg-background border z-50"
+          onMouseEnter={() => handleDropdownEnter(menuKey)}
+          onMouseLeave={handleDropdownLeave}
+        >
+          <div className="py-1">
+            {items.map((item) => (
+              <Link
+                key={item.name}
+                to={item.href}
+                className={cn(
+                  "block px-4 py-2 text-sm transition-colors hover:bg-muted",
+                  location.pathname === item.href
+                    ? "text-primary font-semibold"
+                    : "text-foreground"
+                )}
+                onClick={() => setOpenDropdown(null)}
+              >
+                {item.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const MobileDropdownMenu = ({
+    label,
+    menuKey,
+    items
+  }: {
+    label: string
+    menuKey: DropdownKey
+    items: { name: string; href: string }[]
+  }) => (
+    <div>
+      <button
+        onClick={() => toggleMobileMenu(menuKey)}
+        className={cn(
+          "w-full flex items-center justify-between rounded-md px-3 py-2 text-base font-medium transition-colors",
+          isMenuActive(items) ? "text-primary" : "text-foreground hover:bg-muted"
+        )}
+      >
+        {label}
+        <ChevronDown className={cn(
+          "h-4 w-4 transition-transform",
+          mobileExpandedMenu === menuKey && "rotate-180"
+        )} />
+      </button>
+      {mobileExpandedMenu === menuKey && (
+        <div className="ml-4 mt-1 space-y-1">
+          {items.map((item) => (
+            <Link
+              key={item.name}
+              to={item.href}
+              className={cn(
+                "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                location.pathname === item.href
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {item.name}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -91,84 +206,36 @@ export function Header() {
         </div>
 
         {/* Desktop navigation */}
-        <div className="hidden lg:flex lg:gap-x-3 xl:gap-x-6 lg:items-center ml-auto">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              className={cn(
-                "text-sm font-semibold leading-6 transition-colors hover:text-primary whitespace-nowrap",
-                location.pathname === item.href
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              )}
-            >
-              {item.name}
-            </Link>
-          ))}
-
-          {/* Community Dropdown */}
-          <div
-            className="relative"
-            onMouseEnter={handleDropdownEnter}
-            onMouseLeave={handleDropdownLeave}
-          >
-            <button
-              className={cn(
-                "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1",
-                communityMenu.some(item => location.pathname === item.href)
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              )}
-            >
-              Community
-              <ChevronDown className="h-4 w-4" />
-            </button>
-
-            {communityDropdownOpen && (
-              <div
-                className="absolute left-0 top-full mt-1 w-48 rounded-md shadow-lg bg-background border z-50"
-                onMouseEnter={handleDropdownEnter}
-                onMouseLeave={handleDropdownLeave}
-              >
-                <div className="py-1">
-                  {communityMenu.map((item) => (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      className={cn(
-                        "block px-4 py-2 text-sm transition-colors hover:bg-muted",
-                        location.pathname === item.href
-                          ? "text-primary font-semibold"
-                          : "text-foreground"
-                      )}
-                      onClick={() => setCommunityDropdownOpen(false)}
-                    >
-                      {item.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+        <div className="hidden lg:flex lg:gap-x-4 xl:gap-x-8 lg:items-center ml-auto">
+          {/* Home */}
+          <Link
+            to="/"
+            className={cn(
+              "text-sm font-semibold leading-6 transition-colors hover:text-primary whitespace-nowrap",
+              location.pathname === "/" ? "text-primary" : "text-muted-foreground"
             )}
-          </div>
+          >
+            Home
+          </Link>
+
+          {/* Tennis Dropdown */}
+          <DropdownMenu label="Tennis" menuKey="tennis" items={tennisMenu} />
+
+          {/* Connect Dropdown */}
+          <DropdownMenu label="Connect" menuKey="connect" items={connectMenu} />
+
+          {/* About Dropdown */}
+          <DropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
           {/* Donate Button */}
           <Button
             variant="default"
             size="sm"
             onClick={() => navigate('/donate')}
-            className="bg-primary hover:bg-primary/90 hidden xl:flex"
+            className="bg-primary hover:bg-primary/90"
           >
             <Heart className="h-4 w-4 mr-2" />
             Donate
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => navigate('/donate')}
-            className="xl:hidden"
-          >
-            <Heart className="h-4 w-4" />
           </Button>
 
           {/* Auth buttons */}
@@ -226,43 +293,28 @@ export function Header() {
       {mobileMenuOpen && (
         <div className="lg:hidden">
           <div className="space-y-1 px-4 pb-3 pt-2">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={cn(
-                  "block rounded-md px-3 py-2 text-base font-medium transition-colors",
-                  location.pathname === item.href
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground hover:bg-muted"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {item.name}
-              </Link>
-            ))}
+            {/* Home */}
+            <Link
+              to="/"
+              className={cn(
+                "block rounded-md px-3 py-2 text-base font-medium transition-colors",
+                location.pathname === "/"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-muted"
+              )}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Home
+            </Link>
 
-            {/* Community submenu in mobile */}
-            <div className="mt-1">
-              <div className="px-3 py-2 text-base font-medium text-muted-foreground">
-                Community
-              </div>
-              {communityMenu.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={cn(
-                    "block rounded-md px-6 py-2 text-sm font-medium transition-colors",
-                    location.pathname === item.href
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </div>
+            {/* Tennis Menu */}
+            <MobileDropdownMenu label="Tennis" menuKey="tennis" items={tennisMenu} />
+
+            {/* Connect Menu */}
+            <MobileDropdownMenu label="Connect" menuKey="connect" items={connectMenu} />
+
+            {/* About Menu */}
+            <MobileDropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
             {/* Mobile Donate Button */}
             <Button
