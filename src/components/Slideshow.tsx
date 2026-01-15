@@ -53,11 +53,12 @@ export function Slideshow({ slides, autoPlay = true, interval = 5000 }: Slidesho
           <img
             src={slide.image}
             alt={slide.title}
-            className={`w-full h-full object-cover ${
-              slide.focalPoint === 'center' ? 'object-center' :
-              slide.focalPoint === 'bottom' ? 'object-bottom' :
-              'object-top'
-            }`}
+            className="w-full h-full object-cover"
+            style={{
+              objectPosition: slide.focalPoint === 'center' ? 'center center' :
+                slide.focalPoint === 'bottom' ? 'center bottom' :
+                'center 70px'
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
 
