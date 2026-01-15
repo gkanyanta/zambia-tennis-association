@@ -1,5 +1,6 @@
 // Lenco widget configuration
 const LENCO_SCRIPT_URL = import.meta.env.VITE_LENCO_SCRIPT_URL || 'https://pay.sandbox.lenco.co/js/v1/inline.js';
+const LENCO_PUBLIC_KEY = import.meta.env.VITE_LENCO_PUBLIC_KEY;
 
 export interface LencoWidgetConfig {
   key: string;
@@ -61,9 +62,18 @@ export const initializeLencoWidget = async (config: LencoWidgetConfig): Promise<
       throw new Error('Lenco payment library not loaded');
     }
 
+    // Use provided key or fallback to environment variable
+    const publicKey = config.key || LENCO_PUBLIC_KEY;
+
+    if (!publicKey) {
+      throw new Error('Lenco public key not configured. Please contact support.');
+    }
+
+    console.log('Initializing Lenco widget with reference:', config.reference);
+
     // Initialize widget with configuration
     (window as any).LencoPay.getPaid({
-      key: config.key,
+      key: publicKey,
       reference: config.reference,
       email: config.email,
       amount: config.amount,
