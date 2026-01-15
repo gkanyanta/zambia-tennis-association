@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { Facebook, Instagram, Mail, Phone, MapPin, Heart } from 'lucide-react'
+import { Facebook, Instagram, Mail, Phone, MapPin, Heart, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 // Match header navigation structure
@@ -87,6 +87,10 @@ export function Footer() {
               <a href="mailto:info@zambiatennis.com" className="flex items-center gap-2 hover:text-primary transition-colors">
                 <Mail className="h-4 w-4 flex-shrink-0" />
                 <span>info@zambiatennis.com</span>
+              </a>
+              <a href="https://wa.me/260979326778" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-primary transition-colors">
+                <MessageCircle className="h-4 w-4 flex-shrink-0" />
+                <span>WhatsApp</span>
               </a>
             </div>
 
