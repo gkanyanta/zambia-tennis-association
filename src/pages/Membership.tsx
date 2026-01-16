@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { MapPin, Phone, Mail, Users, Building2 } from 'lucide-react'
+import { MapPin, Phone, Mail, Users, Building2, CreditCard, ArrowRight } from 'lucide-react'
 import { clubService, type Club } from '@/services/clubService'
 
 type Region = 'northern' | 'southern' | 'all'
@@ -22,6 +23,7 @@ const REGIONS = {
 }
 
 export function Membership() {
+  const navigate = useNavigate()
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRegion, setSelectedRegion] = useState<Region>('all')
@@ -70,12 +72,60 @@ export function Membership() {
         gradient
       />
 
+      {/* ZPIN Registration CTA */}
+      <section className="py-12 bg-gradient-to-r from-primary/10 to-primary/5">
+        <div className="container-custom">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            <div>
+              <Badge className="mb-4">Player Registration</Badge>
+              <h2 className="text-3xl font-bold text-foreground mb-4">
+                Get Your ZPIN Today
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                Your ZPIN (Zambia Player Identification Number) is your unique identifier in Zambian tennis.
+                It's required for tournament participation, official rankings, and league play.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Button size="lg" onClick={() => navigate('/membership/pay')}>
+                  <CreditCard className="h-5 w-5 mr-2" />
+                  Register for ZPIN
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="text-center">
+                <CardContent className="pt-6">
+                  <p className="text-3xl font-bold text-primary">K100</p>
+                  <p className="text-sm text-muted-foreground">Junior ZPIN</p>
+                  <p className="text-xs text-muted-foreground mt-1">Under 18</p>
+                </CardContent>
+              </Card>
+              <Card className="text-center border-primary">
+                <CardContent className="pt-6">
+                  <p className="text-3xl font-bold text-primary">K250</p>
+                  <p className="text-sm text-muted-foreground">Senior ZPIN</p>
+                  <p className="text-xs text-muted-foreground mt-1">18+ years</p>
+                </CardContent>
+              </Card>
+              <Card className="text-center">
+                <CardContent className="pt-6">
+                  <p className="text-3xl font-bold text-primary">K500</p>
+                  <p className="text-sm text-muted-foreground">International</p>
+                  <p className="text-xs text-muted-foreground mt-1">Foreign players</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="py-16">
         <div className="container-custom">
           {/* Introduction */}
           <div className="text-center mb-12 max-w-3xl mx-auto">
             <h2 className="text-3xl font-bold text-foreground mb-4">
-              How to Become a Member
+              Join a Tennis Club
             </h2>
             <p className="text-muted-foreground mb-6">
               The Zambia Tennis Association operates through a network of affiliated clubs across the country.

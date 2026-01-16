@@ -28,6 +28,7 @@ const aboutMenu = [
   { name: 'Contact', href: '/contact' },
   { name: 'Gallery', href: '/gallery' },
   { name: 'Membership', href: '/membership' },
+  { name: 'Register ZPIN', href: '/membership/pay' },
 ]
 
 type DropdownKey = 'tennis' | 'connect' | 'about'
