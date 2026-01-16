@@ -14,7 +14,9 @@ import {
   Building2,
   UserCircle,
   Globe,
-  FileText
+  FileText,
+  CreditCard,
+  Calendar
 } from 'lucide-react';
 
 export function Admin() {
@@ -84,11 +86,25 @@ export function Admin() {
       color: 'text-orange-500'
     },
     {
-      title: 'Payments',
-      description: 'View membership and tournament payments',
-      icon: DollarSign,
-      action: () => navigate('/membership'),
+      title: 'Membership Management',
+      description: 'Manage ZPIN memberships, club affiliations, and pricing',
+      icon: CreditCard,
+      action: () => navigate('/admin/membership'),
       color: 'text-emerald-500'
+    },
+    {
+      title: 'Calendar Events',
+      description: 'Manage tennis calendar and events',
+      icon: Calendar,
+      action: () => navigate('/admin/calendar'),
+      color: 'text-rose-500'
+    },
+    {
+      title: 'Income & Payments',
+      description: 'View all payments, donations, and financial reports',
+      icon: DollarSign,
+      action: () => navigate('/admin/income'),
+      color: 'text-lime-500'
     },
     {
       title: 'Executive Members',

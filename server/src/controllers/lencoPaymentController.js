@@ -4,6 +4,7 @@ import Tournament from '../models/Tournament.js';
 import Donation from '../models/Donation.js';
 import CoachListing from '../models/CoachListing.js';
 import Transaction from '../models/Transaction.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 import sendEmail from '../utils/sendEmail.js';
 import { generateReceipt } from '../utils/generateReceipt.js';
 
@@ -372,8 +373,111 @@ export const verifyPayment = async (req, res) => {
     // Determine payment type based on reference prefix
     const referencePrefix = reference.split('-')[0];
 
-    // Handle membership payment
+    // Handle membership payment (new subscription system or legacy)
     if (referencePrefix === 'MEM') {
+      // First, check if this is from the new subscription system
+      const subscription = await MembershipSubscription.findOne({ paymentReference: reference })
+        .populate('membershipType');
+
+      if (subscription) {
+        // New subscription system - activate subscription
+        if (subscription.status === 'active') {
+          // Already activated (perhaps via webhook)
+          return res.status(200).json({
+            success: true,
+            message: 'Membership already active',
+            data: {
+              reference,
+              transactionId,
+              amount: amountPaid,
+              status: 'successful',
+              receiptNumber: subscription.receiptNumber,
+              user: {
+                id: subscription.entityId,
+                name: subscription.entityName,
+                membershipType: subscription.membershipTypeCode,
+                membershipStatus: 'active',
+                membershipExpiry: subscription.endDate,
+                zpin: subscription.zpin
+              }
+            }
+          });
+        }
+
+        // Activate the subscription
+        subscription.status = 'active';
+        subscription.transactionId = transactionId;
+        subscription.paymentDate = new Date();
+
+        // Update entity (User for player, Club for club)
+        if (subscription.entityType === 'player') {
+          const user = await User.findById(subscription.entityId);
+          if (user) {
+            // Generate ZPIN if not exists
+            if (!user.zpin) {
+              const year = new Date().getFullYear().toString().slice(-2);
+              const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
+              user.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+            }
+            user.membershipType = subscription.membershipTypeCode;
+            user.membershipStatus = 'active';
+            user.membershipExpiry = subscription.endDate;
+            user.lastPaymentDate = new Date();
+            user.lastPaymentAmount = amountPaid;
+            await user.save();
+
+            subscription.zpin = user.zpin;
+          }
+        }
+
+        // Create transaction record
+        const entityEmail = subscription.entityType === 'player'
+          ? (await User.findById(subscription.entityId))?.email
+          : null;
+
+        const transaction = await createTransactionAndSendReceipt({
+          reference,
+          transactionId,
+          type: 'membership',
+          amount: amountPaid,
+          payerName: subscription.entityName,
+          payerEmail: entityEmail,
+          relatedId: subscription._id,
+          relatedModel: 'MembershipSubscription',
+          description: `${subscription.membershipTypeName} - ${subscription.year}`,
+          metadata: {
+            membershipType: subscription.membershipTypeCode,
+            membershipYear: subscription.year,
+            entityType: subscription.entityType,
+            zpin: subscription.zpin
+          }
+        });
+
+        subscription.receiptNumber = transaction.receiptNumber;
+        await subscription.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Membership payment verified successfully',
+          data: {
+            reference,
+            transactionId,
+            amount: amountPaid,
+            status: 'successful',
+            receiptNumber: transaction.receiptNumber,
+            user: {
+              id: subscription.entityId,
+              name: subscription.entityName,
+              membershipType: subscription.membershipTypeCode,
+              membershipStatus: 'active',
+              membershipExpiry: subscription.endDate,
+              zpin: subscription.zpin
+            }
+          }
+        });
+      }
+
+      // Legacy membership system (fallback for old references)
       if (!req.user) {
         return res.status(401).json({
           success: false,
@@ -432,6 +536,86 @@ export const verifyPayment = async (req, res) => {
             membershipType: user.membershipType,
             membershipStatus: user.membershipStatus,
             membershipExpiry: user.membershipExpiry
+          }
+        }
+      });
+    }
+
+    // Handle club affiliation payment
+    if (referencePrefix === 'CLUB') {
+      const subscription = await MembershipSubscription.findOne({ paymentReference: reference })
+        .populate('membershipType');
+
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'Club subscription not found'
+        });
+      }
+
+      if (subscription.status === 'active') {
+        return res.status(200).json({
+          success: true,
+          message: 'Club affiliation already active',
+          data: {
+            reference,
+            transactionId,
+            amount: amountPaid,
+            status: 'successful',
+            receiptNumber: subscription.receiptNumber,
+            club: {
+              id: subscription.entityId,
+              name: subscription.entityName,
+              affiliationType: subscription.membershipTypeCode,
+              affiliationStatus: 'active',
+              affiliationExpiry: subscription.endDate
+            }
+          }
+        });
+      }
+
+      // Activate the subscription
+      subscription.status = 'active';
+      subscription.transactionId = transactionId;
+      subscription.paymentDate = new Date();
+      await subscription.save();
+
+      // Create transaction record and send receipt
+      const transaction = await createTransactionAndSendReceipt({
+        reference,
+        transactionId,
+        type: 'membership',
+        amount: amountPaid,
+        payerName: subscription.entityName,
+        payerEmail: null, // Club email would be fetched separately
+        relatedId: subscription._id,
+        relatedModel: 'MembershipSubscription',
+        description: `Club Affiliation - ${subscription.membershipTypeName} - ${subscription.year}`,
+        metadata: {
+          membershipType: subscription.membershipTypeCode,
+          membershipYear: subscription.year,
+          entityType: 'club'
+        }
+      });
+
+      subscription.receiptNumber = transaction.receiptNumber;
+      await subscription.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Club affiliation payment verified successfully',
+        data: {
+          reference,
+          transactionId,
+          amount: amountPaid,
+          status: 'successful',
+          receiptNumber: transaction.receiptNumber,
+          club: {
+            id: subscription.entityId,
+            name: subscription.entityName,
+            affiliationType: subscription.membershipTypeCode,
+            affiliationStatus: 'active',
+            affiliationExpiry: subscription.endDate
           }
         }
       });

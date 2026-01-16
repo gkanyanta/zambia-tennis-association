@@ -46,6 +46,7 @@ import aboutContentRoutes from './routes/aboutContent.js';
 import statsRoutes from './routes/stats.js';
 import contactRoutes from './routes/contact.js';
 import calendarRoutes from './routes/calendar.js';
+import membershipRoutes from './routes/membership.js';
 
 // Initialize app
 const app = express();
@@ -137,6 +138,7 @@ app.use('/api/about-content', aboutContentRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/membership', membershipRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

@@ -49,6 +49,7 @@ import { AffiliationsManagement } from '@/pages/AffiliationsManagement'
 import { AboutContentEditor } from '@/pages/AboutContentEditor'
 import { LeagueManagement } from '@/pages/LeagueManagement'
 import { CalendarManagement } from '@/pages/CalendarManagement'
+import { MembershipAdmin } from '@/pages/MembershipAdmin'
 
 function App() {
   return (
@@ -76,6 +77,7 @@ function App() {
               <Route path="/admin/about-content" element={<AboutContentEditor />} />
               <Route path="/admin/leagues" element={<LeagueManagement />} />
               <Route path="/admin/calendar" element={<CalendarManagement />} />
+              <Route path="/admin/membership" element={<MembershipAdmin />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />
