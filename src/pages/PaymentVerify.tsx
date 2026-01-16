@@ -23,6 +23,8 @@ type PaymentStatus = 'loading' | 'success' | 'failed' | 'pending'
 
 const paymentTypeLabels: Record<string, string> = {
   membership: 'Membership Payment',
+  'bulk-zpin': 'ZPIN Registration Payment',
+  'club-affiliation': 'Club Affiliation Payment',
   donation: 'Donation',
   tournament: 'Tournament Entry Fee',
   coach: 'Coach Listing Payment'
@@ -30,6 +32,8 @@ const paymentTypeLabels: Record<string, string> = {
 
 const paymentTypeRedirects: Record<string, { path: string; label: string }> = {
   membership: { path: '/membership/pay', label: 'View Membership' },
+  'bulk-zpin': { path: '/register-zpin', label: 'Register More Players' },
+  'club-affiliation': { path: '/club-affiliation', label: 'Affiliate Another Club' },
   donation: { path: '/donate', label: 'Make Another Donation' },
   tournament: { path: '/tournaments', label: 'View Tournaments' },
   coach: { path: '/coaches', label: 'View Coaches' }

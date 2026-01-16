@@ -11,7 +11,13 @@ import {
   verifyMembershipPayment,
   getSubscriptions,
   getSubscriptionStats,
-  recordManualPayment
+  recordManualPayment,
+  searchPlayersForPayment,
+  getPlayerPaymentDetails,
+  initializeBulkPayment,
+  verifyBulkPayment,
+  searchClubsForPayment,
+  initializePublicClubPayment
 } from '../controllers/membershipController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -31,20 +37,46 @@ router.put('/types/:id', protect, authorize('admin'), updateMembershipType);
 router.delete('/types/:id', protect, authorize('admin'), deleteMembershipType);
 
 // ============================================
-// PLAYER MEMBERSHIP (ZPIN)
+// PUBLIC PLAYER SEARCH & BULK PAYMENT
+// ============================================
+
+// Search players for ZPIN payment (public - for parents/sponsors)
+router.get('/players/search', searchPlayersForPayment);
+
+// Get player payment details (public)
+router.get('/players/:id/payment-details', getPlayerPaymentDetails);
+
+// Initialize bulk ZPIN payment (public - no login required)
+router.post('/bulk-payment/initialize', initializeBulkPayment);
+
+// Verify bulk ZPIN payment (public)
+router.post('/bulk-payment/verify', verifyBulkPayment);
+
+// ============================================
+// PUBLIC CLUB SEARCH & AFFILIATION PAYMENT
+// ============================================
+
+// Search clubs for affiliation payment (public)
+router.get('/clubs/search', searchClubsForPayment);
+
+// Initialize public club affiliation payment (no login required)
+router.post('/club/public-payment/initialize', initializePublicClubPayment);
+
+// ============================================
+// AUTHENTICATED PLAYER MEMBERSHIP (ZPIN)
 // ============================================
 
 // Get current user's subscription status
 router.get('/my-subscription', protect, getMySubscription);
 
-// Initialize player membership payment
+// Initialize player membership payment (logged in user paying for themselves)
 router.post('/initialize-payment', protect, initializeMembershipPayment);
 
 // ============================================
-// CLUB AFFILIATION
+// AUTHENTICATED CLUB AFFILIATION
 // ============================================
 
-// Initialize club affiliation payment
+// Initialize club affiliation payment (club admin)
 router.post('/club/initialize-payment', protect, initializeClubPayment);
 
 // ============================================

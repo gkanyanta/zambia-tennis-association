@@ -7,6 +7,762 @@ import { generateReceipt } from '../utils/generateReceipt.js';
 import sendEmail from '../utils/sendEmail.js';
 
 // ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+// Calculate player age from date of birth
+const calculateAge = (dateOfBirth) => {
+  if (!dateOfBirth) return null;
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+// Determine appropriate membership type based on player age and international status
+const determinePlayerMembershipType = async (player) => {
+  const age = calculateAge(player.dateOfBirth);
+  const isInternational = player.isInternational || false;
+
+  // Get all active player membership types
+  const membershipTypes = await MembershipType.find({
+    category: 'player',
+    isActive: true
+  }).sort({ sortOrder: 1 });
+
+  // International players
+  if (isInternational) {
+    const intlType = membershipTypes.find(t => t.code === 'zpin_international');
+    if (intlType) return intlType;
+  }
+
+  // Junior (under 18)
+  if (age !== null && age < 18) {
+    const juniorType = membershipTypes.find(t => t.code === 'zpin_junior');
+    if (juniorType) return juniorType;
+  }
+
+  // Senior (18+) - default
+  const seniorType = membershipTypes.find(t => t.code === 'zpin_senior');
+  return seniorType || membershipTypes[0];
+};
+
+// ============================================
+// PUBLIC PLAYER SEARCH & BULK PAYMENT
+// ============================================
+
+// @desc    Search players for ZPIN payment (public)
+// @route   GET /api/membership/players/search
+// @access  Public
+export const searchPlayersForPayment = async (req, res) => {
+  try {
+    const { q, club, limit = 20 } = req.query;
+
+    if (!q || q.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least 2 characters for search'
+      });
+    }
+
+    // Build search query
+    const searchQuery = {
+      role: 'player',
+      $or: [
+        { firstName: { $regex: q, $options: 'i' } },
+        { lastName: { $regex: q, $options: 'i' } },
+        { zpin: { $regex: q, $options: 'i' } }
+      ]
+    };
+
+    if (club) {
+      searchQuery.club = club;
+    }
+
+    // Find players
+    const players = await User.find(searchQuery)
+      .select('firstName lastName zpin dateOfBirth club gender isInternational membershipStatus membershipExpiry')
+      .limit(parseInt(limit))
+      .sort({ firstName: 1, lastName: 1 });
+
+    // Get current year for subscription check
+    const currentYear = MembershipSubscription.getCurrentYear();
+
+    // Enrich with age, fee calculation, and subscription status
+    const enrichedPlayers = await Promise.all(players.map(async (player) => {
+      const age = calculateAge(player.dateOfBirth);
+      const membershipType = await determinePlayerMembershipType(player);
+
+      // Check if already has active subscription for current year
+      const activeSubscription = await MembershipSubscription.findOne({
+        entityId: player._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'active'
+      });
+
+      return {
+        _id: player._id,
+        firstName: player.firstName,
+        lastName: player.lastName,
+        fullName: `${player.firstName} ${player.lastName}`,
+        zpin: player.zpin,
+        dateOfBirth: player.dateOfBirth,
+        age,
+        club: player.club,
+        gender: player.gender,
+        isInternational: player.isInternational || false,
+        membershipType: membershipType ? {
+          _id: membershipType._id,
+          name: membershipType.name,
+          code: membershipType.code,
+          amount: membershipType.amount
+        } : null,
+        hasActiveSubscription: !!activeSubscription,
+        subscriptionExpiry: activeSubscription?.endDate || player.membershipExpiry
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: enrichedPlayers.length,
+      data: enrichedPlayers
+    });
+  } catch (error) {
+    console.error('Search players error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search players',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get player details for payment (public)
+// @route   GET /api/membership/players/:id/payment-details
+// @access  Public
+export const getPlayerPaymentDetails = async (req, res) => {
+  try {
+    const player = await User.findOne({
+      _id: req.params.id,
+      role: 'player'
+    }).select('firstName lastName zpin dateOfBirth club gender isInternational membershipStatus membershipExpiry');
+
+    if (!player) {
+      return res.status(404).json({
+        success: false,
+        message: 'Player not found'
+      });
+    }
+
+    const age = calculateAge(player.dateOfBirth);
+    const membershipType = await determinePlayerMembershipType(player);
+    const currentYear = MembershipSubscription.getCurrentYear();
+
+    // Check active subscription
+    const activeSubscription = await MembershipSubscription.findOne({
+      entityId: player._id,
+      entityType: 'player',
+      year: currentYear,
+      status: 'active'
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        _id: player._id,
+        firstName: player.firstName,
+        lastName: player.lastName,
+        fullName: `${player.firstName} ${player.lastName}`,
+        zpin: player.zpin,
+        dateOfBirth: player.dateOfBirth,
+        age,
+        club: player.club,
+        gender: player.gender,
+        isInternational: player.isInternational || false,
+        membershipType: membershipType ? {
+          _id: membershipType._id,
+          name: membershipType.name,
+          code: membershipType.code,
+          amount: membershipType.amount,
+          currency: membershipType.currency
+        } : null,
+        hasActiveSubscription: !!activeSubscription,
+        subscriptionExpiry: activeSubscription?.endDate
+      }
+    });
+  } catch (error) {
+    console.error('Get player payment details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get player details',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Initialize bulk ZPIN payment (public - for parents/sponsors)
+// @route   POST /api/membership/bulk-payment/initialize
+// @access  Public
+export const initializeBulkPayment = async (req, res) => {
+  try {
+    const {
+      playerIds,
+      payerName,
+      payerEmail,
+      payerPhone,
+      payerRelation // e.g., 'parent', 'guardian', 'sponsor', 'self'
+    } = req.body;
+
+    // Validation
+    if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide at least one player ID'
+      });
+    }
+
+    if (playerIds.length > 20) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum 20 players per transaction'
+      });
+    }
+
+    if (!payerName || !payerEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payer name and email are required'
+      });
+    }
+
+    const currentYear = MembershipSubscription.getCurrentYear();
+    const players = [];
+    const subscriptions = [];
+    let totalAmount = 0;
+
+    // Process each player
+    for (const playerId of playerIds) {
+      const player = await User.findOne({ _id: playerId, role: 'player' });
+
+      if (!player) {
+        return res.status(404).json({
+          success: false,
+          message: `Player not found: ${playerId}`
+        });
+      }
+
+      // Check for existing active subscription
+      const existingActive = await MembershipSubscription.findOne({
+        entityId: player._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'active'
+      });
+
+      if (existingActive) {
+        return res.status(400).json({
+          success: false,
+          message: `${player.firstName} ${player.lastName} already has an active membership for ${currentYear}`
+        });
+      }
+
+      // Determine membership type based on age
+      const membershipType = await determinePlayerMembershipType(player);
+
+      if (!membershipType) {
+        return res.status(400).json({
+          success: false,
+          message: `Could not determine membership type for ${player.firstName} ${player.lastName}`
+        });
+      }
+
+      players.push({
+        player,
+        membershipType,
+        age: calculateAge(player.dateOfBirth)
+      });
+
+      totalAmount += membershipType.amount;
+    }
+
+    // Generate payment reference for bulk payment
+    const reference = `MEM-BULK-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    // Create pending subscriptions for all players
+    for (const { player, membershipType } of players) {
+      // Check for existing pending subscription
+      let subscription = await MembershipSubscription.findOne({
+        entityId: player._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'pending'
+      });
+
+      if (subscription) {
+        // Update existing pending subscription
+        subscription.membershipType = membershipType._id;
+        subscription.membershipTypeName = membershipType.name;
+        subscription.membershipTypeCode = membershipType.code;
+        subscription.amount = membershipType.amount;
+        subscription.paymentReference = reference;
+        subscription.notes = `Bulk payment by ${payerName} (${payerRelation || 'N/A'})`;
+        await subscription.save();
+      } else {
+        // Create new subscription
+        subscription = new MembershipSubscription({
+          entityType: 'player',
+          entityId: player._id,
+          entityModel: 'User',
+          entityName: `${player.firstName} ${player.lastName}`,
+          membershipType: membershipType._id,
+          membershipTypeName: membershipType.name,
+          membershipTypeCode: membershipType.code,
+          year: currentYear,
+          startDate: new Date(),
+          endDate: MembershipSubscription.getYearEndDate(currentYear),
+          amount: membershipType.amount,
+          currency: membershipType.currency,
+          paymentReference: reference,
+          status: 'pending',
+          notes: `Bulk payment by ${payerName} (${payerRelation || 'N/A'})`
+        });
+        await subscription.save();
+      }
+
+      subscriptions.push({
+        subscriptionId: subscription._id,
+        playerId: player._id,
+        playerName: `${player.firstName} ${player.lastName}`,
+        zpin: player.zpin,
+        membershipType: membershipType.name,
+        amount: membershipType.amount
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reference,
+        totalAmount,
+        currency: 'ZMW',
+        playerCount: players.length,
+        publicKey: process.env.LENCO_PUBLIC_KEY,
+        payer: {
+          name: payerName,
+          email: payerEmail,
+          phone: payerPhone,
+          relation: payerRelation
+        },
+        subscriptions,
+        year: currentYear,
+        expiryDate: MembershipSubscription.getYearEndDate(currentYear)
+      }
+    });
+  } catch (error) {
+    console.error('Initialize bulk payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initialize bulk payment',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Verify bulk ZPIN payment
+// @route   POST /api/membership/bulk-payment/verify
+// @access  Public
+export const verifyBulkPayment = async (req, res) => {
+  try {
+    const { reference, transactionId, payerEmail } = req.body;
+
+    if (!reference) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment reference is required'
+      });
+    }
+
+    // Find all subscriptions with this reference
+    const subscriptions = await MembershipSubscription.find({
+      paymentReference: reference,
+      status: 'pending'
+    });
+
+    if (subscriptions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No pending subscriptions found for this reference'
+      });
+    }
+
+    const activatedPlayers = [];
+    let totalAmount = 0;
+
+    // Activate each subscription
+    for (const subscription of subscriptions) {
+      subscription.status = 'active';
+      subscription.transactionId = transactionId;
+      subscription.paymentDate = new Date();
+      subscription.paymentMethod = 'online';
+
+      // Update player record
+      const player = await User.findById(subscription.entityId);
+      if (player) {
+        // Generate ZPIN if not exists
+        if (!player.zpin) {
+          const year = new Date().getFullYear().toString().slice(-2);
+          const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
+          player.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+        }
+
+        player.membershipType = subscription.membershipTypeCode;
+        player.membershipStatus = 'active';
+        player.membershipExpiry = subscription.endDate;
+        player.lastPaymentDate = new Date();
+        player.lastPaymentAmount = subscription.amount;
+        await player.save();
+
+        subscription.zpin = player.zpin;
+      }
+
+      await subscription.save();
+
+      activatedPlayers.push({
+        playerId: subscription.entityId,
+        playerName: subscription.entityName,
+        zpin: subscription.zpin,
+        membershipType: subscription.membershipTypeName,
+        amount: subscription.amount,
+        expiryDate: subscription.endDate
+      });
+
+      totalAmount += subscription.amount;
+    }
+
+    // Create transaction record
+    const transaction = new Transaction({
+      reference,
+      transactionId,
+      type: 'membership',
+      amount: totalAmount,
+      currency: 'ZMW',
+      payerName: subscriptions[0]?.notes?.match(/Bulk payment by ([^(]+)/)?.[1]?.trim() || 'Bulk Payer',
+      payerEmail: payerEmail,
+      status: 'completed',
+      paymentGateway: 'lenco',
+      paymentMethod: 'online',
+      description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
+      metadata: {
+        playerCount: activatedPlayers.length,
+        players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
+      },
+      paymentDate: new Date()
+    });
+    await transaction.save();
+
+    // Generate and send receipt
+    try {
+      const pdfBuffer = await generateReceipt(transaction);
+
+      if (payerEmail) {
+        await sendEmail({
+          email: payerEmail,
+          subject: `ZPIN Registration Receipt - ${transaction.receiptNumber} - ZTA`,
+          html: `
+            <h2>ZPIN Registration Successful!</h2>
+            <p>Thank you for registering with the Zambia Tennis Association.</p>
+            <p><strong>Receipt Details:</strong></p>
+            <ul>
+              <li>Receipt Number: ${transaction.receiptNumber}</li>
+              <li>Reference: ${reference}</li>
+              <li>Total Amount: K${totalAmount.toFixed(2)}</li>
+              <li>Players Registered: ${activatedPlayers.length}</li>
+            </ul>
+            <h3>Players Activated:</h3>
+            <ul>
+              ${activatedPlayers.map(p => `<li>${p.playerName} (ZPIN: ${p.zpin}) - ${p.membershipType} - K${p.amount}</li>`).join('')}
+            </ul>
+            <p>All memberships are valid until December 31, ${new Date().getFullYear()}.</p>
+            <p>Please find your official receipt attached.</p>
+            <p>Best regards,<br>Zambia Tennis Association</p>
+          `,
+          attachments: [{
+            filename: `ZTA-Receipt-${transaction.receiptNumber}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }]
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send receipt email:', emailError);
+    }
+
+    res.status(200).json({
+      success: true,
+      status: 'successful',
+      message: `Successfully activated ${activatedPlayers.length} membership(s)`,
+      data: {
+        reference,
+        transactionId,
+        receiptNumber: transaction.receiptNumber,
+        totalAmount,
+        playerCount: activatedPlayers.length,
+        players: activatedPlayers,
+        year: new Date().getFullYear(),
+        expiryDate: MembershipSubscription.getYearEndDate()
+      }
+    });
+  } catch (error) {
+    console.error('Verify bulk payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify bulk payment',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
+// PUBLIC CLUB SEARCH & AFFILIATION PAYMENT
+// ============================================
+
+// @desc    Search clubs for affiliation payment (public)
+// @route   GET /api/membership/clubs/search
+// @access  Public
+export const searchClubsForPayment = async (req, res) => {
+  try {
+    const { q, limit = 20 } = req.query;
+
+    // Build search query
+    const searchQuery = { status: 'active' };
+
+    if (q && q.length >= 2) {
+      searchQuery.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { city: { $regex: q, $options: 'i' } },
+        { province: { $regex: q, $options: 'i' } }
+      ];
+    }
+
+    // Find clubs
+    const clubs = await Club.find(searchQuery)
+      .select('name city province contactPerson email phone memberCount')
+      .limit(parseInt(limit))
+      .sort({ name: 1 });
+
+    // Get current year for subscription check
+    const currentYear = MembershipSubscription.getCurrentYear();
+
+    // Get all active club membership types
+    const membershipTypes = await MembershipType.find({
+      category: 'club',
+      isActive: true
+    }).sort({ sortOrder: 1 });
+
+    // Enrich with subscription status
+    const enrichedClubs = await Promise.all(clubs.map(async (club) => {
+      // Check if already has active subscription for current year
+      const activeSubscription = await MembershipSubscription.findOne({
+        entityId: club._id,
+        entityType: 'club',
+        year: currentYear,
+        status: 'active'
+      });
+
+      return {
+        _id: club._id,
+        name: club.name,
+        city: club.city,
+        province: club.province,
+        contactPerson: club.contactPerson,
+        email: club.email,
+        phone: club.phone,
+        memberCount: club.memberCount,
+        hasActiveSubscription: !!activeSubscription,
+        currentAffiliation: activeSubscription ? {
+          type: activeSubscription.membershipTypeName,
+          expiryDate: activeSubscription.endDate
+        } : null,
+        availableTypes: membershipTypes.map(t => ({
+          _id: t._id,
+          name: t.name,
+          code: t.code,
+          amount: t.amount,
+          description: t.description
+        }))
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: enrichedClubs.length,
+      data: enrichedClubs
+    });
+  } catch (error) {
+    console.error('Search clubs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search clubs',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Initialize public club affiliation payment
+// @route   POST /api/membership/club/public-payment/initialize
+// @access  Public
+export const initializePublicClubPayment = async (req, res) => {
+  try {
+    const {
+      clubId,
+      membershipTypeId,
+      payerName,
+      payerEmail,
+      payerPhone,
+      payerRelation // e.g., 'club_official', 'sponsor', 'member'
+    } = req.body;
+
+    // Validation
+    if (!clubId || !membershipTypeId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Club ID and membership type are required'
+      });
+    }
+
+    if (!payerName || !payerEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payer name and email are required'
+      });
+    }
+
+    // Get club
+    const club = await Club.findById(clubId);
+    if (!club) {
+      return res.status(404).json({
+        success: false,
+        message: 'Club not found'
+      });
+    }
+
+    // Get membership type
+    const membershipType = await MembershipType.findById(membershipTypeId);
+    if (!membershipType || !membershipType.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Membership type not found or inactive'
+      });
+    }
+
+    if (membershipType.category !== 'club') {
+      return res.status(400).json({
+        success: false,
+        message: 'This membership type is for clubs only'
+      });
+    }
+
+    // Check for existing active subscription
+    const currentYear = MembershipSubscription.getCurrentYear();
+    const existingActive = await MembershipSubscription.findOne({
+      entityId: club._id,
+      entityType: 'club',
+      year: currentYear,
+      status: 'active'
+    });
+
+    if (existingActive) {
+      return res.status(400).json({
+        success: false,
+        message: `${club.name} already has an active affiliation for ${currentYear}`
+      });
+    }
+
+    // Generate payment reference
+    const reference = `CLUB-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    // Create or update pending subscription
+    let subscription = await MembershipSubscription.findOne({
+      entityId: club._id,
+      entityType: 'club',
+      year: currentYear,
+      status: 'pending'
+    });
+
+    if (subscription) {
+      subscription.membershipType = membershipType._id;
+      subscription.membershipTypeName = membershipType.name;
+      subscription.membershipTypeCode = membershipType.code;
+      subscription.amount = membershipType.amount;
+      subscription.paymentReference = reference;
+      subscription.notes = `Payment by ${payerName} (${payerRelation || 'N/A'})`;
+      await subscription.save();
+    } else {
+      subscription = new MembershipSubscription({
+        entityType: 'club',
+        entityId: club._id,
+        entityModel: 'Club',
+        entityName: club.name,
+        membershipType: membershipType._id,
+        membershipTypeName: membershipType.name,
+        membershipTypeCode: membershipType.code,
+        year: currentYear,
+        startDate: new Date(),
+        endDate: MembershipSubscription.getYearEndDate(currentYear),
+        amount: membershipType.amount,
+        currency: membershipType.currency,
+        paymentReference: reference,
+        status: 'pending',
+        notes: `Payment by ${payerName} (${payerRelation || 'N/A'})`
+      });
+      await subscription.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reference,
+        amount: membershipType.amount,
+        currency: membershipType.currency,
+        publicKey: process.env.LENCO_PUBLIC_KEY,
+        club: {
+          id: club._id,
+          name: club.name
+        },
+        membershipType: {
+          id: membershipType._id,
+          name: membershipType.name,
+          code: membershipType.code
+        },
+        payer: {
+          name: payerName,
+          email: payerEmail,
+          phone: payerPhone,
+          relation: payerRelation
+        },
+        subscription: {
+          id: subscription._id,
+          year: currentYear,
+          expiryDate: subscription.endDate
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Initialize public club payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initialize payment',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
 // MEMBERSHIP TYPES (Admin configurable pricing)
 // ============================================
 

@@ -24,6 +24,8 @@ const footerLinks = {
     { name: 'Contact', href: '/contact' },
     { name: 'Gallery', href: '/gallery' },
     { name: 'Membership', href: '/membership' },
+    { name: 'Register ZPIN', href: '/register-zpin' },
+    { name: 'Club Affiliation', href: '/club-affiliation' },
     { name: 'Sponsors', href: '/sponsors' },
   ],
   legal: [

@@ -30,6 +30,8 @@ import { Contact } from '@/pages/Contact'
 import { Donate } from '@/pages/Donate'
 import { DonateVerify } from '@/pages/DonateVerify'
 import { MembershipPayment } from '@/pages/MembershipPayment'
+import { ZPINPayment } from '@/pages/ZPINPayment'
+import { ClubAffiliationPayment } from '@/pages/ClubAffiliationPayment'
 import { PaymentVerify } from '@/pages/PaymentVerify'
 import { Sponsors } from '@/pages/Sponsors'
 import { Privacy } from '@/pages/Privacy'
@@ -86,6 +88,8 @@ function App() {
               <Route path="/clubs" element={<Clubs />} />
               <Route path="/membership" element={<Membership />} />
               <Route path="/membership/pay" element={<MembershipPayment />} />
+              <Route path="/register-zpin" element={<ZPINPayment />} />
+              <Route path="/club-affiliation" element={<ClubAffiliationPayment />} />
               <Route path="/tournaments" element={<Tournaments />} />
               <Route path="/tournaments/:id" element={<TournamentDetail />} />
               <Route path="/rankings" element={<Rankings />} />

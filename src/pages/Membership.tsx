@@ -86,10 +86,14 @@ export function Membership() {
                 It's required for tournament participation, official rankings, and league play.
               </p>
               <div className="flex flex-wrap gap-4">
-                <Button size="lg" onClick={() => navigate('/membership/pay')}>
+                <Button size="lg" onClick={() => navigate('/register-zpin')}>
                   <CreditCard className="h-5 w-5 mr-2" />
                   Register for ZPIN
                   <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => navigate('/club-affiliation')}>
+                  <Building2 className="h-5 w-5 mr-2" />
+                  Club Affiliation
                 </Button>
               </div>
             </div>

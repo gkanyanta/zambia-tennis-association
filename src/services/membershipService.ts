@@ -90,6 +90,101 @@ export interface SubscriptionStats {
   }>;
 }
 
+export interface PlayerSearchResult {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  zpin: string | null;
+  dateOfBirth: string | null;
+  age: number | null;
+  club: string | null;
+  gender: string | null;
+  isInternational: boolean;
+  membershipType: {
+    _id: string;
+    name: string;
+    code: string;
+    amount: number;
+  } | null;
+  hasActiveSubscription: boolean;
+  subscriptionExpiry: string | null;
+}
+
+export interface ClubSearchResult {
+  _id: string;
+  name: string;
+  city: string | null;
+  province: string | null;
+  contactPerson: string | null;
+  email: string | null;
+  phone: string | null;
+  memberCount: number;
+  hasActiveSubscription: boolean;
+  currentAffiliation: {
+    type: string;
+    expiryDate: string;
+  } | null;
+  availableTypes: Array<{
+    _id: string;
+    name: string;
+    code: string;
+    amount: number;
+    description: string;
+  }>;
+}
+
+export interface BulkPaymentInitResponse {
+  reference: string;
+  totalAmount: number;
+  currency: string;
+  playerCount: number;
+  publicKey: string;
+  payer: {
+    name: string;
+    email: string;
+    phone?: string;
+    relation?: string;
+  };
+  subscriptions: Array<{
+    subscriptionId: string;
+    playerId: string;
+    playerName: string;
+    zpin: string | null;
+    membershipType: string;
+    amount: number;
+  }>;
+  year: number;
+  expiryDate: string;
+}
+
+export interface ClubPaymentInitResponse {
+  reference: string;
+  amount: number;
+  currency: string;
+  publicKey: string;
+  club: {
+    id: string;
+    name: string;
+  };
+  membershipType: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  payer: {
+    name: string;
+    email: string;
+    phone?: string;
+    relation?: string;
+  };
+  subscription: {
+    id: string;
+    year: number;
+    expiryDate: string;
+  };
+}
+
 // ============================================
 // SERVICE
 // ============================================
@@ -291,6 +386,99 @@ export const membershipService = {
     zpin?: string;
   }> {
     const response = await apiFetch('/membership/record-payment', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  // ============================================
+  // PUBLIC PLAYER SEARCH & BULK PAYMENT
+  // ============================================
+
+  /**
+   * Search players for ZPIN payment (public - no auth required)
+   */
+  async searchPlayers(search: string): Promise<PlayerSearchResult[]> {
+    const response = await apiFetch(`/membership/players/search?search=${encodeURIComponent(search)}`);
+    return response.data;
+  },
+
+  /**
+   * Get player payment details (public)
+   */
+  async getPlayerPaymentDetails(playerId: string): Promise<PlayerSearchResult> {
+    const response = await apiFetch(`/membership/players/${playerId}/payment-details`);
+    return response.data;
+  },
+
+  /**
+   * Initialize bulk ZPIN payment (public - no auth required)
+   */
+  async initializeBulkPayment(data: {
+    playerIds: string[];
+    payer: {
+      name: string;
+      email: string;
+      phone?: string;
+      relation?: string;
+    };
+  }): Promise<BulkPaymentInitResponse> {
+    const response = await apiFetch('/membership/bulk-payment/initialize', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  /**
+   * Verify bulk ZPIN payment (public)
+   */
+  async verifyBulkPayment(reference: string, transactionId?: string): Promise<{
+    subscriptions: Array<{
+      playerId: string;
+      playerName: string;
+      zpin: string;
+      membershipType: string;
+      amount: number;
+      receiptNumber: string;
+    }>;
+    totalAmount: number;
+    expiryDate: string;
+  }> {
+    const response = await apiFetch('/membership/bulk-payment/verify', {
+      method: 'POST',
+      body: JSON.stringify({ reference, transactionId }),
+    });
+    return response.data;
+  },
+
+  // ============================================
+  // PUBLIC CLUB SEARCH & AFFILIATION PAYMENT
+  // ============================================
+
+  /**
+   * Search clubs for affiliation payment (public - no auth required)
+   */
+  async searchClubs(search: string): Promise<ClubSearchResult[]> {
+    const response = await apiFetch(`/membership/clubs/search?search=${encodeURIComponent(search)}`);
+    return response.data;
+  },
+
+  /**
+   * Initialize public club affiliation payment (no auth required)
+   */
+  async initializePublicClubPayment(data: {
+    clubId: string;
+    membershipTypeId: string;
+    payer: {
+      name: string;
+      email: string;
+      phone?: string;
+      relation?: string;
+    };
+  }): Promise<ClubPaymentInitResponse> {
+    const response = await apiFetch('/membership/club/public-payment/initialize', {
       method: 'POST',
       body: JSON.stringify(data),
     });

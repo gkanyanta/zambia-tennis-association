@@ -375,7 +375,114 @@ export const verifyPayment = async (req, res) => {
 
     // Handle membership payment (new subscription system or legacy)
     if (referencePrefix === 'MEM') {
-      // First, check if this is from the new subscription system
+      // Check if this is a bulk payment (MEM-BULK-*)
+      const isBulkPayment = reference.includes('-BULK-');
+
+      if (isBulkPayment) {
+        // Handle bulk payment - find all subscriptions with this reference
+        const subscriptions = await MembershipSubscription.find({ paymentReference: reference });
+
+        if (subscriptions.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'No subscriptions found for this reference'
+          });
+        }
+
+        // Check if already activated
+        const allActive = subscriptions.every(s => s.status === 'active');
+        if (allActive) {
+          return res.status(200).json({
+            success: true,
+            message: 'Memberships already active',
+            data: {
+              reference,
+              transactionId,
+              amount: amountPaid,
+              status: 'successful',
+              playerCount: subscriptions.length,
+              players: subscriptions.map(s => ({
+                id: s.entityId,
+                name: s.entityName,
+                zpin: s.zpin,
+                membershipType: s.membershipTypeCode
+              }))
+            }
+          });
+        }
+
+        // Activate all subscriptions
+        const activatedPlayers = [];
+        let totalAmount = 0;
+
+        for (const subscription of subscriptions) {
+          if (subscription.status === 'active') continue;
+
+          subscription.status = 'active';
+          subscription.transactionId = transactionId;
+          subscription.paymentDate = new Date();
+          subscription.paymentMethod = 'online';
+
+          // Update player record
+          const player = await User.findById(subscription.entityId);
+          if (player) {
+            if (!player.zpin) {
+              const year = new Date().getFullYear().toString().slice(-2);
+              const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
+              player.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+            }
+            player.membershipType = subscription.membershipTypeCode;
+            player.membershipStatus = 'active';
+            player.membershipExpiry = subscription.endDate;
+            player.lastPaymentDate = new Date();
+            player.lastPaymentAmount = subscription.amount;
+            await player.save();
+            subscription.zpin = player.zpin;
+          }
+
+          await subscription.save();
+          activatedPlayers.push({
+            playerId: subscription.entityId,
+            playerName: subscription.entityName,
+            zpin: subscription.zpin,
+            membershipType: subscription.membershipTypeName,
+            amount: subscription.amount
+          });
+          totalAmount += subscription.amount;
+        }
+
+        // Create transaction record
+        const payerInfo = subscriptions[0]?.notes?.match(/payment by ([^(]+)\(([^)]+)\)/i);
+        const transaction = await createTransactionAndSendReceipt({
+          reference,
+          transactionId,
+          type: 'membership',
+          amount: totalAmount,
+          payerName: payerInfo?.[1]?.trim() || 'Bulk Payer',
+          payerEmail: null,
+          description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
+          metadata: {
+            playerCount: activatedPlayers.length,
+            players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
+          }
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: `Successfully activated ${activatedPlayers.length} membership(s)`,
+          data: {
+            reference,
+            transactionId,
+            amount: totalAmount,
+            status: 'successful',
+            receiptNumber: transaction.receiptNumber,
+            playerCount: activatedPlayers.length,
+            players: activatedPlayers
+          }
+        });
+      }
+
+      // Single subscription payment
       const subscription = await MembershipSubscription.findOne({ paymentReference: reference })
         .populate('membershipType');
 
