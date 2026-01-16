@@ -189,6 +189,19 @@ export function Footer() {
               ))}
             </div>
           </div>
+          <div className="text-center mt-4 pt-4 border-t border-muted">
+            <p className="text-xs text-muted-foreground">
+              Designed by{' '}
+              <a
+                href="https://wa.me/260965982894"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold hover:text-primary transition-colors"
+              >
+                Privtech Solutions Limited
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </footer>
