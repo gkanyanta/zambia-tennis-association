@@ -27,7 +27,7 @@ export function TournamentDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const [tournament, setTournament] = useState<Tournament | null>(null)
   const [loading, setLoading] = useState(true)
   const [registering, setRegistering] = useState(false)
@@ -58,6 +58,11 @@ export function TournamentDetail() {
   }
 
   const handleRegister = async () => {
+    if (!isAuthenticated || !user) {
+      navigate(`/login?redirect=/tournaments/${id}`)
+      return
+    }
+
     if (!selectedCategory) {
       toast({
         title: 'Category Required',
@@ -69,17 +74,28 @@ export function TournamentDetail() {
 
     try {
       setRegistering(true)
-      await tournamentService.registerForTournament(id!, selectedCategory)
-      toast({
-        title: 'Registration Successful',
-        description: 'You have successfully registered for this tournament'
-      })
+      // Use submitEntry which properly adds to category.entries
+      const result = await tournamentService.submitEntry(id!, selectedCategory, (user as any)._id)
+
+      // Show warnings if any
+      if (result.warnings && result.warnings.length > 0) {
+        toast({
+          title: 'Registration Successful',
+          description: `Entry submitted. Note: ${result.warnings.join(', ')}`
+        })
+      } else {
+        toast({
+          title: 'Registration Successful',
+          description: 'Your entry has been submitted and is pending approval'
+        })
+      }
       fetchTournament()
     } catch (err: any) {
       console.error('Registration failed:', err)
+      const errorMessage = err.message || err.response?.data?.message || 'Failed to register. Please try again.'
       toast({
         title: 'Registration Failed',
-        description: err.response?.data?.message || 'Failed to register. Please try again.',
+        description: errorMessage,
         variant: 'destructive'
       })
     } finally {
@@ -337,55 +353,71 @@ export function TournamentDetail() {
                     <>
                       {tournament.categories && tournament.categories.length > 0 ? (
                         <>
-                          <div>
-                            <label className="text-sm font-medium mb-2 block">Select Category</label>
-                            <select
-                              className="w-full p-2 border rounded-md"
-                              value={selectedCategory}
-                              onChange={(e) => setSelectedCategory(e.target.value)}
-                            >
-                              <option value="">-- Select a category --</option>
-                              {tournament.categories.map((category) => (
-                                <option key={category._id} value={category._id}>
-                                  {category.name} ({category.entryCount}/{category.maxEntries})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          {!isAuthenticated ? (
+                            <div className="text-center py-4 space-y-4">
+                              <p className="text-sm text-muted-foreground">
+                                Please log in to register for this tournament
+                              </p>
+                              <Button
+                                className="w-full"
+                                onClick={() => navigate(`/login?redirect=/tournaments/${id}`)}
+                              >
+                                Log In to Register
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <label className="text-sm font-medium mb-2 block">Select Category</label>
+                                <select
+                                  className="w-full p-2 border rounded-md"
+                                  value={selectedCategory}
+                                  onChange={(e) => setSelectedCategory(e.target.value)}
+                                >
+                                  <option value="">-- Select a category --</option>
+                                  {tournament.categories.map((category) => (
+                                    <option key={category._id} value={category._id}>
+                                      {category.name} ({category.entryCount}/{category.maxEntries})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
 
-                          <Button
-                            className="w-full"
-                            onClick={handleRegister}
-                            disabled={!selectedCategory || registering}
-                          >
-                            <Trophy className="h-4 w-4 mr-2" />
-                            {registering ? 'Registering...' : 'Register Now'}
-                          </Button>
+                              <Button
+                                className="w-full"
+                                onClick={handleRegister}
+                                disabled={!selectedCategory || registering}
+                              >
+                                <Trophy className="h-4 w-4 mr-2" />
+                                {registering ? 'Submitting Entry...' : 'Submit Entry'}
+                              </Button>
 
-                          {tournament.entryFee > 0 && (
-                            <Button
-                              className="w-full"
-                              variant="outline"
-                              onClick={handlePayEntryFee}
-                              disabled={payingEntryFee}
-                            >
-                              {payingEntryFee ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Processing...
-                                </>
-                              ) : (
-                                <>
-                                  <CreditCard className="h-4 w-4 mr-2" />
-                                  Pay Entry Fee (K{tournament.entryFee})
-                                </>
+                              {tournament.entryFee > 0 && (
+                                <Button
+                                  className="w-full"
+                                  variant="outline"
+                                  onClick={handlePayEntryFee}
+                                  disabled={payingEntryFee}
+                                >
+                                  {payingEntryFee ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CreditCard className="h-4 w-4 mr-2" />
+                                      Pay Entry Fee (K{tournament.entryFee})
+                                    </>
+                                  )}
+                                </Button>
                               )}
-                            </Button>
-                          )}
 
-                          <p className="text-xs text-muted-foreground text-center">
-                            Entry fee: K{tournament.entryFee}
-                          </p>
+                              <p className="text-xs text-muted-foreground text-center">
+                                Entry fee: K{tournament.entryFee}
+                              </p>
+                            </>
+                          )}
                         </>
                       ) : (
                         <p className="text-sm text-muted-foreground text-center py-4">
