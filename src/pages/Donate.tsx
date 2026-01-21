@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -81,6 +81,16 @@ export function Donate() {
   const [processing, setProcessing] = useState(false)
   const [showOnlineForm, setShowOnlineForm] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const onlineFormRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to online form when it becomes visible
+  useEffect(() => {
+    if (showOnlineForm && onlineFormRef.current) {
+      setTimeout(() => {
+        onlineFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [showOnlineForm])
 
   const handleQuickAmount = (amount: number) => {
     setDonationForm({ ...donationForm, amount: amount.toString() })
@@ -215,7 +225,7 @@ export function Donate() {
 
           {/* Online Donation Form */}
           {showOnlineForm && (
-            <Card className="mb-12 border-primary/50">
+            <Card ref={onlineFormRef} className="mb-12 border-primary/50">
               <CardHeader className="bg-primary/5">
                 <CardTitle className="text-center text-2xl flex items-center justify-center gap-2">
                   <CreditCard className="h-6 w-6" />

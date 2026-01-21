@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,6 +42,7 @@ export function ClubAffiliationPayment() {
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPayerForm, setShowPayerForm] = useState(false)
+  const payerFormRef = useRef<HTMLDivElement>(null)
 
   // Payer information
   const [payerName, setPayerName] = useState('')
@@ -81,6 +82,15 @@ export function ClubAffiliationPayment() {
       debouncedSearch.cancel()
     }
   }, [searchQuery, debouncedSearch])
+
+  // Auto-scroll to payer form when it becomes visible
+  useEffect(() => {
+    if (showPayerForm && payerFormRef.current) {
+      setTimeout(() => {
+        payerFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [showPayerForm])
 
   const handleSelectClub = (club: ClubSearchResult) => {
     // Check if club already has active affiliation
@@ -426,7 +436,7 @@ export function ClubAffiliationPayment() {
             </>
           ) : (
             /* Payer Information Form */
-            <Card className="mb-8">
+            <Card ref={payerFormRef} className="mb-8">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
