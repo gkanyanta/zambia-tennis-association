@@ -41,7 +41,7 @@ export function Slideshow({ slides, autoPlay = true, interval = 5000 }: Slidesho
   }
 
   return (
-    <div className="relative w-full h-[500px] md:h-[600px] overflow-hidden rounded-lg">
+    <div className="relative w-full h-[500px] md:h-[600px] overflow-hidden rounded-lg bg-gray-900">
       {/* Slides */}
       {slides.map((slide, index) => (
         <div
@@ -53,7 +53,7 @@ export function Slideshow({ slides, autoPlay = true, interval = 5000 }: Slidesho
           <img
             src={slide.image}
             alt={slide.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             style={{
               objectPosition: slide.focalPoint === 'center' ? 'center center' :
                 slide.focalPoint === 'bottom' ? 'center bottom' :

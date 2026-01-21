@@ -210,13 +210,13 @@ export const getPlayerPaymentDetails = async (req, res) => {
 // @access  Public
 export const initializeBulkPayment = async (req, res) => {
   try {
-    const {
-      playerIds,
-      payerName,
-      payerEmail,
-      payerPhone,
-      payerRelation // e.g., 'parent', 'guardian', 'sponsor', 'self'
-    } = req.body;
+    const { playerIds, payer } = req.body;
+
+    // Extract payer details from nested object
+    const payerName = payer?.name;
+    const payerEmail = payer?.email;
+    const payerPhone = payer?.phone;
+    const payerRelation = payer?.relation;
 
     // Validation
     if (!playerIds || !Array.isArray(playerIds) || playerIds.length === 0) {
@@ -618,14 +618,13 @@ export const searchClubsForPayment = async (req, res) => {
 // @access  Public
 export const initializePublicClubPayment = async (req, res) => {
   try {
-    const {
-      clubId,
-      membershipTypeId,
-      payerName,
-      payerEmail,
-      payerPhone,
-      payerRelation // e.g., 'club_official', 'sponsor', 'member'
-    } = req.body;
+    const { clubId, membershipTypeId, payer } = req.body;
+
+    // Extract payer details from nested object
+    const payerName = payer?.name;
+    const payerEmail = payer?.email;
+    const payerPhone = payer?.phone;
+    const payerRelation = payer?.relation;
 
     // Validation
     if (!clubId || !membershipTypeId) {

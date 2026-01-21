@@ -400,7 +400,7 @@ export const membershipService = {
    * Search players for ZPIN payment (public - no auth required)
    */
   async searchPlayers(search: string): Promise<PlayerSearchResult[]> {
-    const response = await apiFetch(`/membership/players/search?search=${encodeURIComponent(search)}`);
+    const response = await apiFetch(`/membership/players/search?q=${encodeURIComponent(search)}`);
     return response.data;
   },
 
