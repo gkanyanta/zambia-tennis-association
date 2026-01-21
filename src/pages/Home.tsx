@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { galleryService } from '@/services/galleryService'
 import { newsService, NewsArticle } from '@/services/newsService'
 import { statsService, Stats } from '@/services/statsService'
+import { PageSEO } from '@/components/SEO'
 
 export function Home() {
   const navigate = useNavigate()
@@ -95,7 +96,9 @@ export function Home() {
   }
 
   return (
-    <div className="flex flex-col">
+    <>
+      <PageSEO.Home />
+      <div className="flex flex-col">
       {/* Slideshow Section */}
       <section className="py-8 bg-muted/50">
         <div className="container-custom">
@@ -243,5 +246,6 @@ export function Home() {
         </div>
       </section>
     </div>
+    </>
   )
 }

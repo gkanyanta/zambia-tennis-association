@@ -2,6 +2,13 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
+import { usePageTracking } from '@/hooks/usePageTracking'
+
+// Component to track page views
+function PageTracker() {
+  usePageTracking();
+  return null;
+}
 import { Home } from '@/pages/Home'
 import { News } from '@/pages/News'
 import { NewsDetail } from '@/pages/NewsDetail'
@@ -52,11 +59,13 @@ import { AboutContentEditor } from '@/pages/AboutContentEditor'
 import { LeagueManagement } from '@/pages/LeagueManagement'
 import { CalendarManagement } from '@/pages/CalendarManagement'
 import { MembershipAdmin } from '@/pages/MembershipAdmin'
+import { TrafficStats } from '@/pages/TrafficStats'
 
 function App() {
   return (
     <Router>
       <AuthProvider>
+        <PageTracker />
         <div className="flex flex-col min-h-screen">
           <Header />
           <main className="flex-1">
@@ -80,6 +89,7 @@ function App() {
               <Route path="/admin/leagues" element={<LeagueManagement />} />
               <Route path="/admin/calendar" element={<CalendarManagement />} />
               <Route path="/admin/membership" element={<MembershipAdmin />} />
+              <Route path="/admin/traffic" element={<TrafficStats />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />

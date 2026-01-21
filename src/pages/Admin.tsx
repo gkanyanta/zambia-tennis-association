@@ -16,7 +16,8 @@ import {
   Globe,
   FileText,
   CreditCard,
-  Calendar
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 
 export function Admin() {
@@ -133,6 +134,13 @@ export function Admin() {
       icon: Trophy,
       action: () => navigate('/admin/leagues'),
       color: 'text-red-500'
+    },
+    {
+      title: 'Traffic & Analytics',
+      description: 'View website traffic, SEO status, and visitor statistics',
+      icon: TrendingUp,
+      action: () => navigate('/admin/traffic'),
+      color: 'text-sky-500'
     }
   ];
 
