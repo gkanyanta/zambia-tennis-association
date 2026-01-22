@@ -35,7 +35,7 @@ export const getTournaments = async (req, res) => {
 // @access  Public
 export const getTournament = async (req, res) => {
   try {
-    const tournament = await Tournament.findById(req.params.id).populate('registrations.user', 'firstName lastName email');
+    const tournament = await Tournament.findById(req.params.id);
 
     if (!tournament) {
       return res.status(404).json({
