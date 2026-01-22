@@ -830,56 +830,94 @@ export const publicRegister = async (req, res) => {
 
     // Process each entry
     for (const entry of entries) {
-      const { playerId, categoryId } = entry;
+      const { playerId, categoryId, isNewPlayer, newPlayerData } = entry;
 
-      // Get the player
-      const player = await User.findById(playerId);
-      if (!player) {
-        errors.push({ playerId, error: 'Player not found' });
-        continue;
-      }
-
-      // Get the category
+      // Get the category first
       const category = tournament.categories.id(categoryId);
       if (!category) {
-        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Category not found' });
-        continue;
-      }
-
-      // Check if player has required fields
-      if (!player.dateOfBirth) {
-        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player date of birth is required' });
-        continue;
-      }
-
-      if (!player.gender) {
-        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player gender is required' });
+        errors.push({ playerId, error: 'Category not found' });
         continue;
       }
 
       // Check if category is full
       if (category.entries.length >= category.maxEntries) {
-        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Category is full' });
+        errors.push({ playerId, playerName: isNewPlayer ? `${newPlayerData?.firstName} ${newPlayerData?.lastName}` : 'Unknown', error: 'Category is full' });
         continue;
       }
 
-      // Check if player already entered
-      const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
-      if (existingEntry) {
-        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player already entered in this category' });
-        continue;
+      let playerData;
+      let isNewPlayerEntry = false;
+
+      if (isNewPlayer && newPlayerData) {
+        // Handle new player registration
+        if (!newPlayerData.firstName || !newPlayerData.lastName || !newPlayerData.dateOfBirth || !newPlayerData.gender) {
+          errors.push({
+            playerId: 'new',
+            playerName: `${newPlayerData.firstName || ''} ${newPlayerData.lastName || ''}`.trim() || 'Unknown',
+            error: 'New player requires first name, last name, date of birth, and gender'
+          });
+          continue;
+        }
+
+        playerData = {
+          firstName: newPlayerData.firstName,
+          lastName: newPlayerData.lastName,
+          dateOfBirth: new Date(newPlayerData.dateOfBirth),
+          gender: newPlayerData.gender,
+          club: newPlayerData.club || 'Independent',
+          phone: newPlayerData.phone,
+          email: newPlayerData.email,
+          zpin: null // Will be assigned upon approval
+        };
+        isNewPlayerEntry = true;
+      } else {
+        // Get existing player
+        const player = await User.findById(playerId);
+        if (!player) {
+          errors.push({ playerId, error: 'Player not found' });
+          continue;
+        }
+
+        // Check if player has required fields
+        if (!player.dateOfBirth) {
+          errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player date of birth is required' });
+          continue;
+        }
+
+        if (!player.gender) {
+          errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player gender is required' });
+          continue;
+        }
+
+        // Check if player already entered
+        const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
+        if (existingEntry) {
+          errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player already entered in this category' });
+          continue;
+        }
+
+        playerData = {
+          _id: player._id,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          dateOfBirth: player.dateOfBirth,
+          gender: player.gender,
+          club: player.club || 'Independent',
+          zpin: player.zpin
+        };
       }
 
-      // Validate eligibility for junior categories
-      let eligibilityCheck = { eligible: true, reason: 'Eligible', warnings: [], errors: [] };
+      // Validate eligibility for junior categories (skip for new players without full validation)
+      let eligibilityCheck = { eligible: true, reason: isNewPlayerEntry ? 'Pending verification' : 'Eligible', warnings: [], errors: [] };
 
-      if (category.type === 'junior' && category.categoryCode) {
+      if (!isNewPlayerEntry && category.type === 'junior' && category.categoryCode) {
+        const player = await User.findById(playerId);
         const validation = validateTournamentEntry(player, category.categoryCode, tournament.startDate);
 
         if (!validation.eligible) {
           errors.push({
             playerId,
-            playerName: `${player.firstName} ${player.lastName}`,
+            playerName: `${playerData.firstName} ${playerData.lastName}`,
             error: `Not eligible for ${category.name}: ${validation.errors.join(', ')}`
           });
           continue;
@@ -897,21 +935,21 @@ export const publicRegister = async (req, res) => {
 
       // Calculate ages
       const tournamentYear = new Date(tournament.startDate).getFullYear();
-      const ageOnDec31 = calculateAgeOnDec31(player.dateOfBirth, tournamentYear);
-      const currentAge = Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+      const ageOnDec31 = calculateAgeOnDec31(playerData.dateOfBirth, tournamentYear);
+      const currentAge = Math.floor((new Date() - new Date(playerData.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
 
       // Create entry data
       const entryData = {
-        playerId: player._id.toString(),
-        playerName: `${player.firstName} ${player.lastName}`,
-        playerZpin: player.zpin,
-        dateOfBirth: player.dateOfBirth,
+        playerId: isNewPlayerEntry ? null : playerData._id.toString(),
+        playerName: `${playerData.firstName} ${playerData.lastName}`,
+        playerZpin: playerData.zpin || 'PENDING',
+        dateOfBirth: playerData.dateOfBirth,
         age: currentAge,
         ageOnDec31,
-        gender: player.gender,
-        clubName: player.club || 'Independent',
+        gender: playerData.gender,
+        clubName: playerData.club,
         eligibilityCheck,
-        status: payNow ? 'pending_payment' : 'pending_payment',
+        status: isNewPlayerEntry ? 'pending_payment' : 'pending_payment',
         paymentStatus: 'unpaid',
         payer: {
           name: payer.name,
@@ -919,7 +957,12 @@ export const publicRegister = async (req, res) => {
           phone: payer.phone,
           relationship: payer.relationship || 'self'
         },
-        entryDate: new Date()
+        entryDate: new Date(),
+        // Store new player contact info for ZPIN creation
+        newPlayerContact: isNewPlayerEntry ? {
+          phone: newPlayerData.phone,
+          email: newPlayerData.email
+        } : null
       };
 
       // Add entry
@@ -927,10 +970,11 @@ export const publicRegister = async (req, res) => {
       category.entryCount = category.entries.length;
 
       results.push({
-        playerId,
-        playerName: `${player.firstName} ${player.lastName}`,
+        playerId: isNewPlayerEntry ? 'new' : playerId,
+        playerName: `${playerData.firstName} ${playerData.lastName}`,
         categoryName: category.name,
-        status: 'registered'
+        status: isNewPlayerEntry ? 'pending_approval' : 'registered',
+        isNewPlayer: isNewPlayerEntry
       });
     }
 

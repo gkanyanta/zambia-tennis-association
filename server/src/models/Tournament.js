@@ -73,6 +73,11 @@ const entrySchema = new mongoose.Schema({
     email: String,
     phone: String,
     relationship: String
+  },
+  // Contact info for new players (without ZPIN)
+  newPlayerContact: {
+    phone: String,
+    email: String
   }
 });
 

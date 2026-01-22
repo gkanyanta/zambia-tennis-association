@@ -35,9 +35,22 @@ import { initializeLencoWidget } from '@/utils/lencoWidget'
 import debounce from 'lodash/debounce'
 
 interface SelectedEntry {
-  player: PlayerSearchResult
+  player: PlayerSearchResult | NewPlayerData
   categoryId: string
   categoryName: string
+  isNewPlayer?: boolean
+}
+
+interface NewPlayerData {
+  _id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  gender: string
+  club: string | null
+  phone: string
+  email: string
+  isNew: true
 }
 
 export function TournamentRegister() {
@@ -59,6 +72,18 @@ export function TournamentRegister() {
   const [selectedEntries, setSelectedEntries] = useState<SelectedEntry[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerSearchResult | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('')
+
+  // New player form
+  const [showNewPlayerForm, setShowNewPlayerForm] = useState(false)
+  const [newPlayer, setNewPlayer] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: '',
+    club: '',
+    phone: '',
+    email: ''
+  })
 
   // Payer information
   const [showPayerForm, setShowPayerForm] = useState(false)
@@ -188,6 +213,55 @@ export function TournamentRegister() {
     setError(null)
   }
 
+  const handleAddNewPlayer = () => {
+    if (!newPlayer.firstName || !newPlayer.lastName || !newPlayer.dateOfBirth || !newPlayer.gender || !selectedCategory || !tournament) {
+      setError('Please fill in all required fields for the new player')
+      return
+    }
+
+    const category = tournament.categories.find(c => c._id === selectedCategory)
+    if (!category) return
+
+    // Create a temporary ID for the new player
+    const tempId = `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    const newPlayerData: NewPlayerData = {
+      _id: tempId,
+      firstName: newPlayer.firstName.trim(),
+      lastName: newPlayer.lastName.trim(),
+      dateOfBirth: newPlayer.dateOfBirth,
+      gender: newPlayer.gender,
+      club: newPlayer.club.trim() || null,
+      phone: newPlayer.phone.trim(),
+      email: newPlayer.email.trim(),
+      isNew: true
+    }
+
+    setSelectedEntries([
+      ...selectedEntries,
+      {
+        player: newPlayerData,
+        categoryId: selectedCategory,
+        categoryName: category.name,
+        isNewPlayer: true
+      }
+    ])
+
+    // Reset form
+    setNewPlayer({
+      firstName: '',
+      lastName: '',
+      dateOfBirth: '',
+      gender: '',
+      club: '',
+      phone: '',
+      email: ''
+    })
+    setSelectedCategory('')
+    setShowNewPlayerForm(false)
+    setError(null)
+  }
+
   const handleRemoveEntry = (index: number) => {
     setSelectedEntries(selectedEntries.filter((_, i) => i !== index))
   }
@@ -230,8 +304,18 @@ export function TournamentRegister() {
         },
         body: JSON.stringify({
           entries: selectedEntries.map(e => ({
-            playerId: e.player._id,
-            categoryId: e.categoryId
+            playerId: (e.player as any).isNew ? null : e.player._id,
+            categoryId: e.categoryId,
+            isNewPlayer: e.isNewPlayer || false,
+            newPlayerData: e.isNewPlayer ? {
+              firstName: (e.player as NewPlayerData).firstName,
+              lastName: (e.player as NewPlayerData).lastName,
+              dateOfBirth: (e.player as NewPlayerData).dateOfBirth,
+              gender: (e.player as NewPlayerData).gender,
+              club: (e.player as NewPlayerData).club,
+              phone: (e.player as NewPlayerData).phone,
+              email: (e.player as NewPlayerData).email
+            } : null
           })),
           payer: {
             name: payerName.trim(),
@@ -508,8 +592,159 @@ export function TournamentRegister() {
                       <p>No players found matching "{searchQuery}"</p>
                     </div>
                   )}
+
+                  {/* Register New Player Button */}
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setShowNewPlayerForm(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Register New Player (No ZPIN)
+                    </Button>
+                    <p className="text-xs text-muted-foreground text-center mt-2">
+                      For players not yet registered in the system
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
+
+              {/* New Player Registration Form */}
+              {showNewPlayerForm && (
+                <Card className="mb-8 border-green-500/30 bg-green-50/50 dark:bg-green-950/20">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Plus className="h-5 w-5" />
+                        Register New Player
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setShowNewPlayerForm(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg text-sm">
+                      <AlertTriangle className="h-4 w-4 inline mr-2 text-amber-600" />
+                      New players will be assigned a ZPIN upon admin approval.
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>First Name *</Label>
+                        <Input
+                          value={newPlayer.firstName}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, firstName: e.target.value })}
+                          placeholder="Enter first name"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Last Name *</Label>
+                        <Input
+                          value={newPlayer.lastName}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, lastName: e.target.value })}
+                          placeholder="Enter last name"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Date of Birth *</Label>
+                        <Input
+                          type="date"
+                          value={newPlayer.dateOfBirth}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, dateOfBirth: e.target.value })}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Gender *</Label>
+                        <Select value={newPlayer.gender} onValueChange={(v) => setNewPlayer({ ...newPlayer, gender: v })}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Club (Optional)</Label>
+                        <Input
+                          value={newPlayer.club}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, club: e.target.value })}
+                          placeholder="Enter club name"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Phone Number</Label>
+                        <Input
+                          type="tel"
+                          value={newPlayer.phone}
+                          onChange={(e) => setNewPlayer({ ...newPlayer, phone: e.target.value })}
+                          placeholder="+260 XXX XXXXXX"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Email Address</Label>
+                      <Input
+                        type="email"
+                        value={newPlayer.email}
+                        onChange={(e) => setNewPlayer({ ...newPlayer, email: e.target.value })}
+                        placeholder="player@email.com"
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Select Category *</Label>
+                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Choose a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tournament?.categories
+                            .filter(cat => {
+                              // Filter by gender
+                              if (!newPlayer.gender) return true
+                              if (cat.gender === 'boys' && newPlayer.gender !== 'male') return false
+                              if (cat.gender === 'girls' && newPlayer.gender !== 'female') return false
+                              if (cat.gender === 'mens' && newPlayer.gender !== 'male') return false
+                              if (cat.gender === 'womens' && newPlayer.gender !== 'female') return false
+                              return true
+                            })
+                            .map(category => (
+                              <SelectItem key={category._id} value={category._id}>
+                                {category.name} ({category.entries?.length || 0}/{category.maxEntries})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      onClick={handleAddNewPlayer}
+                      disabled={!newPlayer.firstName || !newPlayer.lastName || !newPlayer.dateOfBirth || !newPlayer.gender || !selectedCategory}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Player Entry
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Selected Player - Category Selection */}
               {selectedPlayer && (
