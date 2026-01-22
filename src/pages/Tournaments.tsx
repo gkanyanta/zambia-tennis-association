@@ -39,7 +39,11 @@ export function Tournaments() {
   }
 
   const filteredTournaments = tournaments.filter(tournament => {
-    const matchesFilter = filter === 'all' || tournament.status === filter
+    // Map entries_open to upcoming for filtering, entries_closed to ongoing
+    const effectiveStatus = tournament.status === 'entries_open' ? 'upcoming' :
+                           tournament.status === 'entries_closed' ? 'ongoing' :
+                           tournament.status === 'in_progress' ? 'ongoing' : tournament.status
+    const matchesFilter = filter === 'all' || effectiveStatus === filter
     const matchesSearch = tournament.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          tournament.location?.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesFilter && matchesSearch
@@ -48,9 +52,13 @@ export function Tournaments() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'upcoming':
+      case 'entries_open':
         return 'bg-blue-500'
       case 'ongoing':
+      case 'in_progress':
         return 'bg-green-500'
+      case 'entries_closed':
+        return 'bg-orange-500'
       case 'completed':
         return 'bg-gray-500'
       default:
@@ -59,7 +67,7 @@ export function Tournaments() {
   }
 
   const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1)
+    return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
   }
 
   return (
@@ -186,7 +194,7 @@ export function Tournaments() {
                     </div>
 
                     {/* Action Button */}
-                    {tournament.status === 'upcoming' && (
+                    {(tournament.status === 'upcoming' || tournament.status === 'entries_open') && (
                       <Button
                         className="w-full"
                         variant="default"
@@ -196,7 +204,7 @@ export function Tournaments() {
                         Register
                       </Button>
                     )}
-                    {tournament.status === 'ongoing' && (
+                    {(tournament.status === 'ongoing' || tournament.status === 'in_progress' || tournament.status === 'entries_closed') && (
                       <Button
                         className="w-full"
                         variant="outline"
