@@ -3,18 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, Trophy, ArrowUpDown } from 'lucide-react'
+import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User } from 'lucide-react'
 import type { TournamentCategory } from '@/types/tournament'
 
 interface EntryManagementProps {
   category: TournamentCategory
-  onUpdateEntry: (entryId: string, data: { status: string; seed?: number; rejectionReason?: string }) => Promise<void>
+  onUpdateEntry: (entryId: string, data: { status: string; seed?: number; rejectionReason?: string; paymentStatus?: string; paymentReference?: string }) => Promise<void>
   onAutoSeed: () => Promise<void>
 }
 
 export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryManagementProps) {
   const [selectedEntries, setSelectedEntries] = useState<string[]>([])
-  const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending_payment' | 'pending' | 'accepted' | 'rejected'>('all')
   const [seedingMode, setSeedingMode] = useState(false)
   const [seedValues, setSeedValues] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
@@ -26,6 +26,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
 
   const acceptedEntries = category.entries.filter(e => e.status === 'accepted')
   const pendingEntries = category.entries.filter(e => e.status === 'pending')
+  const pendingPaymentEntries = category.entries.filter(e => e.status === 'pending_payment')
 
   const handleAccept = async (entryId: string) => {
     try {
@@ -43,6 +44,33 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
       await onUpdateEntry(entryId, { status: 'rejected', rejectionReason: reason })
     } catch (error) {
       console.error('Error rejecting entry:', error)
+    }
+  }
+
+  const handleConfirmPayment = async (entryId: string) => {
+    const reference = prompt('Enter payment reference (optional):')
+
+    try {
+      await onUpdateEntry(entryId, {
+        status: 'pending',
+        paymentStatus: 'paid',
+        paymentReference: reference || undefined
+      })
+    } catch (error) {
+      console.error('Error confirming payment:', error)
+    }
+  }
+
+  const handleWaivePayment = async (entryId: string) => {
+    if (!confirm('Are you sure you want to waive the entry fee for this player?')) return
+
+    try {
+      await onUpdateEntry(entryId, {
+        status: 'pending',
+        paymentStatus: 'waived'
+      })
+    } catch (error) {
+      console.error('Error waiving payment:', error)
     }
   }
 
@@ -99,7 +127,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{category.entries.length}</div>
@@ -108,14 +136,20 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">{acceptedEntries.length}</div>
-            <p className="text-xs text-muted-foreground">Accepted</p>
+            <div className="text-2xl font-bold text-orange-600">{pendingPaymentEntries.length}</div>
+            <p className="text-xs text-muted-foreground">Awaiting Payment</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-yellow-600">{pendingEntries.length}</div>
-            <p className="text-xs text-muted-foreground">Pending</p>
+            <p className="text-xs text-muted-foreground">Pending Approval</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-green-600">{acceptedEntries.length}</div>
+            <p className="text-xs text-muted-foreground">Accepted</p>
           </CardContent>
         </Card>
         <Card>
@@ -179,15 +213,21 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
       )}
 
       {/* Filter Tabs */}
-      <div className="flex gap-2">
-        {(['all', 'pending', 'accepted', 'rejected'] as const).map((status) => (
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: 'all', label: 'All' },
+          { key: 'pending_payment', label: 'Awaiting Payment' },
+          { key: 'pending', label: 'Pending Approval' },
+          { key: 'accepted', label: 'Accepted' },
+          { key: 'rejected', label: 'Rejected' }
+        ] as const).map(({ key, label }) => (
           <Button
-            key={status}
-            variant={filter === status ? 'default' : 'outline'}
+            key={key}
+            variant={filter === key ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFilter(status)}
+            onClick={() => setFilter(key)}
           >
-            {status.charAt(0).toUpperCase() + status.slice(1)}
+            {label}
           </Button>
         ))}
       </div>
@@ -222,6 +262,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                   {(filter === 'accepted' || seedingMode) && (
                     <th className="px-4 py-3 text-center text-sm font-semibold">Seed</th>
                   )}
+                  <th className="px-4 py-3 text-center text-sm font-semibold">Payment</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold">Status</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold">Entry Date</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold">Actions</th>
@@ -284,13 +325,41 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                         </td>
                       )}
                       <td className="px-4 py-3 text-center">
+                        {(entry as any).paymentStatus === 'paid' && (
+                          <Badge variant="default" className="gap-1 bg-green-600">
+                            <CreditCard className="h-3 w-3" /> Paid
+                          </Badge>
+                        )}
+                        {(entry as any).paymentStatus === 'waived' && (
+                          <Badge variant="secondary" className="gap-1">
+                            Waived
+                          </Badge>
+                        )}
+                        {((entry as any).paymentStatus === 'unpaid' || !(entry as any).paymentStatus) && (
+                          <Badge variant="outline" className="gap-1 text-orange-600 border-orange-600">
+                            <Clock className="h-3 w-3" /> Unpaid
+                          </Badge>
+                        )}
+                        {(entry as any).payer && (
+                          <div className="text-xs text-muted-foreground mt-1" title={`Payer: ${(entry as any).payer.name} (${(entry as any).payer.email})`}>
+                            <User className="h-3 w-3 inline mr-1" />
+                            {(entry as any).payer.name}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
                         {entry.status === 'accepted' && (
                           <Badge variant="default" className="gap-1">
                             <CheckCircle className="h-3 w-3" /> Accepted
                           </Badge>
                         )}
                         {entry.status === 'pending' && (
-                          <Badge variant="secondary">Pending</Badge>
+                          <Badge variant="secondary">Pending Approval</Badge>
+                        )}
+                        {entry.status === 'pending_payment' && (
+                          <Badge variant="outline" className="gap-1 text-orange-600 border-orange-600">
+                            <Clock className="h-3 w-3" /> Awaiting Payment
+                          </Badge>
                         )}
                         {entry.status === 'rejected' && (
                           <Badge variant="destructive" className="gap-1">
@@ -305,13 +374,43 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                         {new Date(entry.entryDate).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2 justify-center">
+                        <div className="flex gap-2 justify-center flex-wrap">
+                          {entry.status === 'pending_payment' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-green-600 border-green-600 hover:bg-green-50"
+                                onClick={() => handleConfirmPayment(entry.id)}
+                                title="Confirm Payment"
+                              >
+                                <CreditCard className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleWaivePayment(entry.id)}
+                                title="Waive Payment"
+                              >
+                                Waive
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleReject(entry.id)}
+                                title="Reject Entry"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                           {entry.status === 'pending' && (
                             <>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleAccept(entry.id)}
+                                title="Accept Entry"
                               >
                                 <CheckCircle className="h-4 w-4" />
                               </Button>
@@ -319,6 +418,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleReject(entry.id)}
+                                title="Reject Entry"
                               >
                                 <XCircle className="h-4 w-4" />
                               </Button>

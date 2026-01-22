@@ -4,7 +4,7 @@ import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Save, Calendar, MapPin, Users, Phone, FileText, Trophy } from 'lucide-react'
+import { Save, Calendar, MapPin, Users, Phone, FileText, Trophy, Settings } from 'lucide-react'
 import { tournamentService } from '@/services/tournamentService'
 
 // Standard junior categories
@@ -75,6 +75,12 @@ export function TournamentCreate() {
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in'>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
+
+  // Registration settings
+  const [tournamentLevel, setTournamentLevel] = useState<'club' | 'regional' | 'national' | 'international'>('regional')
+  const [allowPublicRegistration, setAllowPublicRegistration] = useState(true)
+  const [allowMultipleCategories, setAllowMultipleCategories] = useState(false)
+  const [requirePaymentUpfront, setRequirePaymentUpfront] = useState(false)
 
   const toggleCategory = (code: string) => {
     const newSelected = new Set(selectedCategories)
@@ -202,7 +208,12 @@ export function TournamentCreate() {
         contactPhone,
         rules,
         prizes,
-        categories
+        categories,
+        // Registration settings
+        tournamentLevel,
+        allowPublicRegistration,
+        allowMultipleCategories,
+        requirePaymentUpfront
       } as any)
 
       alert('Tournament created successfully!')
@@ -748,6 +759,100 @@ export function TournamentCreate() {
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   placeholder="Prize information..."
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Registration Settings */}
+          <Card className="border-t-4 border-t-indigo-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Registration Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Tournament Level */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Tournament Level</label>
+                <select
+                  value={tournamentLevel}
+                  onChange={(e) => setTournamentLevel(e.target.value as any)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="club">Club Level</option>
+                  <option value="regional">Regional</option>
+                  <option value="national">National</option>
+                  <option value="international">International</option>
+                </select>
+              </div>
+
+              {/* Registration Options */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <div className="font-medium">Allow Public Registration</div>
+                    <div className="text-sm text-muted-foreground">
+                      Anyone can register players without logging in
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowPublicRegistration}
+                      onChange={(e) => setAllowPublicRegistration(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <div className="font-medium">Allow Multiple Categories per Player</div>
+                    <div className="text-sm text-muted-foreground">
+                      Players can enter more than one category (recommended for regional tournaments)
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowMultipleCategories}
+                      onChange={(e) => setAllowMultipleCategories(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <div className="font-medium">Require Payment Upfront</div>
+                    <div className="text-sm text-muted-foreground">
+                      Entries must be paid during registration (otherwise pay later allowed)
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={requirePaymentUpfront}
+                      onChange={(e) => setRequirePaymentUpfront(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Info about registration flow */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Registration Flow</h4>
+                <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                  <li>1. Users search and select players from the database</li>
+                  <li>2. Select categories for each player</li>
+                  <li>3. {requirePaymentUpfront ? 'Pay entry fees to complete registration' : 'Register now, pay later (entries marked as pending payment)'}</li>
+                  <li>4. Admin reviews and approves entries</li>
+                </ul>
               </div>
             </CardContent>
           </Card>

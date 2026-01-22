@@ -1,7 +1,7 @@
 export type DrawType = 'single_elimination' | 'round_robin' | 'feed_in'
 export type CategoryType = 'junior' | 'senior' | 'madalas'
 export type Gender = 'boys' | 'girls' | 'mens' | 'womens' | 'mixed'
-export type AgeGroup = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'Open'
+export type AgeGroup = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'Open' | '35+' | '45+' | '55+' | '65+'
 
 export interface TournamentCategory {
   id: string
@@ -31,7 +31,17 @@ export interface TournamentEntry {
   clubName: string
   ranking?: number
   seed?: number
-  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+  status: 'pending_payment' | 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+  paymentStatus?: 'unpaid' | 'paid' | 'waived'
+  paymentReference?: string
+  paymentDate?: string
+  paymentMethod?: 'online' | 'manual' | 'waived'
+  payer?: {
+    name: string
+    email: string
+    phone: string
+    relationship?: string
+  }
   rejectionReason?: string
   entryDate: string
 }
@@ -106,6 +116,10 @@ export interface Tournament {
   maxParticipants?: number
   rules?: string
   prizes?: string
+  tournamentLevel?: 'club' | 'regional' | 'national' | 'international'
+  allowPublicRegistration?: boolean
+  allowMultipleCategories?: boolean
+  requirePaymentUpfront?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -135,7 +149,11 @@ export function validateJuniorEligibility(
     'U14': 14,
     'U16': 16,
     'U18': 18,
-    'Open': 999
+    'Open': 999,
+    '35+': 999,
+    '45+': 999,
+    '55+': 999,
+    '65+': 999
   }
 
   const maxAge = maxAges[ageGroup]

@@ -353,13 +353,31 @@ export function TournamentDetail() {
                     <>
                       {tournament.categories && tournament.categories.length > 0 ? (
                         <>
+                          {/* Public Registration Button - Always visible */}
+                          {(tournament as any).allowPublicRegistration !== false && (
+                            <div className="space-y-3 pb-4 border-b mb-4">
+                              <Button
+                                className="w-full"
+                                onClick={() => navigate(`/tournaments/${id}/register`)}
+                              >
+                                <Users className="h-4 w-4 mr-2" />
+                                Register Players
+                              </Button>
+                              <p className="text-xs text-muted-foreground text-center">
+                                Register one or multiple players • No login required
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Member Login Registration */}
                           {!isAuthenticated ? (
                             <div className="text-center py-4 space-y-4">
                               <p className="text-sm text-muted-foreground">
-                                Please log in to register for this tournament
+                                Already a member? Log in for quick registration
                               </p>
                               <Button
                                 className="w-full"
+                                variant="outline"
                                 onClick={() => navigate(`/login?redirect=/tournaments/${id}`)}
                               >
                                 Log In to Register
@@ -367,6 +385,7 @@ export function TournamentDetail() {
                             </div>
                           ) : (
                             <>
+                              <p className="text-sm font-medium mb-2">Quick Self-Registration</p>
                               <div>
                                 <label className="text-sm font-medium mb-2 block">Select Category</label>
                                 <select
@@ -385,11 +404,12 @@ export function TournamentDetail() {
 
                               <Button
                                 className="w-full"
+                                variant="outline"
                                 onClick={handleRegister}
                                 disabled={!selectedCategory || registering}
                               >
                                 <Trophy className="h-4 w-4 mr-2" />
-                                {registering ? 'Submitting Entry...' : 'Submit Entry'}
+                                {registering ? 'Submitting Entry...' : 'Submit My Entry'}
                               </Button>
 
                               {tournament.entryFee > 0 && (

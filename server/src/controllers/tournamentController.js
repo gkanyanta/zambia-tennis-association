@@ -369,7 +369,7 @@ export const submitEntry = async (req, res) => {
 export const updateEntryStatus = async (req, res) => {
   try {
     const { tournamentId, categoryId, entryId } = req.params;
-    const { status, rejectionReason, seed } = req.body;
+    const { status, rejectionReason, seed, paymentStatus, paymentReference } = req.body;
 
     const tournament = await Tournament.findById(tournamentId);
 
@@ -399,9 +399,15 @@ export const updateEntryStatus = async (req, res) => {
     }
 
     // Update entry
-    entry.status = status;
+    if (status) entry.status = status;
     if (rejectionReason) entry.rejectionReason = rejectionReason;
     if (seed !== undefined) entry.seed = seed;
+    if (paymentStatus) {
+      entry.paymentStatus = paymentStatus;
+      entry.paymentDate = new Date();
+      entry.paymentMethod = paymentStatus === 'waived' ? 'waived' : 'manual';
+    }
+    if (paymentReference) entry.paymentReference = paymentReference;
 
     await tournament.save();
 
@@ -758,6 +764,244 @@ export const getJuniorCategories = async (req, res) => {
       data: categories
     });
   } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Public tournament registration (no login required)
+// @route   POST /api/tournaments/:id/public-register
+// @access  Public
+export const publicRegister = async (req, res) => {
+  try {
+    const { entries, payer, payNow } = req.body;
+
+    if (!entries || !Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one entry is required'
+      });
+    }
+
+    if (!payer || !payer.name || !payer.email || !payer.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payer name, email, and phone are required'
+      });
+    }
+
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    // Check if public registration is allowed
+    if (!tournament.allowPublicRegistration) {
+      return res.status(400).json({
+        success: false,
+        message: 'Public registration is not allowed for this tournament'
+      });
+    }
+
+    // Check if entries are still open
+    if (tournament.status === 'entries_closed' || tournament.status === 'in_progress' || tournament.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Entries are closed for this tournament'
+      });
+    }
+
+    // Check entry deadline
+    if (new Date() > new Date(tournament.entryDeadline)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Entry deadline has passed'
+      });
+    }
+
+    const results = [];
+    const errors = [];
+
+    // Process each entry
+    for (const entry of entries) {
+      const { playerId, categoryId } = entry;
+
+      // Get the player
+      const player = await User.findById(playerId);
+      if (!player) {
+        errors.push({ playerId, error: 'Player not found' });
+        continue;
+      }
+
+      // Get the category
+      const category = tournament.categories.id(categoryId);
+      if (!category) {
+        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Category not found' });
+        continue;
+      }
+
+      // Check if player has required fields
+      if (!player.dateOfBirth) {
+        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player date of birth is required' });
+        continue;
+      }
+
+      if (!player.gender) {
+        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player gender is required' });
+        continue;
+      }
+
+      // Check if category is full
+      if (category.entries.length >= category.maxEntries) {
+        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Category is full' });
+        continue;
+      }
+
+      // Check if player already entered
+      const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
+      if (existingEntry) {
+        errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player already entered in this category' });
+        continue;
+      }
+
+      // Validate eligibility for junior categories
+      let eligibilityCheck = { eligible: true, reason: 'Eligible', warnings: [], errors: [] };
+
+      if (category.type === 'junior' && category.categoryCode) {
+        const validation = validateTournamentEntry(player, category.categoryCode, tournament.startDate);
+
+        if (!validation.eligible) {
+          errors.push({
+            playerId,
+            playerName: `${player.firstName} ${player.lastName}`,
+            error: `Not eligible for ${category.name}: ${validation.errors.join(', ')}`
+          });
+          continue;
+        }
+
+        eligibilityCheck = {
+          eligible: validation.eligible,
+          reason: validation.info.ageCalculationDate
+            ? `Player will be ${validation.info.playerAge} years old on ${validation.info.ageCalculationDate}`
+            : 'Eligible',
+          suggestedCategory: validation.info.suggestedCategory,
+          warnings: validation.warnings
+        };
+      }
+
+      // Calculate ages
+      const tournamentYear = new Date(tournament.startDate).getFullYear();
+      const ageOnDec31 = calculateAgeOnDec31(player.dateOfBirth, tournamentYear);
+      const currentAge = Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+
+      // Create entry data
+      const entryData = {
+        playerId: player._id.toString(),
+        playerName: `${player.firstName} ${player.lastName}`,
+        playerZpin: player.zpin,
+        dateOfBirth: player.dateOfBirth,
+        age: currentAge,
+        ageOnDec31,
+        gender: player.gender,
+        clubName: player.club || 'Independent',
+        eligibilityCheck,
+        status: payNow ? 'pending_payment' : 'pending_payment',
+        paymentStatus: 'unpaid',
+        payer: {
+          name: payer.name,
+          email: payer.email,
+          phone: payer.phone,
+          relationship: payer.relationship || 'self'
+        },
+        entryDate: new Date()
+      };
+
+      // Add entry
+      category.entries.push(entryData);
+      category.entryCount = category.entries.length;
+
+      results.push({
+        playerId,
+        playerName: `${player.firstName} ${player.lastName}`,
+        categoryName: category.name,
+        status: 'registered'
+      });
+    }
+
+    await tournament.save();
+
+    // Calculate total fee
+    const totalFee = results.length * (tournament.entryFee || 0);
+
+    // If payNow is true and there's a fee, return payment info
+    let paymentInfo = null;
+    if (payNow && totalFee > 0) {
+      paymentInfo = {
+        amount: totalFee,
+        entriesCount: results.length,
+        // Payment link will be generated by frontend
+      };
+    }
+
+    // Send confirmation email
+    if (results.length > 0) {
+      try {
+        const entriesList = results.map(r => `- ${r.playerName}: ${r.categoryName}`).join('\n');
+        await sendEmail({
+          email: payer.email,
+          subject: `Tournament Registration - ${tournament.name}`,
+          html: `
+            <h1>Registration Submitted</h1>
+            <p>Dear ${payer.name},</p>
+            <p>Your registration for <strong>${tournament.name}</strong> has been submitted.</p>
+            <p><strong>Registered Players:</strong></p>
+            <ul>
+              ${results.map(r => `<li>${r.playerName} - ${r.categoryName}</li>`).join('')}
+            </ul>
+            <p><strong>Tournament Details:</strong></p>
+            <ul>
+              <li>Date: ${new Date(tournament.startDate).toLocaleDateString()} - ${new Date(tournament.endDate).toLocaleDateString()}</li>
+              <li>Venue: ${tournament.venue}</li>
+              <li>City: ${tournament.city}</li>
+            </ul>
+            ${totalFee > 0 ? `
+            <p><strong>Payment:</strong></p>
+            <p>Total Entry Fee: K${totalFee}</p>
+            <p>Status: ${payNow ? 'Payment Pending' : 'Pay Later - Entry will be confirmed upon payment'}</p>
+            ` : ''}
+            ${errors.length > 0 ? `
+            <p><strong>Note:</strong> Some entries could not be processed:</p>
+            <ul>
+              ${errors.map(e => `<li>${e.playerName || e.playerId}: ${e.error}</li>`).join('')}
+            </ul>
+            ` : ''}
+            <p>Thank you for registering!</p>
+          `
+        });
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Successfully registered ${results.length} entries`,
+      data: {
+        registered: results,
+        errors: errors,
+        totalFee,
+        paymentInfo,
+        tournamentName: tournament.name
+      }
+    });
+  } catch (error) {
+    console.error('Public registration error:', error);
     res.status(500).json({
       success: false,
       message: error.message

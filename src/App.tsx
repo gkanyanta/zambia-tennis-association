@@ -49,6 +49,7 @@ import { Register } from '@/pages/Register'
 import { Admin } from '@/pages/Admin'
 import { TournamentAdmin } from '@/pages/TournamentAdmin'
 import { TournamentCreate } from '@/pages/TournamentCreate'
+import { TournamentRegister } from '@/pages/TournamentRegister'
 import { UserManagement } from '@/pages/UserManagement'
 import { ClubManagement } from '@/pages/ClubManagement'
 import { PlayerManagement } from '@/pages/PlayerManagement'
@@ -102,6 +103,7 @@ function App() {
               <Route path="/club-affiliation" element={<ClubAffiliationPayment />} />
               <Route path="/tournaments" element={<Tournaments />} />
               <Route path="/tournaments/:id" element={<TournamentDetail />} />
+              <Route path="/tournaments/:id/register" element={<TournamentRegister />} />
               <Route path="/rankings" element={<Rankings />} />
               <Route path="/play" element={<Play />} />
               <Route path="/calendar" element={<Calendar />} />

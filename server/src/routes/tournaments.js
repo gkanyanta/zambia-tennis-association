@@ -13,7 +13,8 @@ import {
   updateMatchResult,
   checkEligibility,
   getPlayerEligibleCategories,
-  getJuniorCategories
+  getJuniorCategories,
+  publicRegister
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -28,6 +29,7 @@ router.get('/:id', getTournament);
 router.post('/', protect, authorize('admin', 'staff'), createTournament);
 router.put('/:id', protect, authorize('admin', 'staff'), updateTournament);
 router.post('/:id/register', protect, registerForTournament);
+router.post('/:id/public-register', publicRegister);
 router.delete('/:id', protect, authorize('admin'), deleteTournament);
 
 // Eligibility checking routes

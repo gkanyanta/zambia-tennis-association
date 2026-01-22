@@ -19,6 +19,15 @@ export interface Tournament {
   province: string;
   entryDeadline: string;
   categories: TournamentCategory[];
+  organizer?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  rules?: string;
+  prizes?: string;
+  tournamentLevel?: 'club' | 'regional' | 'national' | 'international';
+  allowPublicRegistration?: boolean;
+  allowMultipleCategories?: boolean;
+  requirePaymentUpfront?: boolean;
 }
 
 export interface TournamentCategory {
@@ -55,7 +64,17 @@ export interface TournamentEntry {
     suggestedCategory?: string;
     warnings: string[];
   };
-  status: 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  status: 'pending_payment' | 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+  paymentStatus?: 'unpaid' | 'paid' | 'waived';
+  paymentReference?: string;
+  paymentDate?: string;
+  paymentMethod?: 'online' | 'manual' | 'waived';
+  payer?: {
+    name: string;
+    email: string;
+    phone: string;
+    relationship?: string;
+  };
   rejectionReason?: string;
   entryDate: string;
 }

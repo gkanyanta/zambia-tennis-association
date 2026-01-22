@@ -48,13 +48,31 @@ const entrySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'accepted', 'rejected', 'withdrawn'],
-    default: 'pending'
+    enum: ['pending_payment', 'pending', 'accepted', 'rejected', 'withdrawn'],
+    default: 'pending_payment'
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['unpaid', 'paid', 'waived'],
+    default: 'unpaid'
+  },
+  paymentReference: String,
+  paymentDate: Date,
+  paymentMethod: {
+    type: String,
+    enum: ['online', 'manual', 'waived']
   },
   rejectionReason: String,
   entryDate: {
     type: Date,
     default: Date.now
+  },
+  // Payer information for public registrations
+  payer: {
+    name: String,
+    email: String,
+    phone: String,
+    relationship: String
   }
 });
 
@@ -234,7 +252,25 @@ const tournamentSchema = new mongoose.Schema({
   },
   maxParticipants: Number,
   rules: String,
-  prizes: String
+  prizes: String,
+  // Registration settings
+  tournamentLevel: {
+    type: String,
+    enum: ['club', 'regional', 'national', 'international'],
+    default: 'regional'
+  },
+  allowPublicRegistration: {
+    type: Boolean,
+    default: true
+  },
+  allowMultipleCategories: {
+    type: Boolean,
+    default: false
+  },
+  requirePaymentUpfront: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true
 });
