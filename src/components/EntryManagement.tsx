@@ -246,7 +246,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                         checked={selectedEntries.length === pendingEntries.length && pendingEntries.length > 0}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedEntries(pendingEntries.map(e => e.id))
+                            setSelectedEntries(pendingEntries.map(e => (e as any)._id))
                           } else {
                             setSelectedEntries([])
                           }
@@ -277,13 +277,13 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                   </tr>
                 ) : (
                   filteredEntries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-muted/50">
+                    <tr key={(entry as any)._id} className="hover:bg-muted/50">
                       {filter === 'pending' && (
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
-                            checked={selectedEntries.includes(entry.id)}
-                            onChange={() => toggleSelection(entry.id)}
+                            checked={selectedEntries.includes((entry as any)._id)}
+                            onChange={() => toggleSelection((entry as any)._id)}
                           />
                         </td>
                       )}
@@ -309,11 +309,11 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                               min="1"
                               max="32"
                               className="w-16 mx-auto"
-                              value={seedValues[entry.id] ?? entry.seed ?? ''}
+                              value={seedValues[(entry as any)._id] ?? entry.seed ?? ''}
                               onChange={(e) =>
                                 setSeedValues({
                                   ...seedValues,
-                                  [entry.id]: parseInt(e.target.value) || 0
+                                  [(entry as any)._id]: parseInt(e.target.value) || 0
                                 })
                               }
                             />
@@ -381,7 +381,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                                 size="sm"
                                 variant="outline"
                                 className="text-green-600 border-green-600 hover:bg-green-50"
-                                onClick={() => handleConfirmPayment(entry.id)}
+                                onClick={() => handleConfirmPayment((entry as any)._id)}
                                 title="Confirm Payment"
                               >
                                 <CreditCard className="h-4 w-4" />
@@ -389,7 +389,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleWaivePayment(entry.id)}
+                                onClick={() => handleWaivePayment((entry as any)._id)}
                                 title="Waive Payment"
                               >
                                 Waive
@@ -397,7 +397,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleReject(entry.id)}
+                                onClick={() => handleReject((entry as any)._id)}
                                 title="Reject Entry"
                               >
                                 <XCircle className="h-4 w-4" />
@@ -409,7 +409,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleAccept(entry.id)}
+                                onClick={() => handleAccept((entry as any)._id)}
                                 title="Accept Entry"
                               >
                                 <CheckCircle className="h-4 w-4" />
@@ -417,7 +417,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed }: EntryMa
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleReject(entry.id)}
+                                onClick={() => handleReject((entry as any)._id)}
                                 title="Reject Entry"
                               >
                                 <XCircle className="h-4 w-4" />
