@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 const entrySchema = new mongoose.Schema({
   playerId: {
     type: String,
-    required: true
+    required: false // Optional for new players without ZPIN
   },
   playerName: {
     type: String,
@@ -12,7 +12,7 @@ const entrySchema = new mongoose.Schema({
   },
   playerZpin: {
     type: String,
-    required: true
+    required: false // Optional for new players, will be 'PENDING'
   },
   dateOfBirth: {
     type: Date,
