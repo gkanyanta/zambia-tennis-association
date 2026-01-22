@@ -9,17 +9,46 @@ import { tournamentService } from '@/services/tournamentService'
 
 // Standard junior categories
 const JUNIOR_CATEGORIES = [
-  { code: 'B10U', name: 'Boys 10 & Under', gender: 'boys' as const, maxAge: 10 },
-  { code: 'B12U', name: 'Boys 12 & Under', gender: 'boys' as const, maxAge: 12 },
-  { code: 'B14U', name: 'Boys 14 & Under', gender: 'boys' as const, maxAge: 14 },
-  { code: 'B16U', name: 'Boys 16 & Under', gender: 'boys' as const, maxAge: 16 },
-  { code: 'B18U', name: 'Boys 18 & Under', gender: 'boys' as const, maxAge: 18 },
-  { code: 'G10U', name: 'Girls 10 & Under', gender: 'girls' as const, maxAge: 10 },
-  { code: 'G12U', name: 'Girls 12 & Under', gender: 'girls' as const, maxAge: 12 },
-  { code: 'G14U', name: 'Girls 14 & Under', gender: 'girls' as const, maxAge: 14 },
-  { code: 'G16U', name: 'Girls 16 & Under', gender: 'girls' as const, maxAge: 16 },
-  { code: 'G18U', name: 'Girls 18 & Under', gender: 'girls' as const, maxAge: 18 },
+  { code: 'B10U', name: 'Boys 10 & Under', gender: 'boys' as const, maxAge: 10, type: 'junior' as const },
+  { code: 'B12U', name: 'Boys 12 & Under', gender: 'boys' as const, maxAge: 12, type: 'junior' as const },
+  { code: 'B14U', name: 'Boys 14 & Under', gender: 'boys' as const, maxAge: 14, type: 'junior' as const },
+  { code: 'B16U', name: 'Boys 16 & Under', gender: 'boys' as const, maxAge: 16, type: 'junior' as const },
+  { code: 'B18U', name: 'Boys 18 & Under', gender: 'boys' as const, maxAge: 18, type: 'junior' as const },
+  { code: 'G10U', name: 'Girls 10 & Under', gender: 'girls' as const, maxAge: 10, type: 'junior' as const },
+  { code: 'G12U', name: 'Girls 12 & Under', gender: 'girls' as const, maxAge: 12, type: 'junior' as const },
+  { code: 'G14U', name: 'Girls 14 & Under', gender: 'girls' as const, maxAge: 14, type: 'junior' as const },
+  { code: 'G16U', name: 'Girls 16 & Under', gender: 'girls' as const, maxAge: 16, type: 'junior' as const },
+  { code: 'G18U', name: 'Girls 18 & Under', gender: 'girls' as const, maxAge: 18, type: 'junior' as const },
 ]
+
+// Senior categories (Open age)
+const SENIOR_CATEGORIES = [
+  { code: 'MS', name: "Men's Singles", gender: 'mens' as const, type: 'senior' as const },
+  { code: 'WS', name: "Women's Singles", gender: 'womens' as const, type: 'senior' as const },
+  { code: 'MD', name: "Men's Doubles", gender: 'mens' as const, type: 'senior' as const },
+  { code: 'WD', name: "Women's Doubles", gender: 'womens' as const, type: 'senior' as const },
+  { code: 'XD', name: "Mixed Doubles", gender: 'mixed' as const, type: 'senior' as const },
+]
+
+// Madalas categories (Veterans 35+)
+const MADALAS_CATEGORIES = [
+  { code: 'M35S', name: "Men's 35+ Singles", gender: 'mens' as const, minAge: 35, type: 'madalas' as const },
+  { code: 'M45S', name: "Men's 45+ Singles", gender: 'mens' as const, minAge: 45, type: 'madalas' as const },
+  { code: 'M55S', name: "Men's 55+ Singles", gender: 'mens' as const, minAge: 55, type: 'madalas' as const },
+  { code: 'M65S', name: "Men's 65+ Singles", gender: 'mens' as const, minAge: 65, type: 'madalas' as const },
+  { code: 'W35S', name: "Women's 35+ Singles", gender: 'womens' as const, minAge: 35, type: 'madalas' as const },
+  { code: 'W45S', name: "Women's 45+ Singles", gender: 'womens' as const, minAge: 45, type: 'madalas' as const },
+  { code: 'W55S', name: "Women's 55+ Singles", gender: 'womens' as const, minAge: 55, type: 'madalas' as const },
+  { code: 'M35D', name: "Men's 35+ Doubles", gender: 'mens' as const, minAge: 35, type: 'madalas' as const },
+  { code: 'M45D', name: "Men's 45+ Doubles", gender: 'mens' as const, minAge: 45, type: 'madalas' as const },
+  { code: 'M55D', name: "Men's 55+ Doubles", gender: 'mens' as const, minAge: 55, type: 'madalas' as const },
+  { code: 'W35D', name: "Women's 35+ Doubles", gender: 'womens' as const, minAge: 35, type: 'madalas' as const },
+  { code: 'W45D', name: "Women's 45+ Doubles", gender: 'womens' as const, minAge: 45, type: 'madalas' as const },
+  { code: 'XD35', name: "Mixed Doubles 35+", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
+  { code: 'XD45', name: "Mixed Doubles 45+", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
+]
+
+type TournamentType = 'junior' | 'senior' | 'madalas' | 'mixed'
 
 export function TournamentCreate() {
   const navigate = useNavigate()
@@ -41,7 +70,8 @@ export function TournamentCreate() {
   const [rules, setRules] = useState('')
   const [prizes, setPrizes] = useState('')
 
-  // Categories
+  // Tournament type and categories
+  const [tournamentType, setTournamentType] = useState<TournamentType>('junior')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in'>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
@@ -56,6 +86,16 @@ export function TournamentCreate() {
     setSelectedCategories(newSelected)
   }
 
+  const getCurrentCategories = () => {
+    switch (tournamentType) {
+      case 'junior': return JUNIOR_CATEGORIES
+      case 'senior': return SENIOR_CATEGORIES
+      case 'madalas': return MADALAS_CATEGORIES
+      case 'mixed': return [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+      default: return JUNIOR_CATEGORIES
+    }
+  }
+
   const selectAllBoys = () => {
     const newSelected = new Set(selectedCategories)
     JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').forEach(c => newSelected.add(c.code))
@@ -68,11 +108,31 @@ export function TournamentCreate() {
     setSelectedCategories(newSelected)
   }
 
+  const selectAllMens = () => {
+    const newSelected = new Set(selectedCategories)
+    const cats = tournamentType === 'senior' ? SENIOR_CATEGORIES : MADALAS_CATEGORIES
+    cats.filter(c => c.gender === 'mens').forEach(c => newSelected.add(c.code))
+    setSelectedCategories(newSelected)
+  }
+
+  const selectAllWomens = () => {
+    const newSelected = new Set(selectedCategories)
+    const cats = tournamentType === 'senior' ? SENIOR_CATEGORIES : MADALAS_CATEGORIES
+    cats.filter(c => c.gender === 'womens').forEach(c => newSelected.add(c.code))
+    setSelectedCategories(newSelected)
+  }
+
   const selectAll = () => {
-    setSelectedCategories(new Set(JUNIOR_CATEGORIES.map(c => c.code)))
+    setSelectedCategories(new Set(getCurrentCategories().map(c => c.code)))
   }
 
   const clearAll = () => {
+    setSelectedCategories(new Set())
+  }
+
+  // Clear selections when tournament type changes
+  const handleTournamentTypeChange = (type: TournamentType) => {
+    setTournamentType(type)
     setSelectedCategories(new Set())
   }
 
@@ -96,20 +156,35 @@ export function TournamentCreate() {
       const tournamentYear = new Date(startDate).getFullYear()
       const dec31 = new Date(tournamentYear, 11, 31, 23, 59, 59)
 
+      const allCategories = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+
       const categories = Array.from(selectedCategories).map(code => {
-        const cat = JUNIOR_CATEGORIES.find(c => c.code === code)!
-        return {
+        const cat = allCategories.find(c => c.code === code)!
+
+        // Build category object based on type
+        const categoryData: any = {
           categoryCode: cat.code,
           name: cat.name,
-          type: 'junior' as const,
+          type: cat.type,
           gender: cat.gender,
-          ageGroup: `U${cat.maxAge}` as any,
-          maxAge: cat.maxAge,
-          ageCalculationDate: dec31.toISOString(),
           drawType,
           maxEntries,
           entries: []
         }
+
+        // Add age-specific fields based on category type
+        if (cat.type === 'junior' && 'maxAge' in cat) {
+          categoryData.ageGroup = `U${cat.maxAge}`
+          categoryData.maxAge = cat.maxAge
+          categoryData.ageCalculationDate = dec31.toISOString()
+        } else if (cat.type === 'madalas' && 'minAge' in cat) {
+          categoryData.ageGroup = `${cat.minAge}+`
+          categoryData.minAge = cat.minAge
+        } else if (cat.type === 'senior') {
+          categoryData.ageGroup = 'Open'
+        }
+
+        return categoryData
       })
 
       await tournamentService.createTournament({
@@ -357,95 +432,249 @@ export function TournamentCreate() {
                 Select Categories
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-2">
-                Choose which age categories will compete (age as of December 31st, {new Date(startDate || Date.now()).getFullYear()})
+                Choose tournament type and select categories
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Tournament Type Selector */}
+              <div>
+                <label className="block text-sm font-medium mb-3">Tournament Type</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { value: 'junior', label: 'Junior', desc: 'Age-based (U10-U18)', color: 'blue' },
+                    { value: 'senior', label: 'Senior', desc: 'Open age categories', color: 'green' },
+                    { value: 'madalas', label: 'Madalas', desc: 'Veterans (35+)', color: 'purple' },
+                    { value: 'mixed', label: 'Mixed', desc: 'All categories', color: 'orange' },
+                  ].map(type => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => handleTournamentTypeChange(type.value as TournamentType)}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        tournamentType === type.value
+                          ? `border-${type.color}-500 bg-${type.color}-50 dark:bg-${type.color}-950`
+                          : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
+                      }`}
+                    >
+                      <div className="font-semibold">{type.label}</div>
+                      <div className="text-xs text-muted-foreground">{type.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Quick Actions */}
               <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={selectAll} size="sm" variant="secondary">
-                  Select All 10 Categories
+                  Select All
                 </Button>
-                <Button type="button" onClick={selectAllBoys} size="sm" variant="outline">
-                  All Boys (5)
-                </Button>
-                <Button type="button" onClick={selectAllGirls} size="sm" variant="outline">
-                  All Girls (5)
-                </Button>
+                {tournamentType === 'junior' && (
+                  <>
+                    <Button type="button" onClick={selectAllBoys} size="sm" variant="outline">
+                      All Boys
+                    </Button>
+                    <Button type="button" onClick={selectAllGirls} size="sm" variant="outline">
+                      All Girls
+                    </Button>
+                  </>
+                )}
+                {(tournamentType === 'senior' || tournamentType === 'madalas') && (
+                  <>
+                    <Button type="button" onClick={selectAllMens} size="sm" variant="outline">
+                      All Men's
+                    </Button>
+                    <Button type="button" onClick={selectAllWomens} size="sm" variant="outline">
+                      All Women's
+                    </Button>
+                  </>
+                )}
                 <Button type="button" onClick={clearAll} size="sm" variant="ghost">
                   Clear All
                 </Button>
               </div>
 
-              {/* Boys Categories */}
-              <div>
-                <h4 className="font-semibold mb-3 text-blue-600 dark:text-blue-400">Boys Categories</h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').map(cat => (
-                    <label
-                      key={cat.code}
-                      className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedCategories.has(cat.code)
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.has(cat.code)}
-                        onChange={() => toggleCategory(cat.code)}
-                        className="sr-only"
-                      />
-                      <div className="text-center">
-                        <div className="text-2xl font-bold mb-1">{cat.code}</div>
-                        <div className="text-xs text-muted-foreground">{cat.maxAge} & Under</div>
-                      </div>
-                      {selectedCategories.has(cat.code) && (
-                        <div className="absolute top-2 right-2 h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center">
-                          <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                            <path d="M5 13l4 4L19 7"></path>
-                          </svg>
-                        </div>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              </div>
+              {/* Junior Categories */}
+              {(tournamentType === 'junior' || tournamentType === 'mixed') && (
+                <>
+                  <div>
+                    <h4 className="font-semibold mb-3 text-blue-600 dark:text-blue-400">Boys Categories</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      {JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').map(cat => (
+                        <label
+                          key={cat.code}
+                          className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedCategories.has(cat.code)
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.has(cat.code)}
+                            onChange={() => toggleCategory(cat.code)}
+                            className="sr-only"
+                          />
+                          <div className="text-center">
+                            <div className="text-2xl font-bold mb-1">{cat.code}</div>
+                            <div className="text-xs text-muted-foreground">{cat.maxAge} & Under</div>
+                          </div>
+                          {selectedCategories.has(cat.code) && (
+                            <div className="absolute top-2 right-2 h-5 w-5 bg-blue-500 rounded-full flex items-center justify-center">
+                              <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                                <path d="M5 13l4 4L19 7"></path>
+                              </svg>
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Girls Categories */}
-              <div>
-                <h4 className="font-semibold mb-3 text-pink-600 dark:text-pink-400">Girls Categories</h4>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  {JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').map(cat => (
-                    <label
-                      key={cat.code}
-                      className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedCategories.has(cat.code)
-                          ? 'border-pink-500 bg-pink-50 dark:bg-pink-950'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.has(cat.code)}
-                        onChange={() => toggleCategory(cat.code)}
-                        className="sr-only"
-                      />
-                      <div className="text-center">
-                        <div className="text-2xl font-bold mb-1">{cat.code}</div>
-                        <div className="text-xs text-muted-foreground">{cat.maxAge} & Under</div>
-                      </div>
-                      {selectedCategories.has(cat.code) && (
-                        <div className="absolute top-2 right-2 h-5 w-5 bg-pink-500 rounded-full flex items-center justify-center">
-                          <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                            <path d="M5 13l4 4L19 7"></path>
-                          </svg>
+                  <div>
+                    <h4 className="font-semibold mb-3 text-pink-600 dark:text-pink-400">Girls Categories</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      {JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').map(cat => (
+                        <label
+                          key={cat.code}
+                          className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedCategories.has(cat.code)
+                              ? 'border-pink-500 bg-pink-50 dark:bg-pink-950'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.has(cat.code)}
+                            onChange={() => toggleCategory(cat.code)}
+                            className="sr-only"
+                          />
+                          <div className="text-center">
+                            <div className="text-2xl font-bold mb-1">{cat.code}</div>
+                            <div className="text-xs text-muted-foreground">{cat.maxAge} & Under</div>
+                          </div>
+                          {selectedCategories.has(cat.code) && (
+                            <div className="absolute top-2 right-2 h-5 w-5 bg-pink-500 rounded-full flex items-center justify-center">
+                              <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                                <path d="M5 13l4 4L19 7"></path>
+                              </svg>
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Senior Categories */}
+              {(tournamentType === 'senior' || tournamentType === 'mixed') && (
+                <div>
+                  <h4 className="font-semibold mb-3 text-green-600 dark:text-green-400">Senior Categories (Open Age)</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {SENIOR_CATEGORIES.map(cat => (
+                      <label
+                        key={cat.code}
+                        className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedCategories.has(cat.code)
+                            ? 'border-green-500 bg-green-50 dark:bg-green-950'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.has(cat.code)}
+                          onChange={() => toggleCategory(cat.code)}
+                          className="sr-only"
+                        />
+                        <div className="text-center">
+                          <div className="text-xl font-bold mb-1">{cat.code}</div>
+                          <div className="text-xs text-muted-foreground">{cat.name}</div>
                         </div>
-                      )}
-                    </label>
-                  ))}
+                        {selectedCategories.has(cat.code) && (
+                          <div className="absolute top-2 right-2 h-5 w-5 bg-green-500 rounded-full flex items-center justify-center">
+                            <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                              <path d="M5 13l4 4L19 7"></path>
+                            </svg>
+                          </div>
+                        )}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Madalas Categories */}
+              {(tournamentType === 'madalas' || tournamentType === 'mixed') && (
+                <>
+                  <div>
+                    <h4 className="font-semibold mb-3 text-purple-600 dark:text-purple-400">Men's Madalas (Veterans)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {MADALAS_CATEGORIES.filter(c => c.gender === 'mens').map(cat => (
+                        <label
+                          key={cat.code}
+                          className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedCategories.has(cat.code)
+                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.has(cat.code)}
+                            onChange={() => toggleCategory(cat.code)}
+                            className="sr-only"
+                          />
+                          <div className="text-center">
+                            <div className="text-lg font-bold mb-1">{cat.code}</div>
+                            <div className="text-xs text-muted-foreground">{cat.name}</div>
+                          </div>
+                          {selectedCategories.has(cat.code) && (
+                            <div className="absolute top-2 right-2 h-5 w-5 bg-purple-500 rounded-full flex items-center justify-center">
+                              <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                                <path d="M5 13l4 4L19 7"></path>
+                              </svg>
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-3 text-pink-600 dark:text-pink-400">Women's & Mixed Madalas</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {MADALAS_CATEGORIES.filter(c => c.gender === 'womens' || c.gender === 'mixed').map(cat => (
+                        <label
+                          key={cat.code}
+                          className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            selectedCategories.has(cat.code)
+                              ? 'border-pink-500 bg-pink-50 dark:bg-pink-950'
+                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedCategories.has(cat.code)}
+                            onChange={() => toggleCategory(cat.code)}
+                            className="sr-only"
+                          />
+                          <div className="text-center">
+                            <div className="text-lg font-bold mb-1">{cat.code}</div>
+                            <div className="text-xs text-muted-foreground">{cat.name}</div>
+                          </div>
+                          {selectedCategories.has(cat.code) && (
+                            <div className="absolute top-2 right-2 h-5 w-5 bg-pink-500 rounded-full flex items-center justify-center">
+                              <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                                <path d="M5 13l4 4L19 7"></path>
+                              </svg>
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Selected Count */}
               {selectedCategories.size > 0 && (
@@ -482,10 +711,10 @@ export function TournamentCreate() {
                       onChange={(e) => setMaxEntries(Number(e.target.value))}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
-                      <option value="8">8 players</option>
-                      <option value="16">16 players</option>
-                      <option value="32">32 players</option>
-                      <option value="64">64 players</option>
+                      <option value="8">8 players/teams</option>
+                      <option value="16">16 players/teams</option>
+                      <option value="32">32 players/teams</option>
+                      <option value="64">64 players/teams</option>
                     </select>
                   </div>
                 </div>

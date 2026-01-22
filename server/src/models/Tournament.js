@@ -149,7 +149,7 @@ const categorySchema = new mongoose.Schema({
   },
   ageGroup: {
     type: String,
-    enum: ['U10', 'U12', 'U14', 'U16', 'U18', 'Open']
+    enum: ['U10', 'U12', 'U14', 'U16', 'U18', 'Open', '35+', '45+', '55+', '65+']
   },
   minAge: Number,
   maxAge: Number,

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
-import { Plus, Users, Trophy, Grid3x3, Settings } from 'lucide-react'
+import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
 
@@ -94,6 +94,22 @@ export function TournamentAdmin() {
 
 function TournamentList({ tournaments, onSelect }: { tournaments: Tournament[]; onSelect: (id: string) => void }) {
   const navigate = useNavigate()
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async (tournamentId: string) => {
+    setDeleting(true)
+    try {
+      await tournamentService.deleteTournament(tournamentId)
+      window.location.reload()
+    } catch (error: any) {
+      console.error('Error deleting tournament:', error)
+      alert(error.message || 'Failed to delete tournament')
+    } finally {
+      setDeleting(false)
+      setDeleteConfirm(null)
+    }
+  }
 
   return (
     <div className="flex flex-col">
@@ -122,8 +138,37 @@ function TournamentList({ tournaments, onSelect }: { tournaments: Tournament[]; 
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {tournaments.map((tournament) => (
-                <Card key={tournament._id} className="card-elevated-hover cursor-pointer" onClick={() => onSelect(tournament._id)}>
-                  <CardHeader>
+                <Card key={tournament._id} className="card-elevated-hover relative">
+                  {/* Delete Confirmation Overlay */}
+                  {deleteConfirm === tournament._id && (
+                    <div className="absolute inset-0 bg-background/95 z-10 flex flex-col items-center justify-center p-4 rounded-lg">
+                      <AlertTriangle className="h-10 w-10 text-destructive mb-3" />
+                      <p className="font-semibold text-center mb-2">Delete Tournament?</p>
+                      <p className="text-sm text-muted-foreground text-center mb-4">
+                        This will permanently delete "{tournament.name}" and all its data.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteConfirm(null)}
+                          disabled={deleting}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDelete(tournament._id)}
+                          disabled={deleting}
+                        >
+                          {deleting ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <CardHeader className="cursor-pointer" onClick={() => onSelect(tournament._id)}>
                     <div className="flex justify-between items-start">
                       <CardTitle className="text-lg">{tournament.name}</CardTitle>
                       <Badge variant={tournament.status === 'entries_open' ? 'default' : 'secondary'}>
@@ -132,7 +177,7 @@ function TournamentList({ tournaments, onSelect }: { tournaments: Tournament[]; 
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-2 text-sm cursor-pointer" onClick={() => onSelect(tournament._id)}>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Dates:</span>
                         <span>{new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}</span>
@@ -145,6 +190,20 @@ function TournamentList({ tournaments, onSelect }: { tournaments: Tournament[]; 
                         <span className="text-muted-foreground">Total Entries:</span>
                         <span>{tournament.categories?.reduce((sum, cat) => sum + (cat.entries?.length || 0), 0) || 0}</span>
                       </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteConfirm(tournament._id)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
