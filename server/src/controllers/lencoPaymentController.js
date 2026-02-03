@@ -1,5 +1,6 @@
 import axios from 'axios';
 import User from '../models/User.js';
+import Club from '../models/Club.js';
 import Tournament from '../models/Tournament.js';
 import Donation from '../models/Donation.js';
 import CoachListing from '../models/CoachListing.js';
@@ -453,13 +454,15 @@ export const verifyPayment = async (req, res) => {
 
         // Create transaction record
         const payerInfo = subscriptions[0]?.notes?.match(/payment by ([^(]+)\(([^)]+)\)/i);
+        // Try to get payer email from the first player in the batch
+        const firstPlayer = subscriptions[0]?.entityId ? await User.findById(subscriptions[0].entityId) : null;
         const transaction = await createTransactionAndSendReceipt({
           reference,
           transactionId,
           type: 'membership',
           amount: totalAmount,
           payerName: payerInfo?.[1]?.trim() || 'Bulk Payer',
-          payerEmail: null,
+          payerEmail: firstPlayer?.email || null,
           description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
           metadata: {
             playerCount: activatedPlayers.length,
@@ -538,9 +541,12 @@ export const verifyPayment = async (req, res) => {
         }
 
         // Create transaction record
-        const entityEmail = subscription.entityType === 'player'
-          ? (await User.findById(subscription.entityId))?.email
-          : null;
+        let entityEmail = null;
+        if (subscription.entityType === 'player') {
+          entityEmail = (await User.findById(subscription.entityId))?.email || null;
+        } else if (subscription.entityType === 'club') {
+          entityEmail = (await Club.findById(subscription.entityId))?.email || null;
+        }
 
         const transaction = await createTransactionAndSendReceipt({
           reference,
@@ -688,13 +694,14 @@ export const verifyPayment = async (req, res) => {
       await subscription.save();
 
       // Create transaction record and send receipt
+      const club = await Club.findById(subscription.entityId);
       const transaction = await createTransactionAndSendReceipt({
         reference,
         transactionId,
         type: 'membership',
         amount: amountPaid,
         payerName: subscription.entityName,
-        payerEmail: null, // Club email would be fetched separately
+        payerEmail: club?.email || null,
         relatedId: subscription._id,
         relatedModel: 'MembershipSubscription',
         description: `Club Affiliation - ${subscription.membershipTypeName} - ${subscription.year}`,

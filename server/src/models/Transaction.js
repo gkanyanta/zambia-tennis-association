@@ -43,8 +43,7 @@ const transactionSchema = new mongoose.Schema({
     required: true
   },
   payerEmail: {
-    type: String,
-    required: true
+    type: String
   },
   payerPhone: {
     type: String
@@ -76,7 +75,7 @@ const transactionSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ['Donation', 'User', 'Tournament', 'CoachListing']
+    enum: ['Donation', 'User', 'Tournament', 'CoachListing', 'MembershipSubscription']
   },
 
   // Additional details based on type
