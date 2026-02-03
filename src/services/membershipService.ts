@@ -121,6 +121,7 @@ export interface ClubSearchResult {
   phone: string | null;
   memberCount: number;
   hasActiveSubscription: boolean;
+  unpaidYears: number[];
   currentAffiliation: {
     type: string;
     expiryDate: string;
@@ -471,6 +472,7 @@ export const membershipService = {
   async initializePublicClubPayment(data: {
     clubId: string;
     membershipTypeId: string;
+    year?: number;
     payer: {
       name: string;
       email: string;

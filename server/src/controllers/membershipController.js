@@ -557,6 +557,7 @@ export const searchClubsForPayment = async (req, res) => {
 
     // Get current year for subscription check
     const currentYear = MembershipSubscription.getCurrentYear();
+    const EARLIEST_PAYABLE_YEAR = 2024;
 
     // Get all active club membership types
     const membershipTypes = await MembershipType.find({
@@ -566,13 +567,29 @@ export const searchClubsForPayment = async (req, res) => {
 
     // Enrich with subscription status
     const enrichedClubs = await Promise.all(clubs.map(async (club) => {
-      // Check if already has active subscription for current year
-      const activeSubscription = await MembershipSubscription.findOne({
+      // Check all years from 2024 to currentYear for active subscriptions
+      const activeSubscriptions = await MembershipSubscription.find({
         entityId: club._id,
         entityType: 'club',
-        year: currentYear,
+        year: { $gte: EARLIEST_PAYABLE_YEAR, $lte: currentYear },
         status: 'active'
       });
+
+      const paidYears = new Set(activeSubscriptions.map(s => s.year));
+      const unpaidYears = [];
+      for (let y = EARLIEST_PAYABLE_YEAR; y <= currentYear; y++) {
+        if (!paidYears.has(y)) {
+          unpaidYears.push(y);
+        }
+      }
+
+      // Only fully paid up if no unpaid years
+      const hasActiveSubscription = unpaidYears.length === 0;
+
+      // Current affiliation is the latest active subscription
+      const latestSubscription = activeSubscriptions.length > 0
+        ? activeSubscriptions.sort((a, b) => b.year - a.year)[0]
+        : null;
 
       return {
         _id: club._id,
@@ -583,10 +600,11 @@ export const searchClubsForPayment = async (req, res) => {
         email: club.email,
         phone: club.phone,
         memberCount: club.memberCount,
-        hasActiveSubscription: !!activeSubscription,
-        currentAffiliation: activeSubscription ? {
-          type: activeSubscription.membershipTypeName,
-          expiryDate: activeSubscription.endDate
+        hasActiveSubscription,
+        unpaidYears,
+        currentAffiliation: latestSubscription ? {
+          type: latestSubscription.membershipTypeName,
+          expiryDate: latestSubscription.endDate
         } : null,
         availableTypes: membershipTypes.map(t => ({
           _id: t._id,
@@ -618,7 +636,8 @@ export const searchClubsForPayment = async (req, res) => {
 // @access  Public
 export const initializePublicClubPayment = async (req, res) => {
   try {
-    const { clubId, membershipTypeId, payer } = req.body;
+    const { clubId, membershipTypeId, payer, year } = req.body;
+    const EARLIEST_PAYABLE_YEAR = 2024;
 
     // Extract payer details from nested object
     const payerName = payer?.name;
@@ -666,20 +685,50 @@ export const initializePublicClubPayment = async (req, res) => {
       });
     }
 
-    // Check for existing active subscription
+    // Determine the payment year (default to current year for backward compatibility)
     const currentYear = MembershipSubscription.getCurrentYear();
+    const paymentYear = year ? parseInt(year, 10) : currentYear;
+
+    // Validate year range
+    if (paymentYear < EARLIEST_PAYABLE_YEAR || paymentYear > currentYear) {
+      return res.status(400).json({
+        success: false,
+        message: `Payment year must be between ${EARLIEST_PAYABLE_YEAR} and ${currentYear}`
+      });
+    }
+
+    // Check for existing active subscription for the requested year
     const existingActive = await MembershipSubscription.findOne({
       entityId: club._id,
       entityType: 'club',
-      year: currentYear,
+      year: paymentYear,
       status: 'active'
     });
 
     if (existingActive) {
       return res.status(400).json({
         success: false,
-        message: `${club.name} already has an active affiliation for ${currentYear}`
+        message: `${club.name} already has an active affiliation for ${paymentYear}`
       });
+    }
+
+    // Enforce oldest-first: check if there are unpaid years older than the requested year
+    if (paymentYear > EARLIEST_PAYABLE_YEAR) {
+      const olderActiveSubscriptions = await MembershipSubscription.find({
+        entityId: club._id,
+        entityType: 'club',
+        year: { $gte: EARLIEST_PAYABLE_YEAR, $lt: paymentYear },
+        status: 'active'
+      });
+      const paidOlderYears = new Set(olderActiveSubscriptions.map(s => s.year));
+      for (let y = EARLIEST_PAYABLE_YEAR; y < paymentYear; y++) {
+        if (!paidOlderYears.has(y)) {
+          return res.status(400).json({
+            success: false,
+            message: `Please pay for ${y} first. Arrears must be paid starting from the oldest year.`
+          });
+        }
+      }
     }
 
     // Generate payment reference
@@ -689,7 +738,7 @@ export const initializePublicClubPayment = async (req, res) => {
     let subscription = await MembershipSubscription.findOne({
       entityId: club._id,
       entityType: 'club',
-      year: currentYear,
+      year: paymentYear,
       status: 'pending'
     });
 
@@ -699,7 +748,7 @@ export const initializePublicClubPayment = async (req, res) => {
       subscription.membershipTypeCode = membershipType.code;
       subscription.amount = membershipType.amount;
       subscription.paymentReference = reference;
-      subscription.notes = `Payment by ${payerName} (${payerRelation || 'N/A'})`;
+      subscription.notes = `Payment by ${payerName} (${payerRelation || 'N/A'}) for ${paymentYear}`;
       await subscription.save();
     } else {
       subscription = new MembershipSubscription({
@@ -710,14 +759,14 @@ export const initializePublicClubPayment = async (req, res) => {
         membershipType: membershipType._id,
         membershipTypeName: membershipType.name,
         membershipTypeCode: membershipType.code,
-        year: currentYear,
+        year: paymentYear,
         startDate: new Date(),
-        endDate: MembershipSubscription.getYearEndDate(currentYear),
+        endDate: MembershipSubscription.getYearEndDate(paymentYear),
         amount: membershipType.amount,
         currency: membershipType.currency,
         paymentReference: reference,
         status: 'pending',
-        notes: `Payment by ${payerName} (${payerRelation || 'N/A'})`
+        notes: `Payment by ${payerName} (${payerRelation || 'N/A'}) for ${paymentYear}`
       });
       await subscription.save();
     }
@@ -746,7 +795,7 @@ export const initializePublicClubPayment = async (req, res) => {
         },
         subscription: {
           id: subscription._id,
-          year: currentYear,
+          year: paymentYear,
           expiryDate: subscription.endDate
         }
       }

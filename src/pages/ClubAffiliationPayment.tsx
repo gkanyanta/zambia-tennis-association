@@ -38,6 +38,7 @@ export function ClubAffiliationPayment() {
   const [searchResults, setSearchResults] = useState<ClubSearchResult[]>([])
   const [selectedClub, setSelectedClub] = useState<ClubSearchResult | null>(null)
   const [selectedMembershipType, setSelectedMembershipType] = useState<string>('')
+  const [selectedYear, setSelectedYear] = useState<number | null>(null)
   const [searching, setSearching] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,7 +94,7 @@ export function ClubAffiliationPayment() {
   }, [showPayerForm])
 
   const handleSelectClub = (club: ClubSearchResult) => {
-    // Check if club already has active affiliation
+    // Check if club already has active affiliation (all years paid)
     if (club.hasActiveSubscription) {
       setError(`${club.name} already has an active affiliation until ${club.currentAffiliation?.expiryDate ? new Date(club.currentAffiliation.expiryDate).toLocaleDateString() : 'December 31, ' + currentYear}`)
       return
@@ -106,6 +107,12 @@ export function ClubAffiliationPayment() {
 
     setSelectedClub(club)
     setSelectedMembershipType(club.availableTypes[0]._id) // Default to first type
+    // Auto-select oldest unpaid year (enforced by backend)
+    if (club.unpaidYears && club.unpaidYears.length > 0) {
+      setSelectedYear(club.unpaidYears[0])
+    } else {
+      setSelectedYear(currentYear)
+    }
     setSearchQuery('')
     setSearchResults([])
     setError(null)
@@ -114,6 +121,7 @@ export function ClubAffiliationPayment() {
   const handleRemoveClub = () => {
     setSelectedClub(null)
     setSelectedMembershipType('')
+    setSelectedYear(null)
     setShowPayerForm(false)
   }
 
@@ -160,6 +168,7 @@ export function ClubAffiliationPayment() {
       const paymentData = await membershipService.initializePublicClubPayment({
         clubId: selectedClub._id,
         membershipTypeId: selectedMembershipType,
+        year: selectedYear || currentYear,
         payer: {
           name: payerName.trim(),
           email: payerEmail.trim(),
@@ -216,7 +225,7 @@ export function ClubAffiliationPayment() {
             </p>
             <div className="inline-flex items-center gap-2 text-sm bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-4 py-2 rounded-lg">
               <Calendar className="h-4 w-4" />
-              <span>All affiliations expire December 31, {currentYear}</span>
+              <span>All affiliations expire December 31{selectedYear ? `, ${selectedYear}` : ` of their respective year`}</span>
             </div>
           </div>
 
@@ -293,16 +302,23 @@ export function ClubAffiliationPayment() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex-shrink-0">
+                              <div className="flex-shrink-0 flex flex-col items-end gap-1">
                                 {club.hasActiveSubscription ? (
                                   <Badge variant="secondary" className="bg-green-100 text-green-700">
                                     <CheckCircle2 className="h-3 w-3 mr-1" />
                                     Active
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline">
-                                    Select
-                                  </Badge>
+                                  <>
+                                    {club.unpaidYears && club.unpaidYears.length > 1 && (
+                                      <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                                        {club.unpaidYears.length} years due
+                                      </Badge>
+                                    )}
+                                    <Badge variant="outline">
+                                      Select
+                                    </Badge>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -381,6 +397,45 @@ export function ClubAffiliationPayment() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Year Selection (for clubs with arrears) */}
+                      {selectedClub.unpaidYears && selectedClub.unpaidYears.length > 1 && (
+                        <div className="grid gap-2">
+                          <Label>Payment Year</Label>
+                          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mb-2">
+                            <p className="text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                              This club has outstanding affiliation fees for {selectedClub.unpaidYears.length} years.
+                              Arrears must be paid starting from the oldest year.
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {selectedClub.unpaidYears.map((year, index) => (
+                              <div
+                                key={year}
+                                className={`p-3 border rounded-lg text-center transition-all ${
+                                  selectedYear === year
+                                    ? 'border-primary bg-primary/5 ring-1 ring-primary cursor-pointer'
+                                    : index === 0
+                                    ? 'hover:border-primary/50 cursor-pointer'
+                                    : 'opacity-50 cursor-not-allowed'
+                                }`}
+                                onClick={() => {
+                                  if (index === 0) setSelectedYear(year)
+                                }}
+                              >
+                                <p className="font-semibold">{year}</p>
+                                {index === 0 && (
+                                  <p className="text-xs text-muted-foreground mt-1">Pay this first</p>
+                                )}
+                                {index > 0 && (
+                                  <p className="text-xs text-muted-foreground mt-1">Pay {selectedClub.unpaidYears[index - 1]} first</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Affiliation Type Selection */}
                       <div className="grid gap-2">
@@ -517,8 +572,12 @@ export function ClubAffiliationPayment() {
                         <span className="font-medium">{selectedType?.name}</span>
                       </div>
                       <div className="flex justify-between">
+                        <span>Affiliation Year</span>
+                        <span className="font-medium">{selectedYear || currentYear}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span>Valid Until</span>
-                        <span className="font-medium">December 31, {currentYear}</span>
+                        <span className="font-medium">December 31, {selectedYear || currentYear}</span>
                       </div>
                     </div>
                     <div className="pt-2 border-t flex justify-between font-semibold">
