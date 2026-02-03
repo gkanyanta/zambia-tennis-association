@@ -60,6 +60,7 @@ import { AboutContentEditor } from '@/pages/AboutContentEditor'
 import { LeagueManagement } from '@/pages/LeagueManagement'
 import { CalendarManagement } from '@/pages/CalendarManagement'
 import { MembershipAdmin } from '@/pages/MembershipAdmin'
+import { IncomeAdmin } from '@/pages/IncomeAdmin'
 import { TrafficStats } from '@/pages/TrafficStats'
 
 function App() {
@@ -90,6 +91,7 @@ function App() {
               <Route path="/admin/leagues" element={<LeagueManagement />} />
               <Route path="/admin/calendar" element={<CalendarManagement />} />
               <Route path="/admin/membership" element={<MembershipAdmin />} />
+              <Route path="/admin/income" element={<IncomeAdmin />} />
               <Route path="/admin/traffic" element={<TrafficStats />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
