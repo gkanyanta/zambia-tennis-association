@@ -1468,8 +1468,22 @@ export const recordManualPayment = async (req, res) => {
       amount,
       paymentMethod,
       transactionReference,
-      notes
+      notes,
+      year
     } = req.body;
+
+    // Validate year if provided
+    const EARLIEST_PAYABLE_YEAR = 2024;
+    const currentYear = MembershipSubscription.getCurrentYear();
+    if (year) {
+      const paymentYear = parseInt(year, 10);
+      if (paymentYear < EARLIEST_PAYABLE_YEAR || paymentYear > currentYear) {
+        return res.status(400).json({
+          success: false,
+          message: `Payment year must be between ${EARLIEST_PAYABLE_YEAR} and ${currentYear}`
+        });
+      }
+    }
 
     // Get membership type
     const membershipType = await MembershipType.findById(membershipTypeId);
@@ -1500,6 +1514,7 @@ export const recordManualPayment = async (req, res) => {
     }
 
     // Create subscription
+    const paymentYear = year ? parseInt(year, 10) : undefined;
     const subscription = await MembershipSubscription.createSubscription({
       entityType,
       entityId,
@@ -1515,6 +1530,7 @@ export const recordManualPayment = async (req, res) => {
       paymentReference: transactionReference || `MANUAL-${Date.now()}`,
       paymentDate: new Date(),
       notes,
+      year: paymentYear,
       processedBy: req.user.id
     });
 

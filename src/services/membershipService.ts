@@ -377,8 +377,9 @@ export const membershipService = {
     entityType: 'player' | 'club';
     entityId: string;
     membershipTypeId: string;
+    year?: number;
     amount?: number;
-    paymentMethod: 'bank_transfer' | 'cash' | 'mobile_money' | 'other';
+    paymentMethod: 'bank_transfer' | 'cash' | 'mobile_money' | 'cheque' | 'other';
     transactionReference?: string;
     notes?: string;
   }): Promise<{

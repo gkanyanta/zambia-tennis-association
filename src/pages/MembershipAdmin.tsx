@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,14 +43,19 @@ import {
   User,
   RefreshCw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CheckCircle2,
+  Banknote
 } from 'lucide-react'
+import debounce from 'lodash/debounce'
 import { useAuth } from '@/context/AuthContext'
 import {
   membershipService,
   MembershipType,
   MembershipSubscription,
-  SubscriptionStats
+  SubscriptionStats,
+  ClubSearchResult,
+  PlayerSearchResult
 } from '@/services/membershipService'
 
 export function MembershipAdmin() {
@@ -86,6 +91,22 @@ export function MembershipAdmin() {
     benefits: ''
   })
   const [savingType, setSavingType] = useState(false)
+
+  // Manual payment dialog
+  const [manualPaymentOpen, setManualPaymentOpen] = useState(false)
+  const [manualEntityType, setManualEntityType] = useState<'player' | 'club'>('club')
+  const [entitySearchQuery, setEntitySearchQuery] = useState('')
+  const [entitySearchResults, setEntitySearchResults] = useState<(ClubSearchResult | PlayerSearchResult)[]>([])
+  const [entitySearching, setEntitySearching] = useState(false)
+  const [selectedEntity, setSelectedEntity] = useState<{ _id: string; name: string } | null>(null)
+  const [manualMembershipTypeId, setManualMembershipTypeId] = useState('')
+  const [manualYear, setManualYear] = useState(new Date().getFullYear().toString())
+  const [manualPaymentMethod, setManualPaymentMethod] = useState('bank_transfer')
+  const [manualTransactionRef, setManualTransactionRef] = useState('')
+  const [manualAmount, setManualAmount] = useState('')
+  const [manualNotes, setManualNotes] = useState('')
+  const [savingManualPayment, setSavingManualPayment] = useState(false)
+  const [manualPaymentSuccess, setManualPaymentSuccess] = useState<string | null>(null)
 
   // Auth check
   useEffect(() => {
@@ -205,6 +226,107 @@ export function MembershipAdmin() {
       setError(err.message || 'Failed to delete membership type')
     }
   }
+
+  // Manual payment entity search
+  const debouncedEntitySearch = useCallback(
+    debounce(async (query: string, entityType: 'player' | 'club') => {
+      if (!query || query.length < 2) {
+        setEntitySearchResults([])
+        setEntitySearching(false)
+        return
+      }
+      try {
+        setEntitySearching(true)
+        if (entityType === 'club') {
+          const results = await membershipService.searchClubs(query)
+          setEntitySearchResults(results)
+        } else {
+          const results = await membershipService.searchPlayers(query)
+          setEntitySearchResults(results)
+        }
+      } catch (err) {
+        console.error('Entity search failed:', err)
+      } finally {
+        setEntitySearching(false)
+      }
+    }, 300),
+    []
+  )
+
+  useEffect(() => {
+    if (manualPaymentOpen) {
+      debouncedEntitySearch(entitySearchQuery, manualEntityType)
+    }
+    return () => debouncedEntitySearch.cancel()
+  }, [entitySearchQuery, manualEntityType, manualPaymentOpen, debouncedEntitySearch])
+
+  const handleOpenManualPayment = () => {
+    setManualEntityType('club')
+    setEntitySearchQuery('')
+    setEntitySearchResults([])
+    setSelectedEntity(null)
+    setManualMembershipTypeId('')
+    setManualYear(new Date().getFullYear().toString())
+    setManualPaymentMethod('bank_transfer')
+    setManualTransactionRef('')
+    setManualAmount('')
+    setManualNotes('')
+    setManualPaymentSuccess(null)
+    setManualPaymentOpen(true)
+  }
+
+  const handleSelectEntity = (entity: ClubSearchResult | PlayerSearchResult) => {
+    const name = 'firstName' in entity ? `${entity.firstName} ${entity.lastName}` : entity.name
+    setSelectedEntity({ _id: entity._id, name })
+    setEntitySearchQuery('')
+    setEntitySearchResults([])
+
+    // Auto-select first matching membership type
+    const category = manualEntityType === 'club' ? 'club' : 'player'
+    const matchingType = membershipTypes.find(t => t.category === category && t.isActive)
+    if (matchingType) {
+      setManualMembershipTypeId(matchingType._id)
+      setManualAmount(matchingType.amount.toString())
+    }
+  }
+
+  const handleManualPaymentSubmit = async () => {
+    if (!selectedEntity) {
+      setError('Please select a club or player')
+      return
+    }
+    if (!manualMembershipTypeId) {
+      setError('Please select a membership type')
+      return
+    }
+
+    try {
+      setSavingManualPayment(true)
+      setError(null)
+
+      const result = await membershipService.recordManualPayment({
+        entityType: manualEntityType,
+        entityId: selectedEntity._id,
+        membershipTypeId: manualMembershipTypeId,
+        year: parseInt(manualYear, 10),
+        amount: manualAmount ? parseFloat(manualAmount) : undefined,
+        paymentMethod: manualPaymentMethod as any,
+        transactionReference: manualTransactionRef || undefined,
+        notes: manualNotes || undefined,
+      })
+
+      setManualPaymentSuccess(
+        `Payment recorded for ${selectedEntity.name} (${manualYear}). Receipt: ${result.transaction?.receiptNumber || 'N/A'}${result.zpin ? `, ZPIN: ${result.zpin}` : ''}`
+      )
+      fetchData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to record payment')
+    } finally {
+      setSavingManualPayment(false)
+    }
+  }
+
+  const EARLIEST_PAYABLE_YEAR = 2024
 
   if (!isAdmin) {
     return null
@@ -329,6 +451,10 @@ export function MembershipAdmin() {
                       </Select>
                       <Button variant="outline" size="icon" onClick={fetchData}>
                         <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button onClick={handleOpenManualPayment}>
+                        <Banknote className="h-4 w-4 mr-2" />
+                        Record Payment
                       </Button>
                     </div>
                   </div>
@@ -697,6 +823,258 @@ export function MembershipAdmin() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Payment Dialog */}
+      <Dialog open={manualPaymentOpen} onOpenChange={setManualPaymentOpen}>
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Banknote className="h-5 w-5" />
+              Record Manual Payment
+            </DialogTitle>
+            <DialogDescription>
+              Record an offline payment (bank transfer, cash, cheque, etc.)
+            </DialogDescription>
+          </DialogHeader>
+
+          {manualPaymentSuccess ? (
+            <div className="py-6">
+              <div className="text-center">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                <p className="font-semibold text-lg mb-2">Payment Recorded</p>
+                <p className="text-sm text-muted-foreground">{manualPaymentSuccess}</p>
+              </div>
+              <div className="flex justify-center gap-3 mt-6">
+                <Button variant="outline" onClick={() => setManualPaymentOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={handleOpenManualPayment}>
+                  Record Another
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4 py-4">
+                {/* Entity Type */}
+                <div>
+                  <Label>Payment For</Label>
+                  <Select
+                    value={manualEntityType}
+                    onValueChange={(v: 'player' | 'club') => {
+                      setManualEntityType(v)
+                      setSelectedEntity(null)
+                      setEntitySearchQuery('')
+                      setEntitySearchResults([])
+                      setManualMembershipTypeId('')
+                      setManualAmount('')
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="club">Club Affiliation</SelectItem>
+                      <SelectItem value="player">Player ZPIN</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Entity Search */}
+                {!selectedEntity ? (
+                  <div>
+                    <Label>
+                      Search {manualEntityType === 'club' ? 'Club' : 'Player'}
+                    </Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder={manualEntityType === 'club' ? 'Search by club name...' : 'Search by player name...'}
+                        value={entitySearchQuery}
+                        onChange={(e) => setEntitySearchQuery(e.target.value)}
+                        className="pl-9"
+                      />
+                      {entitySearching && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                    {entitySearchResults.length > 0 && (
+                      <div className="mt-2 border rounded-lg divide-y max-h-48 overflow-y-auto">
+                        {entitySearchResults.map((entity) => {
+                          const name = 'firstName' in entity ? `${entity.firstName} ${entity.lastName}` : entity.name
+                          return (
+                            <div
+                              key={entity._id}
+                              className="p-3 hover:bg-muted/50 cursor-pointer flex items-center gap-2"
+                              onClick={() => handleSelectEntity(entity)}
+                            >
+                              {manualEntityType === 'club' ? (
+                                <Building2 className="h-4 w-4 text-purple-500" />
+                              ) : (
+                                <User className="h-4 w-4 text-blue-500" />
+                              )}
+                              <span className="font-medium text-sm">{name}</span>
+                              {'zpin' in entity && entity.zpin && (
+                                <span className="text-xs text-muted-foreground font-mono ml-auto">{entity.zpin}</span>
+                              )}
+                              {'city' in entity && entity.city && (
+                                <span className="text-xs text-muted-foreground ml-auto">{entity.city}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Selected {manualEntityType === 'club' ? 'Club' : 'Player'}</Label>
+                    <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        {manualEntityType === 'club' ? (
+                          <Building2 className="h-4 w-4 text-purple-500" />
+                        ) : (
+                          <User className="h-4 w-4 text-blue-500" />
+                        )}
+                        <span className="font-medium">{selectedEntity.name}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedEntity(null)
+                          setManualMembershipTypeId('')
+                          setManualAmount('')
+                        }}
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Year */}
+                <div>
+                  <Label>Payment Year</Label>
+                  <Select value={manualYear} onValueChange={setManualYear}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from(
+                        { length: currentYear - EARLIEST_PAYABLE_YEAR + 1 },
+                        (_, i) => currentYear - i
+                      ).map(y => (
+                        <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Membership Type */}
+                <div>
+                  <Label>Membership / Affiliation Type</Label>
+                  <Select
+                    value={manualMembershipTypeId}
+                    onValueChange={(v) => {
+                      setManualMembershipTypeId(v)
+                      const mt = membershipTypes.find(t => t._id === v)
+                      if (mt) setManualAmount(mt.amount.toString())
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {membershipTypes
+                        .filter(t => t.isActive && t.category === (manualEntityType === 'club' ? 'club' : 'player'))
+                        .map(t => (
+                          <SelectItem key={t._id} value={t._id}>
+                            {t.name} — K{t.amount}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <Label>Payment Method</Label>
+                  <Select value={manualPaymentMethod} onValueChange={setManualPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Amount override */}
+                <div>
+                  <Label>Amount (ZMW)</Label>
+                  <Input
+                    type="number"
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    placeholder="Amount paid"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Defaults to the membership type price. Override if a different amount was paid.
+                  </p>
+                </div>
+
+                {/* Transaction Reference */}
+                <div>
+                  <Label>Transaction / Receipt Reference (Optional)</Label>
+                  <Input
+                    value={manualTransactionRef}
+                    onChange={(e) => setManualTransactionRef(e.target.value)}
+                    placeholder="e.g. bank deposit slip number"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <Label>Notes (Optional)</Label>
+                  <textarea
+                    className="w-full min-h-[60px] px-3 py-2 rounded-md border border-input bg-background text-sm"
+                    value={manualNotes}
+                    onChange={(e) => setManualNotes(e.target.value)}
+                    placeholder="e.g. Paid via FNB bank deposit on 15 Jan 2025"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setManualPaymentOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleManualPaymentSubmit}
+                  disabled={savingManualPayment || !selectedEntity || !manualMembershipTypeId}
+                >
+                  {savingManualPayment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Recording...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Record Payment
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

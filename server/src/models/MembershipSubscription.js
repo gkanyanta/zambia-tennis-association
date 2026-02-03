@@ -163,24 +163,25 @@ membershipSubscriptionSchema.statics.getActiveSubscription = async function(enti
 
 // Create subscription with automatic Dec 31 expiry
 membershipSubscriptionSchema.statics.createSubscription = async function(data) {
-  const currentYear = this.getCurrentYear();
-  const endDate = this.getYearEndDate(currentYear);
+  const subscriptionYear = data.year || this.getCurrentYear();
+  const endDate = this.getYearEndDate(subscriptionYear);
 
   // Check for existing active subscription
   const existing = await this.findOne({
     entityId: data.entityId,
     entityType: data.entityType,
-    year: currentYear,
+    year: subscriptionYear,
     status: { $in: ['active', 'pending'] }
   });
 
   if (existing && existing.status === 'active') {
-    throw new Error('Entity already has an active subscription for this year');
+    throw new Error(`Entity already has an active subscription for ${subscriptionYear}`);
   }
 
   // If pending exists, update it
   if (existing && existing.status === 'pending') {
     Object.assign(existing, data);
+    existing.year = subscriptionYear;
     existing.endDate = endDate;
     return existing.save();
   }
@@ -194,7 +195,7 @@ membershipSubscriptionSchema.statics.createSubscription = async function(data) {
 
   const subscription = new this({
     ...data,
-    year: currentYear,
+    year: subscriptionYear,
     startDate: new Date(),
     endDate,
     isRenewal: !!previousSub,
