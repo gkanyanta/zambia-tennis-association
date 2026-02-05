@@ -35,7 +35,8 @@ import {
   Users,
   TrendingUp,
   Calendar,
-  ArrowLeft
+  ArrowLeft,
+  Banknote
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -167,10 +168,14 @@ export function IncomeAdmin() {
 
       <section className="py-8">
         <div className="container-custom">
-          <div className="mb-6">
+          <div className="mb-6 flex items-center justify-between">
             <Button variant="ghost" size="sm" onClick={() => navigate('/admin')}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Admin
+            </Button>
+            <Button onClick={() => navigate('/admin/membership')}>
+              <Banknote className="h-4 w-4 mr-2" />
+              Record Payment
             </Button>
           </div>
 
