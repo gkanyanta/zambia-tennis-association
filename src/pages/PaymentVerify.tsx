@@ -27,7 +27,8 @@ const paymentTypeLabels: Record<string, string> = {
   'club-affiliation': 'Club Affiliation Payment',
   donation: 'Donation',
   tournament: 'Tournament Entry Fee',
-  coach: 'Coach Listing Payment'
+  coach: 'Coach Listing Payment',
+  registration: 'Player Registration Payment'
 }
 
 const paymentTypeRedirects: Record<string, { path: string; label: string }> = {
@@ -36,7 +37,8 @@ const paymentTypeRedirects: Record<string, { path: string; label: string }> = {
   'club-affiliation': { path: '/club-affiliation', label: 'Affiliate Another Club' },
   donation: { path: '/donate', label: 'Make Another Donation' },
   tournament: { path: '/tournaments', label: 'View Tournaments' },
-  coach: { path: '/coaches', label: 'View Coaches' }
+  coach: { path: '/coaches', label: 'View Coaches' },
+  registration: { path: '/register-player', label: 'Register Another Player' }
 }
 
 export function PaymentVerify() {

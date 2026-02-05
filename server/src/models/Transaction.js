@@ -23,7 +23,7 @@ const transactionSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['donation', 'membership', 'tournament', 'coach_listing'],
+    enum: ['donation', 'membership', 'tournament', 'coach_listing', 'registration'],
     index: true
   },
 
@@ -75,7 +75,7 @@ const transactionSchema = new mongoose.Schema({
   },
   relatedModel: {
     type: String,
-    enum: ['Donation', 'User', 'Tournament', 'CoachListing', 'MembershipSubscription']
+    enum: ['Donation', 'User', 'Tournament', 'CoachListing', 'MembershipSubscription', 'PlayerRegistration']
   },
 
   // Additional details based on type
@@ -110,7 +110,8 @@ transactionSchema.pre('save', async function(next) {
       donation: 'DON',
       membership: 'MEM',
       tournament: 'TRN',
-      coach_listing: 'COA'
+      coach_listing: 'COA',
+      registration: 'REG'
     };
     const prefix = prefixMap[this.type] || 'TXN';
     const year = new Date().getFullYear();

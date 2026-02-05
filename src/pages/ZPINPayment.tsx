@@ -589,19 +589,19 @@ export function ZPINPayment() {
             </div>
           </div>
 
-          {/* Contact Info */}
+          {/* Player Not Registered? */}
           <Card className="mt-8 border-dashed">
             <CardContent className="py-6">
               <h4 className="font-semibold text-center mb-4">
-                Need Help or Player Not Found?
+                Player Not Registered?
               </h4>
               <p className="text-sm text-muted-foreground text-center mb-4">
-                If the player you're looking for is not in our system, they need to be registered first.
-                Contact ZTA for assistance with player registration.
+                If the player is not in our system, they can register for a new ZPIN online.
+                The registration will be reviewed and approved by the ZTA.
               </p>
               <div className="text-center">
-                <Button variant="outline" onClick={() => navigate('/contact')}>
-                  Contact ZTA
+                <Button variant="outline" onClick={() => navigate('/register-player')}>
+                  Register New Player
                 </Button>
               </div>
             </CardContent>

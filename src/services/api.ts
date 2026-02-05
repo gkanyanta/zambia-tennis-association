@@ -37,6 +37,25 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   return data;
 };
 
+// Upload document (public - no auth required)
+export const uploadDocument = async (file: File) => {
+  const formData = new FormData();
+  formData.append('document', file);
+
+  const response = await fetch(`${API_URL}/api/upload/document`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `Upload failed with status ${response.status}`);
+  }
+
+  return data;
+};
+
 // Upload file function
 export const uploadFile = async (file: File) => {
   const token = getAuthToken();

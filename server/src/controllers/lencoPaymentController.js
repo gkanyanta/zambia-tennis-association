@@ -6,6 +6,7 @@ import Donation from '../models/Donation.js';
 import CoachListing from '../models/CoachListing.js';
 import Transaction from '../models/Transaction.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
+import PlayerRegistration from '../models/PlayerRegistration.js';
 import sendEmail from '../utils/sendEmail.js';
 import { generateReceipt } from '../utils/generateReceipt.js';
 
@@ -823,6 +824,69 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
+    // Handle player registration payment
+    if (referencePrefix === 'REG') {
+      const registration = await PlayerRegistration.findOne({ paymentReference: reference });
+
+      if (!registration) {
+        return res.status(404).json({
+          success: false,
+          message: 'Registration not found for this payment reference'
+        });
+      }
+
+      if (registration.status === 'pending_approval' || registration.status === 'approved') {
+        return res.status(200).json({
+          success: true,
+          message: 'Registration payment already processed',
+          data: {
+            reference,
+            transactionId,
+            amount: amountPaid,
+            status: 'successful',
+            registrationRef: registration.referenceNumber
+          }
+        });
+      }
+
+      // Update registration status
+      registration.status = 'pending_approval';
+      registration.paymentDate = new Date();
+      registration.paymentMethod = 'online';
+      await registration.save();
+
+      // Create transaction record
+      const transaction = await createTransactionAndSendReceipt({
+        reference,
+        transactionId,
+        type: 'registration',
+        amount: amountPaid,
+        payerName: `${registration.firstName} ${registration.lastName}`,
+        payerEmail: registration.email,
+        payerPhone: registration.phone,
+        relatedId: registration._id,
+        relatedModel: 'PlayerRegistration',
+        description: `Player Registration - ${registration.membershipTypeName}`,
+        metadata: {
+          registrationRef: registration.referenceNumber,
+          membershipType: registration.membershipTypeCode
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Registration payment verified successfully',
+        data: {
+          reference,
+          transactionId,
+          amount: amountPaid,
+          status: 'successful',
+          receiptNumber: transaction.receiptNumber,
+          registrationRef: registration.referenceNumber
+        }
+      });
+    }
+
     // Unknown payment type
     return res.status(400).json({
       success: false,
@@ -870,7 +934,18 @@ export const handleWebhook = async (req, res) => {
         }
       }
 
-      // Add similar handling for other payment types as needed
+      if (referencePrefix === 'REG') {
+        const registration = await PlayerRegistration.findOne({ paymentReference: reference });
+
+        if (registration && registration.status === 'pending_payment') {
+          registration.status = 'pending_approval';
+          registration.paymentDate = new Date();
+          registration.paymentMethod = 'online';
+          await registration.save();
+
+          console.log(`Registration ${registration.referenceNumber} updated via webhook`);
+        }
+      }
 
       return res.status(200).json({
         success: true,

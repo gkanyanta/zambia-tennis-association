@@ -47,6 +47,8 @@ import statsRoutes from './routes/stats.js';
 import contactRoutes from './routes/contact.js';
 import calendarRoutes from './routes/calendar.js';
 import membershipRoutes from './routes/membership.js';
+import playerRegistrationRoutes from './routes/playerRegistration.js';
+import documentUploadRoutes from './routes/documentUpload.js';
 
 // Initialize app
 const app = express();
@@ -139,6 +141,8 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/membership', membershipRoutes);
+app.use('/api/player-registration', playerRegistrationRoutes);
+app.use('/api/upload/document', documentUploadRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

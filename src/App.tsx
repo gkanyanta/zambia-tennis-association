@@ -62,6 +62,8 @@ import { CalendarManagement } from '@/pages/CalendarManagement'
 import { MembershipAdmin } from '@/pages/MembershipAdmin'
 import { IncomeAdmin } from '@/pages/IncomeAdmin'
 import { TrafficStats } from '@/pages/TrafficStats'
+import { RegisterPlayer } from '@/pages/RegisterPlayer'
+import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
 
 function App() {
   return (
@@ -102,6 +104,8 @@ function App() {
               <Route path="/membership" element={<Membership />} />
               <Route path="/membership/pay" element={<MembershipPayment />} />
               <Route path="/register-zpin" element={<ZPINPayment />} />
+              <Route path="/register-player" element={<RegisterPlayer />} />
+              <Route path="/register-player/pay" element={<RegisterPlayerPay />} />
               <Route path="/club-affiliation" element={<ClubAffiliationPayment />} />
               <Route path="/tournaments" element={<Tournaments />} />
               <Route path="/tournaments/:id" element={<TournamentDetail />} />
