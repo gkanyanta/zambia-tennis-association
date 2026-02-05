@@ -929,12 +929,82 @@ export const downloadReceipt = async (req, res) => {
   }
 };
 
+// Helper: sync missing Transaction records from active MembershipSubscriptions
+// This handles cases where subscriptions were activated but Transaction creation failed
+const syncMissingTransactions = async () => {
+  try {
+    // Get IDs of subscriptions that already have Transaction records
+    const existingRelatedIds = await Transaction.distinct('relatedId', {
+      relatedModel: 'MembershipSubscription'
+    });
+
+    const existingIdSet = new Set(existingRelatedIds.map(id => id.toString()));
+
+    // Find active subscriptions with payment dates that have no Transaction
+    const activeSubscriptions = await MembershipSubscription.find({
+      status: 'active',
+      paymentDate: { $exists: true, $ne: null }
+    });
+
+    const missing = activeSubscriptions.filter(
+      sub => !existingIdSet.has(sub._id.toString())
+    );
+
+    if (missing.length === 0) return 0;
+
+    let created = 0;
+    for (const sub of missing) {
+      try {
+        // Map subscription paymentMethod to Transaction paymentMethod
+        const methodMap = { online: 'card', cash: 'cash', cheque: 'cheque' };
+        const txnPaymentMethod = methodMap[sub.paymentMethod] || sub.paymentMethod || 'other';
+
+        await Transaction.create({
+          reference: sub.paymentReference || `SYNC-${sub._id}-${Date.now()}`,
+          type: 'membership',
+          amount: sub.amount,
+          currency: sub.currency || 'ZMW',
+          payerName: sub.entityName,
+          status: 'completed',
+          paymentGateway: sub.paymentMethod === 'online' ? 'lenco' : 'manual',
+          paymentMethod: txnPaymentMethod,
+          relatedId: sub._id,
+          relatedModel: 'MembershipSubscription',
+          description: `${sub.membershipTypeName} - ${sub.year}${sub.paymentMethod !== 'online' ? ' (Manual)' : ''}`,
+          metadata: {
+            membershipType: sub.membershipTypeCode,
+            membershipYear: sub.year,
+            entityType: sub.entityType,
+            synced: true
+          },
+          paymentDate: sub.paymentDate
+        });
+        created++;
+      } catch (err) {
+        // Skip duplicates or validation errors
+        console.error(`Failed to sync transaction for subscription ${sub._id}:`, err.message);
+      }
+    }
+
+    if (created > 0) {
+      console.log(`Synced ${created} missing transaction records from subscriptions`);
+    }
+    return created;
+  } catch (error) {
+    console.error('syncMissingTransactions error:', error);
+    return 0;
+  }
+};
+
 // @desc    Get income statement/summary
 // @route   GET /api/lenco/income-statement
 // @access  Private (Admin)
 export const getIncomeStatement = async (req, res) => {
   try {
     const { startDate, endDate, type } = req.query;
+
+    // Sync any missing transaction records from subscriptions
+    await syncMissingTransactions();
 
     // Build query
     const query = { status: 'completed' };
@@ -985,6 +1055,9 @@ export const getIncomeStatement = async (req, res) => {
 export const getTransactions = async (req, res) => {
   try {
     const { page = 1, limit = 20, type, status, startDate, endDate } = req.query;
+
+    // Sync any missing transaction records from subscriptions
+    await syncMissingTransactions();
 
     const query = {};
 
