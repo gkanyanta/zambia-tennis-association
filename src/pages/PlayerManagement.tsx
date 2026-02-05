@@ -181,13 +181,14 @@ export function PlayerManagement() {
     try {
       if (mode === 'create') {
         // Create new player
-        if (!formData.password || formData.password.length < 6) {
+        if (formData.password && formData.password.length < 6) {
           alert('Password must be at least 6 characters')
           return
         }
 
         const createData = {
           ...formData,
+          password: formData.password || undefined,
           role: 'player',
           membershipType: formData.membershipType || null,
           membershipStatus: formData.membershipStatus || null,
@@ -613,15 +614,17 @@ export function PlayerManagement() {
 
                   {mode === 'create' && (
                     <div>
-                      <Label htmlFor="password">Password *</Label>
+                      <Label htmlFor="password">Password</Label>
                       <Input
                         id="password"
                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                        placeholder="Min 6 characters"
+                        placeholder="Optional - only if player needs login access"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Leave blank if player doesn't need to log in
+                      </p>
                     </div>
                   )}
 

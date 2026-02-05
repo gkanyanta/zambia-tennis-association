@@ -144,16 +144,19 @@ export const createUser = async (req, res) => {
       }
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Hash password only if provided
+    let hashedPassword;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      hashedPassword = await bcrypt.hash(password, salt);
+    }
 
     // Create user
     const user = await User.create({
       firstName,
       lastName,
       email,
-      password: hashedPassword,
+      ...(hashedPassword && { password: hashedPassword }),
       role: role || 'player',
       dateOfBirth,
       gender,
@@ -237,10 +240,12 @@ export const updateUser = async (req, res) => {
       }
     }
 
-    // If updating password, hash it
+    // If updating password, hash it; otherwise remove it from update data
     if (updateData.password) {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(updateData.password, salt);
+    } else {
+      delete updateData.password;
     }
 
     const user = await User.findByIdAndUpdate(

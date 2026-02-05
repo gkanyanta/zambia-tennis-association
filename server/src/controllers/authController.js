@@ -86,6 +86,14 @@ export const login = async (req, res) => {
       });
     }
 
+    // Check if user has a password set (players without passwords cannot log in)
+    if (!user.password) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
     // Check if password matches
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
