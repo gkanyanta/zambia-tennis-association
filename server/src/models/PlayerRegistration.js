@@ -4,7 +4,6 @@ const playerRegistrationSchema = new mongoose.Schema({
   // Reference number for tracking
   referenceNumber: {
     type: String,
-    required: true,
     unique: true,
     index: true
   },
