@@ -216,8 +216,10 @@ export function PlayerManagement() {
       } else {
         // Update existing player
         if (!editingPlayer) return
+      // Exclude password from update data - players don't need login credentials
+      const { password: _password, ...formDataWithoutPassword } = formData
       const updateData = {
-        ...formData,
+        ...formDataWithoutPassword,
         membershipType: formData.membershipType || null,
         membershipStatus: formData.membershipStatus || null,
         gender: formData.gender || undefined,

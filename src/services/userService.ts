@@ -46,12 +46,12 @@ export const userService = {
     firstName: string;
     lastName: string;
     email: string;
-    password: string;
+    password?: string;
     role: string;
     dateOfBirth: string;
     gender: string;
     phone: string;
-    address: {
+    address?: {
       street: string;
       city: string;
       province: string;
