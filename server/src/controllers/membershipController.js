@@ -10,17 +10,14 @@ import sendEmail from '../utils/sendEmail.js';
 // HELPER FUNCTIONS
 // ============================================
 
-// Calculate player age from date of birth
+// Calculate player age as of December 31st of the current year
 const calculateAge = (dateOfBirth) => {
   if (!dateOfBirth) return null;
-  const today = new Date();
+  const currentYear = new Date().getFullYear();
   const birthDate = new Date(dateOfBirth);
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age;
+  const birthYear = birthDate.getFullYear();
+  // Age they will be on Dec 31st of current year
+  return currentYear - birthYear;
 };
 
 // Determine appropriate membership type based on player age and international status
@@ -40,8 +37,8 @@ const determinePlayerMembershipType = async (player) => {
     if (intlType) return intlType;
   }
 
-  // Junior (under 18)
-  if (age !== null && age < 18) {
+  // Junior (18 or under)
+  if (age !== null && age <= 18) {
     const juniorType = membershipTypes.find(t => t.code === 'zpin_junior');
     if (juniorType) return juniorType;
   }
