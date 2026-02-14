@@ -175,35 +175,88 @@ describe('Draw data shape', () => {
     expect(match.status).toBe('completed');
   });
 
-  it('winner advances to next round in single elimination', () => {
-    // Simulate the advancement logic from tournamentController.js
-    const matches = JSON.parse(JSON.stringify(sampleDraw.matches));
+  it('winner advances to next round using position-in-round (not global matchNumber)', () => {
+    // Use an 8-player draw where matchNumbers are global: R1=1-4, R2=5-6, R3=7
+    const draw8 = {
+      type: 'single_elimination',
+      matches: [
+        { _id: 'm1', id: 'm1', matchNumber: 1, round: 1, roundName: 'QF', player1: { id: 'p1', name: 'P1', seed: 1 }, player2: { id: 'p2', name: 'P2' }, status: 'scheduled' },
+        { _id: 'm2', id: 'm2', matchNumber: 2, round: 1, roundName: 'QF', player1: { id: 'p3', name: 'P3' }, player2: { id: 'p4', name: 'P4' }, status: 'scheduled' },
+        { _id: 'm3', id: 'm3', matchNumber: 3, round: 1, roundName: 'QF', player1: { id: 'p5', name: 'P5', seed: 2 }, player2: { id: 'p6', name: 'P6' }, status: 'scheduled' },
+        { _id: 'm4', id: 'm4', matchNumber: 4, round: 1, roundName: 'QF', player1: { id: 'p7', name: 'P7' }, player2: { id: 'p8', name: 'P8' }, status: 'scheduled' },
+        { _id: 'm5', id: 'm5', matchNumber: 5, round: 2, roundName: 'SF', player1: null, player2: null, status: 'scheduled' },
+        { _id: 'm6', id: 'm6', matchNumber: 6, round: 2, roundName: 'SF', player1: null, player2: null, status: 'scheduled' },
+        { _id: 'm7', id: 'm7', matchNumber: 7, round: 3, roundName: 'Final', player1: null, player2: null, status: 'scheduled' },
+      ],
+    };
 
-    // Complete match 1 (round 1, matchNumber 1)
-    const match = matches[0];
-    match.winner = 'p1';
-    match.score = '6-4 6-3';
-    match.status = 'completed';
+    // Helper: mimics the FIXED server advancement logic
+    function advanceWinner(matches, completedMatch) {
+      const nextRound = completedMatch.round + 1;
+      const currentRoundMatches = matches
+        .filter(m => m.round === completedMatch.round)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+      const positionInRound = currentRoundMatches.findIndex(m => m._id === completedMatch._id);
+      const nextMatchIdx = Math.floor(positionInRound / 2);
+      const isFirstPlayer = positionInRound % 2 === 0;
 
-    // Advance winner
-    const nextRound = match.round + 1;
-    const matchPosition = match.matchNumber - 1;
-    const nextMatchIndex = Math.floor(matchPosition / 2);
-    const isFirstPlayer = matchPosition % 2 === 0;
-
-    const nextMatches = matches.filter(m => m.round === nextRound);
-    if (nextMatches[nextMatchIndex]) {
-      const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
-      if (isFirstPlayer) {
-        nextMatches[nextMatchIndex].player1 = winnerPlayer;
-      } else {
-        nextMatches[nextMatchIndex].player2 = winnerPlayer;
+      const nextMatches = matches.filter(m => m.round === nextRound).sort((a, b) => a.matchNumber - b.matchNumber);
+      if (nextMatches[nextMatchIdx]) {
+        const winner = completedMatch.player1.id === completedMatch.winner ? completedMatch.player1 : completedMatch.player2;
+        if (isFirstPlayer) {
+          nextMatches[nextMatchIdx].player1 = winner;
+        } else {
+          nextMatches[nextMatchIdx].player2 = winner;
+        }
       }
     }
 
-    // The final match should now have player1 set
-    const finalMatch = matches.find(m => m.round === 2);
-    expect(finalMatch.player1).toEqual({ id: 'p1', name: 'Player 1', seed: 1 });
+    const matches = JSON.parse(JSON.stringify(draw8.matches));
+
+    // Complete all QF matches
+    matches[0].winner = 'p1'; matches[0].status = 'completed';
+    advanceWinner(matches, matches[0]);
+    matches[1].winner = 'p4'; matches[1].status = 'completed';
+    advanceWinner(matches, matches[1]);
+    matches[2].winner = 'p5'; matches[2].status = 'completed';
+    advanceWinner(matches, matches[2]);
+    matches[3].winner = 'p8'; matches[3].status = 'completed';
+    advanceWinner(matches, matches[3]);
+
+    // SF matches (matchNumber 5,6) should now have players
+    const sf1 = matches.find(m => m.matchNumber === 5);
+    const sf2 = matches.find(m => m.matchNumber === 6);
+    expect(sf1.player1.id).toBe('p1');
+    expect(sf1.player2.id).toBe('p4');
+    expect(sf2.player1.id).toBe('p5');
+    expect(sf2.player2.id).toBe('p8');
+
+    // Now complete SF matches and advance to final
+    sf1.winner = 'p1'; sf1.status = 'completed';
+    advanceWinner(matches, sf1);
+    sf2.winner = 'p5'; sf2.status = 'completed';
+    advanceWinner(matches, sf2);
+
+    const final = matches.find(m => m.matchNumber === 7);
+    expect(final.player1.id).toBe('p1');
+    expect(final.player2.id).toBe('p5');
+  });
+
+  it('OLD BUG: global matchNumber advancement fails for later rounds', () => {
+    // Demonstrates the bug with the old logic: matchPosition = matchNumber - 1
+    const matches = [
+      { matchNumber: 5, round: 2, player1: { id: 'p1', name: 'P1' }, player2: { id: 'p2', name: 'P2' }, winner: 'p1', status: 'completed' },
+      { matchNumber: 6, round: 2, player1: { id: 'p3', name: 'P3' }, player2: { id: 'p4', name: 'P4' }, winner: 'p3', status: 'completed' },
+      { matchNumber: 7, round: 3, player1: null, player2: null, status: 'scheduled' },
+    ];
+
+    // Old buggy logic: matchPosition = matchNumber - 1
+    const match = matches[0]; // matchNumber 5
+    const matchPosition = match.matchNumber - 1; // 4
+    const nextMatchIndex = Math.floor(matchPosition / 2); // 2
+    const nextMatches = matches.filter(m => m.round === 3); // [match 7]
+    // nextMatches[2] is undefined — winner never advances!
+    expect(nextMatches[nextMatchIndex]).toBeUndefined();
   });
 
   it('tournament with generated draw returns it (not undefined)', () => {

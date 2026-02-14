@@ -326,13 +326,19 @@ export function updateMatchResult(
     const winner = match.player1?.id === winnerId ? match.player1 : match.player2
 
     if (winner) {
-      // Find next match (winner should advance to)
       const nextRound = match.round + 1
-      const matchPosition = match.matchNumber - 1
-      const nextMatchIndex = Math.floor(matchPosition / 2)
-      const isFirstPlayer = matchPosition % 2 === 0
 
-      const nextMatches = updatedMatches.filter(m => m.round === nextRound)
+      // Find this match's position WITHIN its round (not global matchNumber)
+      const currentRoundMatches = updatedMatches
+        .filter(m => m.round === match.round)
+        .sort((a, b) => a.matchNumber - b.matchNumber)
+      const positionInRound = currentRoundMatches.findIndex(m => m.id === match.id)
+      const nextMatchIndex = Math.floor(positionInRound / 2)
+      const isFirstPlayer = positionInRound % 2 === 0
+
+      const nextMatches = updatedMatches
+        .filter(m => m.round === nextRound)
+        .sort((a, b) => a.matchNumber - b.matchNumber)
       if (nextMatches[nextMatchIndex]) {
         const nextMatchId = nextMatches[nextMatchIndex].id
         const nextMatchFullIndex = updatedMatches.findIndex(m => m.id === nextMatchId)

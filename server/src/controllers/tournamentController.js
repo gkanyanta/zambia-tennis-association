@@ -765,18 +765,27 @@ export const updateMatchResult = async (req, res) => {
     // For single elimination, advance winner to next round
     if (category.draw.type === 'single_elimination') {
       const nextRound = match.round + 1;
-      const matchPosition = match.matchNumber - 1;
-      const nextMatchIndex = Math.floor(matchPosition / 2);
-      const isFirstPlayer = matchPosition % 2 === 0;
 
-      const nextMatches = category.draw.matches.filter(m => m.round === nextRound);
+      // Find this match's position WITHIN its round (not global matchNumber)
+      const currentRoundMatches = category.draw.matches
+        .filter(m => m.round === match.round)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+      const positionInRound = currentRoundMatches.findIndex(
+        m => m._id.toString() === match._id.toString()
+      );
+      const nextMatchIndex = Math.floor(positionInRound / 2);
+      const isFirstPlayer = positionInRound % 2 === 0;
+
+      const nextMatches = category.draw.matches
+        .filter(m => m.round === nextRound)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
       if (nextMatches[nextMatchIndex]) {
-        const winner = match.player1.id === match.winner ? match.player1 : match.player2;
+        const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
 
         if (isFirstPlayer) {
-          nextMatches[nextMatchIndex].player1 = winner;
+          nextMatches[nextMatchIndex].player1 = winnerPlayer;
         } else {
-          nextMatches[nextMatchIndex].player2 = winner;
+          nextMatches[nextMatchIndex].player2 = winnerPlayer;
         }
       }
     }
