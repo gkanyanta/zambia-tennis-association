@@ -142,7 +142,11 @@ export function Tournaments() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredTournaments.map((tournament) => (
-                <Card key={tournament._id} className="card-elevated-hover">
+                <Card
+                  key={tournament._id}
+                  className="card-elevated-hover cursor-pointer"
+                  onClick={() => navigate(`/tournaments/${tournament._id}`)}
+                >
                   <CardHeader>
                     <div className="flex items-start justify-between mb-2">
                       <CardTitle className="text-xl">{tournament.name}</CardTitle>
@@ -164,17 +168,24 @@ export function Tournaments() {
 
                     {/* Details */}
                     <div className="space-y-2">
-                      {tournament.date && (
+                      {tournament.startDate && (
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span>{new Date(tournament.date).toLocaleDateString()}</span>
+                          <span>{new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}</span>
                         </div>
                       )}
 
-                      {tournament.location && (
+                      {tournament.venue && (
                         <div className="flex items-center gap-2 text-sm">
                           <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span>{tournament.location}</span>
+                          <span>{tournament.venue}{tournament.city ? `, ${tournament.city}` : ''}</span>
+                        </div>
+                      )}
+
+                      {tournament.categories && tournament.categories.length > 0 && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Trophy className="h-4 w-4 text-muted-foreground" />
+                          <span>{tournament.categories.length} {tournament.categories.length === 1 ? 'category' : 'categories'}</span>
                         </div>
                       )}
 
@@ -194,34 +205,25 @@ export function Tournaments() {
                     </div>
 
                     {/* Action Button */}
-                    {(tournament.status === 'upcoming' || tournament.status === 'entries_open') && (
-                      <Button
-                        className="w-full"
-                        variant="default"
-                        onClick={() => navigate(`/tournaments/${tournament._id}`)}
-                      >
-                        <Trophy className="h-4 w-4 mr-2" />
-                        Register
-                      </Button>
-                    )}
-                    {(tournament.status === 'ongoing' || tournament.status === 'in_progress' || tournament.status === 'entries_closed') && (
-                      <Button
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => navigate(`/tournaments/${tournament._id}`)}
-                      >
-                        View Details
-                      </Button>
-                    )}
-                    {tournament.status === 'completed' && (
-                      <Button
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => navigate(`/tournaments/${tournament._id}`)}
-                      >
-                        View Results
-                      </Button>
-                    )}
+                    <Button
+                      className="w-full"
+                      variant={(tournament.status === 'upcoming' || tournament.status === 'entries_open') ? 'default' : 'outline'}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/tournaments/${tournament._id}`)
+                      }}
+                    >
+                      {(tournament.status === 'upcoming' || tournament.status === 'entries_open') ? (
+                        <>
+                          <Trophy className="h-4 w-4 mr-2" />
+                          View & Register
+                        </>
+                      ) : tournament.status === 'completed' ? (
+                        'View Results'
+                      ) : (
+                        'View Tournament'
+                      )}
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
