@@ -35,7 +35,7 @@ function SingleEliminationBracket({ draw, onMatchClick }: DrawBracketProps) {
             <div className="flex flex-col justify-around flex-1 gap-4">
               {roundMatches.map((match) => (
                 <MatchCard
-                  key={match.id}
+                  key={(match as any)._id || match.id}
                   match={match}
                   onClick={() => onMatchClick?.(match)}
                 />
@@ -48,7 +48,7 @@ function SingleEliminationBracket({ draw, onMatchClick }: DrawBracketProps) {
   )
 }
 
-function MatchCard({ match, onClick }: { match: Match; onClick?: () => void }) {
+function MatchCard({ match, onClick }: { match: Match & { _id?: string }; onClick?: () => void }) {
   const isClickable = match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye
 
   return (
@@ -160,7 +160,7 @@ function RoundRobinView({ draw, onMatchClick }: DrawBracketProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {group.matches.map((match) => (
                   <MatchCard
-                    key={match.id}
+                    key={(match as any)._id || match.id}
                     match={match}
                     onClick={() => onMatchClick?.(match)}
                   />

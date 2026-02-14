@@ -19,7 +19,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
   const [selectedEntries, setSelectedEntries] = useState<string[]>([])
   const [filter, setFilter] = useState<'all' | 'pending_payment' | 'pending' | 'accepted' | 'rejected'>('all')
   const [seedingMode, setSeedingMode] = useState(false)
-  const [seedValues, setSeedValues] = useState<Record<string, number>>({})
+  const [seedValues, setSeedValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [bulkResult, setBulkResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
@@ -157,12 +157,22 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
     try {
       if (onBulkUpdateSeeds) {
         const seeds = Object.entries(seedValues)
-          .map(([entryId, seedNumber]) => ({ entryId, seedNumber: seedNumber || 0 }))
-        await onBulkUpdateSeeds(seeds)
+          .filter(([, val]) => val !== '' && val !== undefined)
+          .map(([entryId, val]) => {
+            const num = parseInt(val, 10)
+            return { entryId, seedNumber: isNaN(num) ? null : num }
+          })
+          .filter((s): s is { entryId: string; seedNumber: number } => s.seedNumber !== null && s.seedNumber >= 1)
+        // Also send entries that were cleared (had a seed before, now blank) so server can unset them
+        const clearedSeeds = Object.entries(seedValues)
+          .filter(([, val]) => val === '')
+          .map(([entryId]) => ({ entryId, seedNumber: 0 }))
+        await onBulkUpdateSeeds([...seeds, ...clearedSeeds])
       } else {
-        for (const [entryId, seed] of Object.entries(seedValues)) {
-          if (seed > 0) {
-            await onUpdateEntry(entryId, { status: 'accepted', seed })
+        for (const [entryId, val] of Object.entries(seedValues)) {
+          const num = parseInt(val, 10)
+          if (!isNaN(num) && num >= 1) {
+            await onUpdateEntry(entryId, { status: 'accepted', seed: num })
           }
         }
       }
@@ -326,9 +336,9 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                         setSeedValues({})
                       } else {
                         // Pre-populate with existing seeds
-                        const existing: Record<string, number> = {}
+                        const existing: Record<string, string> = {}
                         acceptedEntries.forEach(e => {
-                          if (e.seed) existing[(e as any)._id] = e.seed
+                          if (e.seed) existing[(e as any)._id] = String(e.seed)
                         })
                         setSeedValues(existing)
                         setSeedingMode(true)
@@ -351,7 +361,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
           <CardContent className="pt-6">
             <div className="flex justify-between items-center mb-4">
               <p className="text-sm text-muted-foreground">
-                Enter seed numbers for players (leave blank or 0 to remove seed)
+                Enter seed numbers for players (leave blank to remove seed)
               </p>
               <Button onClick={handleSaveSeedsAll} disabled={loading}>
                 Save All Seeds
@@ -456,14 +466,15 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                             {seedingMode && entry.status === 'accepted' ? (
                               <Input
                                 type="number"
-                                min="0"
+                                min="1"
                                 max="32"
                                 className="w-16 mx-auto"
-                                value={seedValues[(entry as any)._id] ?? entry.seed ?? ''}
+                                placeholder="-"
+                                value={seedValues[(entry as any)._id] ?? (entry.seed ? String(entry.seed) : '')}
                                 onChange={(e) =>
                                   setSeedValues({
                                     ...seedValues,
-                                    [(entry as any)._id]: parseInt(e.target.value) || 0
+                                    [(entry as any)._id]: e.target.value
                                   })
                                 }
                               />

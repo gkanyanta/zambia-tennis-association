@@ -28,6 +28,19 @@ export function TournamentAdmin() {
     }
   }, [tournamentId, tournaments])
 
+  // Refetch single tournament for fresh data (draws, results, etc.)
+  const refetchTournament = async () => {
+    if (!tournamentId) return
+    try {
+      const fresh = await tournamentService.getTournament(tournamentId)
+      setSelectedTournament(fresh as any)
+      // Also update in the tournaments list
+      setTournaments(prev => prev.map(t => t._id === tournamentId ? fresh as any : t))
+    } catch (error) {
+      console.error('Error refetching tournament:', error)
+    }
+  }
+
   const fetchTournaments = async () => {
     try {
       const data = await tournamentService.getTournaments()
@@ -79,11 +92,11 @@ export function TournamentAdmin() {
             </TabsContent>
 
             <TabsContent value="draws" className="space-y-6">
-              <DrawsManagement tournament={selectedTournament} />
+              <DrawsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
             <TabsContent value="results" className="space-y-6">
-              <ResultsManagement tournament={selectedTournament} />
+              <ResultsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
           </Tabs>
         </div>
@@ -387,7 +400,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
   )
 }
 
-function DrawsManagement({ tournament }: { tournament: Tournament }) {
+function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; onRefresh: () => Promise<void> }) {
   const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
     tournament.categories[0] || null
   )
@@ -397,7 +410,7 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
       if (!selectedCategory) return
       await tournamentService.generateDraw(tournament._id, selectedCategory._id, draw)
       // Refresh tournament data
-      window.location.reload()
+      await onRefresh()
     } catch (error) {
       console.error('Error generating draw:', error)
       alert('Failed to generate draw. Please try again.')
@@ -415,7 +428,7 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
         result
       )
       // Refresh tournament data
-      window.location.reload()
+      await onRefresh()
     } catch (error) {
       console.error('Error updating match:', error)
       alert('Failed to update match result. Please try again.')
@@ -467,15 +480,23 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
   )
 }
 
-function ResultsManagement({ tournament }: { tournament: Tournament }) {
-  const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
-    tournament.categories.find((c: any) => c.draw) || null
+function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; onRefresh: () => Promise<void> }) {
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    () => {
+      const first = tournament.categories.find((c: any) => c.draw)
+      return first ? first._id : null
+    }
   )
   const [editingMatch, setEditingMatch] = useState<string | null>(null)
   const [scoreInput, setScoreInput] = useState('')
   const [winnerInput, setWinnerInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
+
+  // Always derive selectedCategory from tournament data (so it refreshes)
+  const selectedCategory = selectedCategoryId
+    ? tournament.categories.find((c: any) => c._id === selectedCategoryId) || null
+    : null
 
   const draw = (selectedCategory as any)?.draw
 
@@ -492,7 +513,7 @@ function ResultsManagement({ tournament }: { tournament: Tournament }) {
       setEditingMatch(null)
       setScoreInput('')
       setWinnerInput('')
-      window.location.reload()
+      await onRefresh()
     } catch (error: any) {
       alert(error.message || 'Failed to save result')
     } finally {
@@ -507,7 +528,7 @@ function ResultsManagement({ tournament }: { tournament: Tournament }) {
     setFinalizing(true)
     try {
       await tournamentService.finalizeResults(tournament._id, selectedCategory._id)
-      window.location.reload()
+      await onRefresh()
     } catch (error: any) {
       alert(error.message || 'Failed to finalize results')
     } finally {
@@ -541,17 +562,14 @@ function ResultsManagement({ tournament }: { tournament: Tournament }) {
   return (
     <div className="space-y-6">
       {/* Category Selector */}
-      {categoriesWithDraws.length > 1 && (
+      {categoriesWithDraws.length > 0 && (
         <Card>
           <CardContent className="pt-6">
             <label className="text-sm font-medium mb-2 block">Select Category</label>
             <select
               className="w-full p-2 border rounded-md"
-              value={selectedCategory?._id || ''}
-              onChange={(e) => {
-                const category = tournament.categories.find((c: any) => c._id === e.target.value)
-                setSelectedCategory(category || null)
-              }}
+              value={selectedCategoryId || ''}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
             >
               {categoriesWithDraws.map((category: any) => (
                 <option key={category._id} value={category._id}>

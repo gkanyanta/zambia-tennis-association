@@ -44,6 +44,39 @@ export interface TournamentCategory {
   maxEntries: number;
   entryCount: number;
   entries: TournamentEntry[];
+  draw?: {
+    type: string;
+    matches: Array<{
+      _id: string;
+      matchNumber: number;
+      round: number;
+      roundName: string;
+      player1?: { id: string; name: string; seed?: number; isBye?: boolean };
+      player2?: { id: string; name: string; seed?: number; isBye?: boolean };
+      winner?: string;
+      score?: string;
+      status: string;
+      court?: string;
+      scheduledTime?: string;
+      completedTime?: string;
+    }>;
+    roundRobinGroups?: Array<{
+      groupName: string;
+      players: Array<{ id: string; name: string; seed?: number }>;
+      matches: any[];
+      standings?: any[];
+    }>;
+    bracketSize?: number;
+    numberOfRounds?: number;
+    generatedAt: string;
+    finalized?: boolean;
+    finalizedAt?: string;
+    standings?: {
+      champion?: { id: string; name: string };
+      runnerUp?: { id: string; name: string };
+      semiFinalists?: Array<{ id: string; name: string }>;
+    };
+  };
 }
 
 export interface TournamentEntry {
@@ -259,7 +292,7 @@ export const tournamentService = {
       `/tournaments/${tournamentId}/categories/${categoryId}/draw`,
       {
         method: 'POST',
-        body: JSON.stringify(drawData),
+        body: JSON.stringify({ draw: drawData }),
       }
     );
     return response.data;

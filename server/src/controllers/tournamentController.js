@@ -493,7 +493,13 @@ export const updateEntryStatus = async (req, res) => {
     // Update entry
     if (status) entry.status = status;
     if (rejectionReason) entry.rejectionReason = rejectionReason;
-    if (seed !== undefined) entry.seed = seed;
+    if (seed !== undefined) {
+      if (seed === null || seed === 0) {
+        entry.seed = undefined;
+      } else if (Number.isInteger(seed) && seed >= 1) {
+        entry.seed = seed;
+      }
+    }
     if (paymentStatus) {
       entry.paymentStatus = paymentStatus;
       entry.paymentDate = new Date();
@@ -537,18 +543,21 @@ export const bulkUpdateSeeds = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
 
-    // Validate: no duplicate seed numbers
-    const seedNumbers = seeds.filter(s => s.seedNumber > 0).map(s => s.seedNumber);
+    // Validate: no duplicate seed numbers (ignore 0/null/undefined which mean "unseed")
+    const seedNumbers = seeds.filter(s => s.seedNumber != null && s.seedNumber > 0).map(s => s.seedNumber);
     const uniqueSeeds = new Set(seedNumbers);
     if (uniqueSeeds.size !== seedNumbers.length) {
       return res.status(400).json({ success: false, message: 'Duplicate seed numbers are not allowed' });
     }
 
-    // Validate: seed range
+    // Validate: seed range — must be integer >= 1, or 0/null/undefined to unseed
     const acceptedCount = category.entries.filter(e => e.status === 'accepted').length;
     const maxSeed = Math.min(32, acceptedCount);
     for (const { seedNumber } of seeds) {
-      if (seedNumber < 0 || seedNumber > maxSeed) {
+      // 0, null, undefined all mean "remove seed" — skip validation
+      if (seedNumber == null || seedNumber === 0) continue;
+      // Must be positive integer in range
+      if (!Number.isInteger(seedNumber) || seedNumber < 1 || seedNumber > maxSeed) {
         return res.status(400).json({ success: false, message: `Seed numbers must be between 1 and ${maxSeed}` });
       }
     }

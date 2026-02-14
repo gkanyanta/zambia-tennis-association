@@ -79,7 +79,8 @@ export function DrawGeneration({ category, onGenerateDraw, onUpdateMatch }: Draw
     if (!selectedMatch || !onUpdateMatch) return
 
     try {
-      await onUpdateMatch(selectedMatch.id, result)
+      const matchId = (selectedMatch as any)._id || selectedMatch.id
+      await onUpdateMatch(matchId, result)
     } catch (error) {
       console.error('Error submitting match result:', error)
       throw error
