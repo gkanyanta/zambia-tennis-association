@@ -147,6 +147,14 @@ const drawSchema = new mongoose.Schema({
   generatedAt: {
     type: Date,
     default: Date.now
+  },
+  finalized: {
+    type: Boolean,
+    default: false
+  },
+  finalizedAt: Date,
+  standings: {
+    type: mongoose.Schema.Types.Mixed
   }
 });
 

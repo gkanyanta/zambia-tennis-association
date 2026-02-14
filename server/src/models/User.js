@@ -96,8 +96,8 @@ const userSchema = new mongoose.Schema({
   },
   membershipStatus: {
     type: String,
-    enum: ['active', 'expired', 'pending', null],
-    default: null
+    enum: ['active', 'inactive', 'expired', 'pending', null],
+    default: 'inactive'
   },
   membershipExpiry: {
     type: Date

@@ -202,6 +202,53 @@ export const tournamentService = {
     return response.data;
   },
 
+  // Bulk entry actions
+  async bulkEntryAction(
+    tournamentId: string,
+    categoryId: string,
+    entryIds: string[],
+    action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT'
+  ): Promise<{ results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }>; succeeded: number; failed: number }> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/entries/bulk`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ entryIds, action, categoryId }),
+      }
+    );
+    return response.data;
+  },
+
+  // Bulk update seeds
+  async bulkUpdateSeeds(
+    tournamentId: string,
+    categoryId: string,
+    seeds: Array<{ entryId: string; seedNumber: number }>
+  ): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/seeds`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ seeds }),
+      }
+    );
+    return response;
+  },
+
+  // Finalize results
+  async finalizeResults(
+    tournamentId: string,
+    categoryId: string
+  ): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/results/finalize`,
+      {
+        method: 'POST',
+      }
+    );
+    return response;
+  },
+
   // Draw Management
   async generateDraw(
     tournamentId: string,

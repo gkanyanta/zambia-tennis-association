@@ -9,7 +9,7 @@ export interface User {
   zpin?: string;
   club?: string;
   membershipType?: 'junior' | 'adult' | 'family' | null;
-  membershipStatus?: 'active' | 'expired' | 'pending' | null;
+  membershipStatus?: 'active' | 'inactive' | 'expired' | 'pending' | null;
   membershipExpiry?: string;
   dateOfBirth?: string;
   gender?: 'male' | 'female';

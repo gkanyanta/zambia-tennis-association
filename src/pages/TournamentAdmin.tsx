@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
-import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
 
@@ -301,7 +301,6 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
         entryId,
         data
       )
-      // Refresh tournament data
       window.location.reload()
     } catch (error) {
       console.error('Error updating entry:', error)
@@ -314,13 +313,31 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
     try {
       if (!selectedCategory) return
       await tournamentService.autoSeedCategory(tournament._id, selectedCategory._id)
-      // Refresh tournament data
       window.location.reload()
     } catch (error) {
       console.error('Error auto-seeding:', error)
       alert('Failed to auto-seed entries. Please try again.')
       throw error
     }
+  }
+
+  const handleBulkAction = async (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT') => {
+    if (!selectedCategory) throw new Error('No category selected')
+    const result = await tournamentService.bulkEntryAction(
+      tournament._id,
+      selectedCategory._id,
+      entryIds,
+      action
+    )
+    // Reload after a brief delay to show the result toast
+    setTimeout(() => window.location.reload(), 1500)
+    return result
+  }
+
+  const handleBulkUpdateSeeds = async (seeds: Array<{ entryId: string; seedNumber: number }>) => {
+    if (!selectedCategory) throw new Error('No category selected')
+    await tournamentService.bulkUpdateSeeds(tournament._id, selectedCategory._id, seeds)
+    window.location.reload()
   }
 
   if (!selectedCategory) {
@@ -360,8 +377,11 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
 
       <EntryManagement
         category={selectedCategory as any}
+        tournamentId={tournament._id}
         onUpdateEntry={handleUpdateEntry}
         onAutoSeed={handleAutoSeed}
+        onBulkAction={handleBulkAction}
+        onBulkUpdateSeeds={handleBulkUpdateSeeds}
       />
     </div>
   )
@@ -447,17 +467,305 @@ function DrawsManagement({ tournament }: { tournament: Tournament }) {
   )
 }
 
-function ResultsManagement({ }: { tournament: Tournament }) {
-  return (
-    <div>
-      <h3 className="text-xl font-bold mb-4">Enter Results</h3>
-      <p className="text-muted-foreground mb-6">Enter match results and update draws</p>
-      {/* Results management interface will be added here */}
+function ResultsManagement({ tournament }: { tournament: Tournament }) {
+  const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
+    tournament.categories.find((c: any) => c.draw) || null
+  )
+  const [editingMatch, setEditingMatch] = useState<string | null>(null)
+  const [scoreInput, setScoreInput] = useState('')
+  const [winnerInput, setWinnerInput] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [finalizing, setFinalizing] = useState(false)
+
+  const draw = (selectedCategory as any)?.draw
+
+  const handleSaveResult = async (matchId: string) => {
+    if (!selectedCategory || !winnerInput || !scoreInput) return
+    setSaving(true)
+    try {
+      await tournamentService.updateMatchResult(
+        tournament._id,
+        selectedCategory._id,
+        matchId,
+        { winner: winnerInput, score: scoreInput }
+      )
+      setEditingMatch(null)
+      setScoreInput('')
+      setWinnerInput('')
+      window.location.reload()
+    } catch (error: any) {
+      alert(error.message || 'Failed to save result')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleFinalize = async () => {
+    if (!selectedCategory) return
+    if (!confirm('Finalize results? This will lock all match results and compute standings.')) return
+
+    setFinalizing(true)
+    try {
+      await tournamentService.finalizeResults(tournament._id, selectedCategory._id)
+      window.location.reload()
+    } catch (error: any) {
+      alert(error.message || 'Failed to finalize results')
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  const categoriesWithDraws = tournament.categories.filter((c: any) => c.draw)
+
+  if (categoriesWithDraws.length === 0) {
+    return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
-          Results management interface coming soon
+          No draws have been generated yet. Generate draws in the Draws tab first.
         </CardContent>
       </Card>
+    )
+  }
+
+  // Group matches by round
+  const matchesByRound: Record<number, any[]> = {}
+  if (draw?.matches) {
+    draw.matches.forEach((m: any) => {
+      if (!matchesByRound[m.round]) matchesByRound[m.round] = []
+      matchesByRound[m.round].push(m)
+    })
+  }
+
+  const isFinalized = draw?.finalized
+
+  return (
+    <div className="space-y-6">
+      {/* Category Selector */}
+      {categoriesWithDraws.length > 1 && (
+        <Card>
+          <CardContent className="pt-6">
+            <label className="text-sm font-medium mb-2 block">Select Category</label>
+            <select
+              className="w-full p-2 border rounded-md"
+              value={selectedCategory?._id || ''}
+              onChange={(e) => {
+                const category = tournament.categories.find((c: any) => c._id === e.target.value)
+                setSelectedCategory(category || null)
+              }}
+            >
+              {categoriesWithDraws.map((category: any) => (
+                <option key={category._id} value={category._id}>
+                  {category.name} {category.draw?.finalized ? '(Finalized)' : ''}
+                </option>
+              ))}
+            </select>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Standings (if finalized) */}
+      {isFinalized && draw.standings && (
+        <Card className="border-green-500/30 bg-green-50/50 dark:bg-green-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Final Standings
+              <Badge variant="default" className="ml-2 bg-green-600">
+                <Lock className="h-3 w-3 mr-1" /> Finalized
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {draw.standings.champion && (
+                <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-950/30 rounded-lg border border-yellow-200">
+                  <span className="text-2xl">🏆</span>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Champion</div>
+                    <div className="font-bold text-lg">{draw.standings.champion.name}</div>
+                  </div>
+                </div>
+              )}
+              {draw.standings.runnerUp && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg border">
+                  <span className="text-2xl">🥈</span>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Runner-up</div>
+                    <div className="font-semibold">{draw.standings.runnerUp.name}</div>
+                  </div>
+                </div>
+              )}
+              {draw.standings.semiFinalists?.length > 0 && (
+                <div className="flex items-center gap-3 p-3 bg-orange-50/50 dark:bg-orange-950/20 rounded-lg border">
+                  <span className="text-2xl">🥉</span>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Semi-finalists</div>
+                    <div className="font-medium">
+                      {draw.standings.semiFinalists.map((p: any) => p.name).join(', ')}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Finalize Button */}
+      {draw && !isFinalized && (
+        <Card>
+          <CardContent className="pt-6 flex justify-between items-center">
+            <div>
+              <h4 className="font-medium">Finalize Results</h4>
+              <p className="text-sm text-muted-foreground">Lock all results and compute final standings</p>
+            </div>
+            <Button onClick={handleFinalize} disabled={finalizing}>
+              {finalizing ? 'Finalizing...' : 'Finalize Results'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Matches by Round */}
+      {Object.entries(matchesByRound)
+        .sort(([a], [b]) => Number(b) - Number(a))
+        .map(([round, matches]) => (
+          <Card key={round}>
+            <CardHeader>
+              <CardTitle className="text-lg">{matches[0]?.roundName || `Round ${round}`}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {matches.map((match: any) => {
+                  const isBye = match.player1?.isBye || match.player2?.isBye
+                  const isEditing = editingMatch === match._id
+
+                  return (
+                    <div
+                      key={match._id || match.id}
+                      className={`p-4 border rounded-lg ${match.status === 'completed' ? 'bg-green-50/50 dark:bg-green-950/10' : ''}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-4">
+                            <div className={`flex-1 ${match.winner === match.player1?.id ? 'font-bold' : ''}`}>
+                              {match.player1?.name || 'TBD'}
+                              {match.player1?.seed && <span className="text-xs text-muted-foreground ml-1">[{match.player1.seed}]</span>}
+                              {match.winner === match.player1?.id && <CheckCircle2 className="h-4 w-4 inline ml-1 text-green-600" />}
+                            </div>
+                            <div className="text-sm text-muted-foreground">vs</div>
+                            <div className={`flex-1 text-right ${match.winner === match.player2?.id ? 'font-bold' : ''}`}>
+                              {match.player2?.name || 'TBD'}
+                              {match.player2?.seed && <span className="text-xs text-muted-foreground ml-1">[{match.player2.seed}]</span>}
+                              {match.winner === match.player2?.id && <CheckCircle2 className="h-4 w-4 inline ml-1 text-green-600" />}
+                            </div>
+                          </div>
+                          {match.score && (
+                            <div className="text-center text-sm font-mono mt-1">{match.score}</div>
+                          )}
+                        </div>
+
+                        {!isFinalized && !isBye && match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye && (
+                          <div className="ml-4">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <select
+                                  className="border rounded p-1 text-sm"
+                                  value={winnerInput}
+                                  onChange={(e) => setWinnerInput(e.target.value)}
+                                >
+                                  <option value="">Winner</option>
+                                  <option value={match.player1.id}>{match.player1.name}</option>
+                                  <option value={match.player2.id}>{match.player2.name}</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  placeholder="6-4 6-3"
+                                  className="border rounded p-1 text-sm w-24"
+                                  value={scoreInput}
+                                  onChange={(e) => setScoreInput(e.target.value)}
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSaveResult(match._id || match.id)}
+                                  disabled={saving || !winnerInput || !scoreInput}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => { setEditingMatch(null); setScoreInput(''); setWinnerInput('') }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingMatch(match._id || match.id)
+                                  setWinnerInput(match.winner || '')
+                                  setScoreInput(match.score || '')
+                                }}
+                              >
+                                {match.status === 'completed' ? 'Edit' : 'Enter Score'}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {isBye && (
+                          <Badge variant="secondary" className="ml-4">BYE</Badge>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+      {/* Round Robin Group Standings */}
+      {draw?.type === 'round_robin' && draw.roundRobinGroups?.map((group: any) => (
+        <Card key={group.groupName}>
+          <CardHeader>
+            <CardTitle>{group.groupName} Standings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {group.standings ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2">#</th>
+                    <th className="text-left py-2">Player</th>
+                    <th className="text-center py-2">P</th>
+                    <th className="text-center py-2">W</th>
+                    <th className="text-center py-2">L</th>
+                    <th className="text-center py-2">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.standings.map((s: any, idx: number) => (
+                    <tr key={s.playerId} className="border-b">
+                      <td className="py-2">{idx + 1}</td>
+                      <td className="py-2 font-medium">{s.playerName}</td>
+                      <td className="text-center py-2">{s.played}</td>
+                      <td className="text-center py-2">{s.won}</td>
+                      <td className="text-center py-2">{s.lost}</td>
+                      <td className="text-center py-2 font-bold">{s.points}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-muted-foreground text-sm">Complete all matches and finalize to see standings</p>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }

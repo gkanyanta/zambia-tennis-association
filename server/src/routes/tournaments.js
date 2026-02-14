@@ -8,13 +8,17 @@ import {
   deleteTournament,
   submitEntry,
   updateEntryStatus,
+  bulkEntryAction,
+  bulkUpdateSeeds,
   autoSeedCategory,
   generateDraw,
   updateMatchResult,
+  finalizeResults,
   checkEligibility,
   getPlayerEligibleCategories,
   getJuniorCategories,
-  publicRegister
+  publicRegister,
+  verifyPayLaterToken
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -22,6 +26,9 @@ const router = express.Router();
 
 // Category information routes
 router.get('/junior-categories', getJuniorCategories);
+
+// Pay-later verification (must be before /:id route)
+router.get('/pay-later/verify', verifyPayLaterToken);
 
 // Basic tournament routes
 router.get('/', getTournaments);
@@ -37,8 +44,10 @@ router.get('/:tournamentId/eligible-categories/:playerId', getPlayerEligibleCate
 router.get('/:tournamentId/categories/:categoryId/check-eligibility/:playerId', checkEligibility);
 
 // Entry management routes
+router.post('/:tournamentId/entries/bulk', protect, authorize('admin', 'staff'), bulkEntryAction);
 router.post('/:tournamentId/categories/:categoryId/entries', protect, submitEntry);
 router.put('/:tournamentId/categories/:categoryId/entries/:entryId', protect, authorize('admin', 'staff'), updateEntryStatus);
+router.put('/:tournamentId/categories/:categoryId/seeds', protect, authorize('admin', 'staff'), bulkUpdateSeeds);
 router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authorize('admin', 'staff'), autoSeedCategory);
 
 // Draw management routes
@@ -46,5 +55,6 @@ router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('ad
 
 // Match result routes
 router.put('/:tournamentId/categories/:categoryId/matches/:matchId', protect, authorize('admin', 'staff'), updateMatchResult);
+router.post('/:tournamentId/categories/:categoryId/results/finalize', protect, authorize('admin', 'staff'), finalizeResults);
 
 export default router;

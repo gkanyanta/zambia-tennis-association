@@ -75,6 +75,13 @@ export interface Draw {
   bracketSize?: number // 4, 8, 16, 32, 64, 128
   numberOfRounds?: number
   generatedAt: string
+  finalized?: boolean
+  finalizedAt?: string
+  standings?: {
+    champion?: { id: string; name: string }
+    runnerUp?: { id: string; name: string }
+    semiFinalists?: Array<{ id: string; name: string }>
+  }
 }
 
 export interface RoundRobinGroup {
@@ -136,6 +143,16 @@ export function calculateAge(dateOfBirth: string): number {
   }
 
   return age
+}
+
+/**
+ * Calculate tennis age for a tournament year.
+ * Tennis age = tournamentYear - birthYear (age on Dec 31 of that year).
+ * No birthday-occurrence adjustment — always simple year subtraction.
+ */
+export function calculateTennisAge(dateOfBirth: string, tournamentYear: number): number {
+  const birthYear = new Date(dateOfBirth).getFullYear()
+  return tournamentYear - birthYear
 }
 
 // Eligibility validation functions

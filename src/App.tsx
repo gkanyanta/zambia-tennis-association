@@ -64,6 +64,7 @@ import { IncomeAdmin } from '@/pages/IncomeAdmin'
 import { TrafficStats } from '@/pages/TrafficStats'
 import { RegisterPlayer } from '@/pages/RegisterPlayer'
 import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
+import { PayLaterComplete } from '@/pages/PayLaterComplete'
 
 function App() {
   return (
@@ -125,6 +126,7 @@ function App() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/donate" element={<Donate />} />
               <Route path="/donate/verify" element={<DonateVerify />} />
+              <Route path="/pay/complete" element={<PayLaterComplete />} />
               <Route path="/payment/verify" element={<PaymentVerify />} />
               <Route path="/sponsors" element={<Sponsors />} />
               <Route path="/partnerships" element={<Sponsors />} />

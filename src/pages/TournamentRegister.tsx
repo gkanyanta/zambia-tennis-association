@@ -30,7 +30,10 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { tournamentService, Tournament } from '@/services/tournamentService'
+import { calculateTennisAge } from '@/types/tournament'
 import { membershipService, PlayerSearchResult } from '@/services/membershipService'
+import { clubService, Club } from '@/services/clubService'
+import { apiFetch } from '@/services/api'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
 import debounce from 'lodash/debounce'
 
@@ -68,6 +71,14 @@ export function TournamentRegister() {
   const [searchResults, setSearchResults] = useState<PlayerSearchResult[]>([])
   const [searching, setSearching] = useState(false)
 
+  // Club-based player selection
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [selectedClubId, setSelectedClubId] = useState('')
+  const [clubPlayers, setClubPlayers] = useState<any[]>([])
+  const [loadingClubPlayers, setLoadingClubPlayers] = useState(false)
+  const [selectedClubPlayers, setSelectedClubPlayers] = useState<string[]>([])
+  const [clubCategoryId, setClubCategoryId] = useState('')
+
   // Selected entries
   const [selectedEntries, setSelectedEntries] = useState<SelectedEntry[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerSearchResult | null>(null)
@@ -102,7 +113,25 @@ export function TournamentRegister() {
     if (id) {
       fetchTournament()
     }
+    clubService.getClubs().then(setClubs).catch(console.error)
   }, [id])
+
+  // Fetch players when a club is selected
+  useEffect(() => {
+    if (!selectedClubId) {
+      setClubPlayers([])
+      setSelectedClubPlayers([])
+      return
+    }
+    setLoadingClubPlayers(true)
+    apiFetch(`/players?clubId=${selectedClubId}`)
+      .then(res => {
+        setClubPlayers(res.data || [])
+        setSelectedClubPlayers([])
+      })
+      .catch(console.error)
+      .finally(() => setLoadingClubPlayers(false))
+  }, [selectedClubId])
 
   const fetchTournament = async () => {
     try {
@@ -266,6 +295,108 @@ export function TournamentRegister() {
     setSelectedEntries(selectedEntries.filter((_, i) => i !== index))
   }
 
+  // Bulk add selected club players to entries
+  const handleAddClubPlayers = () => {
+    if (!tournament || !clubCategoryId || selectedClubPlayers.length === 0) return
+
+    const category = tournament.categories.find(c => c._id === clubCategoryId)
+    if (!category) return
+
+    const tournamentYear = new Date(tournament.startDate).getFullYear()
+    const newEntries: SelectedEntry[] = []
+    const errors: string[] = []
+
+    for (const playerId of selectedClubPlayers) {
+      const player = clubPlayers.find(p => p._id === playerId)
+      if (!player) continue
+
+      // Check duplicate
+      const alreadyEntered = selectedEntries.some(
+        e => e.player._id === player._id && e.categoryId === clubCategoryId
+      )
+      if (alreadyEntered) {
+        errors.push(`${player.firstName} ${player.lastName} already entered`)
+        continue
+      }
+
+      // Check eligibility for junior categories
+      if (category.type === 'junior' && category.maxAge && player.dateOfBirth) {
+        const tennisAge = calculateTennisAge(player.dateOfBirth, tournamentYear)
+        if (tennisAge > category.maxAge) {
+          errors.push(`${player.firstName} ${player.lastName}: tennis age ${tennisAge} exceeds max ${category.maxAge}`)
+          continue
+        }
+      }
+
+      // Check gender
+      const catGender = (category as any).gender
+      if ((catGender === 'boys' || catGender === 'mens') && player.gender !== 'male') {
+        errors.push(`${player.firstName} ${player.lastName}: gender mismatch`)
+        continue
+      }
+      if ((catGender === 'girls' || catGender === 'womens') && player.gender !== 'female') {
+        errors.push(`${player.firstName} ${player.lastName}: gender mismatch`)
+        continue
+      }
+
+      newEntries.push({
+        player: {
+          _id: player._id,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          zpin: player.zpin,
+          dateOfBirth: player.dateOfBirth,
+          gender: player.gender,
+          club: player.club,
+          age: player.dateOfBirth ? calculateTennisAge(player.dateOfBirth, tournamentYear) : null,
+          isInternational: player.isInternational,
+          fullName: `${player.firstName} ${player.lastName}`,
+          membershipType: null,
+          hasActiveSubscription: false,
+          subscriptionExpiry: null
+        },
+        categoryId: clubCategoryId,
+        categoryName: category.name
+      })
+    }
+
+    if (errors.length > 0) {
+      setError(`Added ${newEntries.length} players. Skipped: ${errors.join('; ')}`)
+    } else {
+      setError(null)
+    }
+
+    setSelectedEntries([...selectedEntries, ...newEntries])
+    setSelectedClubPlayers([])
+  }
+
+  // Get tennis age + eligibility for a club player in a given category
+  const getPlayerEligibility = (player: any, categoryId: string) => {
+    if (!tournament) return { tennisAge: null, eligible: true, reason: '' }
+
+    const category = tournament.categories.find(c => c._id === categoryId)
+    if (!category || !player.dateOfBirth) return { tennisAge: null, eligible: true, reason: 'No DOB' }
+
+    const tournamentYear = new Date(tournament.startDate).getFullYear()
+    const tennisAge = calculateTennisAge(player.dateOfBirth, tournamentYear)
+
+    // Gender check
+    const catGender = (category as any).gender
+    if ((catGender === 'boys' || catGender === 'mens') && player.gender !== 'male') {
+      return { tennisAge, eligible: false, reason: 'Gender mismatch' }
+    }
+    if ((catGender === 'girls' || catGender === 'womens') && player.gender !== 'female') {
+      return { tennisAge, eligible: false, reason: 'Gender mismatch' }
+    }
+
+    // Age check for junior
+    if (category.type === 'junior' && category.maxAge && tennisAge > category.maxAge) {
+      return { tennisAge, eligible: false, reason: `Age ${tennisAge} > max ${category.maxAge}` }
+    }
+
+    return { tennisAge, eligible: true, reason: 'Eligible' }
+  }
+
   const calculateTotalFee = () => {
     if (!tournament) return 0
     return selectedEntries.length * tournament.entryFee
@@ -380,18 +511,11 @@ export function TournamentRegister() {
       if (catGender === 'mens' && playerGender !== 'male') return false
       if (catGender === 'womens' && playerGender !== 'female') return false
 
-      // Check age for junior categories
-      if (category.type === 'junior' && category.maxAge && selectedPlayer.age && selectedPlayer.dateOfBirth) {
-        // Calculate age on Dec 31 of tournament year
+      // Check age for junior categories using tennis age (year subtraction)
+      if (category.type === 'junior' && category.maxAge && selectedPlayer.dateOfBirth) {
         const tournamentYear = new Date(tournament.startDate).getFullYear()
-        const dob = new Date(selectedPlayer.dateOfBirth)
-        const dec31 = new Date(tournamentYear, 11, 31)
-        let ageOnDec31 = dec31.getFullYear() - dob.getFullYear()
-        const monthDiff = dec31.getMonth() - dob.getMonth()
-        if (monthDiff < 0 || (monthDiff === 0 && dec31.getDate() < dob.getDate())) {
-          ageOnDec31--
-        }
-        if (ageOnDec31 > category.maxAge) return false
+        const tennisAge = calculateTennisAge(selectedPlayer.dateOfBirth, tournamentYear)
+        if (tennisAge > category.maxAge) return false
       }
 
       // Check minimum age for madalas
@@ -607,6 +731,157 @@ export function TournamentRegister() {
                       For players not yet registered in the system
                     </p>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Club-Based Player Selection */}
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Select Players by Club
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Select Club</Label>
+                      <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Choose a club" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clubs.filter(c => c.status === 'active').map(club => (
+                            <SelectItem key={club._id} value={club._id}>
+                              {club.name} ({club.memberCount} members)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Select Category for Players</Label>
+                      <Select value={clubCategoryId} onValueChange={setClubCategoryId}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Choose a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tournament?.categories.map(category => (
+                            <SelectItem key={category._id} value={category._id}>
+                              {category.name} ({category.entries?.length || 0}/{category.maxEntries})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {loadingClubPlayers && (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <span className="ml-2 text-muted-foreground">Loading club players...</span>
+                    </div>
+                  )}
+
+                  {selectedClubId && !loadingClubPlayers && clubPlayers.length > 0 && clubCategoryId && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          {clubPlayers.length} players found
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const eligibleIds = clubPlayers
+                                .filter(p => getPlayerEligibility(p, clubCategoryId).eligible)
+                                .map(p => p._id)
+                              setSelectedClubPlayers(
+                                selectedClubPlayers.length === eligibleIds.length ? [] : eligibleIds
+                              )
+                            }}
+                          >
+                            {selectedClubPlayers.length > 0 ? 'Deselect All' : 'Select All Eligible'}
+                          </Button>
+                          {selectedClubPlayers.length > 0 && (
+                            <Button size="sm" onClick={handleAddClubPlayers}>
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add {selectedClubPlayers.length} to Entries
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50 border-b">
+                            <tr>
+                              <th className="px-3 py-2 text-left w-10"></th>
+                              <th className="px-3 py-2 text-left">Player</th>
+                              <th className="px-3 py-2 text-center">ZPIN</th>
+                              <th className="px-3 py-2 text-center">Tennis Age</th>
+                              <th className="px-3 py-2 text-center">Gender</th>
+                              <th className="px-3 py-2 text-center">Eligibility</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {clubPlayers.map(player => {
+                              const elig = getPlayerEligibility(player, clubCategoryId)
+                              return (
+                                <tr key={player._id} className={`hover:bg-muted/30 ${!elig.eligible ? 'opacity-60' : ''}`}>
+                                  <td className="px-3 py-2">
+                                    <input
+                                      type="checkbox"
+                                      disabled={!elig.eligible}
+                                      checked={selectedClubPlayers.includes(player._id)}
+                                      onChange={() => {
+                                        setSelectedClubPlayers(prev =>
+                                          prev.includes(player._id)
+                                            ? prev.filter(id => id !== player._id)
+                                            : [...prev, player._id]
+                                        )
+                                      }}
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2 font-medium">
+                                    {player.firstName} {player.lastName}
+                                  </td>
+                                  <td className="px-3 py-2 text-center font-mono text-xs">
+                                    {player.zpin || '—'}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    {elig.tennisAge ?? '—'}
+                                  </td>
+                                  <td className="px-3 py-2 text-center capitalize">
+                                    {player.gender || '—'}
+                                  </td>
+                                  <td className="px-3 py-2 text-center">
+                                    {elig.eligible ? (
+                                      <Badge variant="default" className="bg-green-600 text-xs">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" /> Eligible
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive" className="text-xs">
+                                        {elig.reason}
+                                      </Badge>
+                                    )}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {selectedClubId && !loadingClubPlayers && clubPlayers.length === 0 && (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Users className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                      <p>No registered players found for this club</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

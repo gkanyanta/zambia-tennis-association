@@ -6,14 +6,50 @@ import { generateNextZPIN } from '../utils/generateZPIN.js';
 
 const router = express.Router();
 
-// @desc    Get all players (public)
+// @desc    Get all players (public) — supports ?club=Name&search=term&page=1&limit=50
 // @route   GET /api/players
 // @access  Public
 router.get('/', async (req, res) => {
   try {
-    const players = await User.find({ role: 'player' })
-      .select('-password')
-      .sort({ createdAt: -1 });
+    const { club, clubId, search, page, limit: qLimit } = req.query;
+    const filter = { role: 'player' };
+
+    // Filter by club name (exact or partial match)
+    if (club) {
+      filter.club = { $regex: new RegExp(`^${club}$`, 'i') };
+    }
+
+    // clubId: look up club name first, then filter
+    if (clubId) {
+      const Club = (await import('../models/Club.js')).default;
+      const clubDoc = await Club.findById(clubId);
+      if (clubDoc) {
+        filter.club = { $regex: new RegExp(`^${clubDoc.name}$`, 'i') };
+      } else {
+        return res.status(200).json({ success: true, count: 0, data: [] });
+      }
+    }
+
+    // Search by name or ZPIN
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      filter.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { zpin: searchRegex }
+      ];
+    }
+
+    let query = User.find(filter).select('-password').sort({ lastName: 1, firstName: 1 });
+
+    // Pagination
+    if (page && qLimit) {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(qLimit) || 50;
+      query = query.skip((pageNum - 1) * limitNum).limit(limitNum);
+    }
+
+    const players = await query;
 
     res.status(200).json({
       success: true,

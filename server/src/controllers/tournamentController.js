@@ -1,7 +1,9 @@
+import jwt from 'jsonwebtoken';
 import Tournament from '../models/Tournament.js';
 import User from '../models/User.js';
 import sendEmail from '../utils/sendEmail.js';
 import {
+  calculateTennisAge,
   calculateAgeOnDec31,
   checkCategoryEligibility,
   getEligibleCategories,
@@ -324,9 +326,9 @@ export const submitEntry = async (req, res) => {
       };
     }
 
-    // Calculate age on December 31st for junior categories
+    // Calculate tennis age (year subtraction — official Dec 31 rule)
     const tournamentYear = new Date(tournament.startDate).getFullYear();
-    const ageOnDec31 = calculateAgeOnDec31(player.dateOfBirth, tournamentYear);
+    const ageOnDec31 = calculateTennisAge(player.dateOfBirth, tournamentYear);
     const currentAge = Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
 
     // Create entry data
@@ -360,6 +362,96 @@ export const submitEntry = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Bulk entry actions (approve, confirm payment, waive payment)
+// @route   POST /api/tournaments/:tournamentId/entries/bulk
+// @access  Private (Admin/Staff)
+export const bulkEntryAction = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const { entryIds, action, categoryId } = req.body;
+
+    if (!entryIds || !Array.isArray(entryIds) || entryIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'entryIds array is required' });
+    }
+
+    const validActions = ['APPROVE', 'CONFIRM_PAYMENT', 'WAIVE_PAYMENT'];
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ success: false, message: `action must be one of: ${validActions.join(', ')}` });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    const results = [];
+
+    for (const entryId of entryIds) {
+      const entry = category.entries.id(entryId);
+      if (!entry) {
+        results.push({ entryId, success: false, error: 'Entry not found' });
+        continue;
+      }
+
+      try {
+        switch (action) {
+          case 'APPROVE':
+            if (entry.status !== 'pending') {
+              results.push({ entryId, success: false, error: `Cannot approve entry with status "${entry.status}"` });
+              continue;
+            }
+            entry.status = 'accepted';
+            break;
+
+          case 'CONFIRM_PAYMENT':
+            if (entry.status !== 'pending_payment') {
+              results.push({ entryId, success: false, error: `Cannot confirm payment for entry with status "${entry.status}"` });
+              continue;
+            }
+            entry.paymentStatus = 'paid';
+            entry.paymentDate = new Date();
+            entry.paymentMethod = 'manual';
+            entry.status = 'pending';
+            break;
+
+          case 'WAIVE_PAYMENT':
+            if (entry.status !== 'pending_payment') {
+              results.push({ entryId, success: false, error: `Cannot waive payment for entry with status "${entry.status}"` });
+              continue;
+            }
+            entry.paymentStatus = 'waived';
+            entry.paymentDate = new Date();
+            entry.paymentMethod = 'waived';
+            entry.status = 'pending';
+            break;
+        }
+
+        results.push({ entryId, success: true, playerName: entry.playerName });
+      } catch (err) {
+        results.push({ entryId, success: false, error: err.message });
+      }
+    }
+
+    await tournament.save();
+
+    const succeeded = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    res.status(200).json({
+      success: true,
+      message: `${succeeded} entries updated, ${failed} failed`,
+      data: { results, succeeded, failed }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -420,6 +512,82 @@ export const updateEntryStatus = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Bulk update seeds for a category
+// @route   PUT /api/tournaments/:tournamentId/categories/:categoryId/seeds
+// @access  Private (Admin/Staff)
+export const bulkUpdateSeeds = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const { seeds } = req.body;
+
+    if (!seeds || !Array.isArray(seeds)) {
+      return res.status(400).json({ success: false, message: 'seeds array is required' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    // Validate: no duplicate seed numbers
+    const seedNumbers = seeds.filter(s => s.seedNumber > 0).map(s => s.seedNumber);
+    const uniqueSeeds = new Set(seedNumbers);
+    if (uniqueSeeds.size !== seedNumbers.length) {
+      return res.status(400).json({ success: false, message: 'Duplicate seed numbers are not allowed' });
+    }
+
+    // Validate: seed range
+    const acceptedCount = category.entries.filter(e => e.status === 'accepted').length;
+    const maxSeed = Math.min(32, acceptedCount);
+    for (const { seedNumber } of seeds) {
+      if (seedNumber < 0 || seedNumber > maxSeed) {
+        return res.status(400).json({ success: false, message: `Seed numbers must be between 1 and ${maxSeed}` });
+      }
+    }
+
+    const errors = [];
+
+    // Clear existing seeds first
+    category.entries.forEach(entry => {
+      if (entry.status === 'accepted') {
+        entry.seed = undefined;
+      }
+    });
+
+    // Apply new seeds
+    for (const { entryId, seedNumber } of seeds) {
+      const entry = category.entries.id(entryId);
+      if (!entry) {
+        errors.push({ entryId, error: 'Entry not found' });
+        continue;
+      }
+      if (entry.status !== 'accepted') {
+        errors.push({ entryId, error: 'Only accepted entries can be seeded' });
+        continue;
+      }
+      if (seedNumber > 0) {
+        entry.seed = seedNumber;
+      }
+    }
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Seeds updated${errors.length > 0 ? ` (${errors.length} errors)` : ''}`,
+      data: category,
+      errors
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -615,6 +783,110 @@ export const updateMatchResult = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Finalize draw results — lock matches, compute standings
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/results/finalize
+// @access  Private (Admin/Staff)
+export const finalizeResults = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    if (!category.draw) {
+      return res.status(400).json({ success: false, message: 'No draw to finalize' });
+    }
+
+    if (category.draw.finalized) {
+      return res.status(400).json({ success: false, message: 'Results already finalized' });
+    }
+
+    // For single elimination, check the final is completed
+    if (category.draw.type === 'single_elimination') {
+      const finalMatch = category.draw.matches
+        .filter(m => m.round === category.draw.numberOfRounds)
+        .find(m => m.status !== 'completed');
+
+      if (finalMatch) {
+        return res.status(400).json({ success: false, message: 'All matches must be completed before finalizing' });
+      }
+
+      // Compute standings
+      const finalRound = category.draw.matches.filter(m => m.round === category.draw.numberOfRounds);
+      const semiRound = category.draw.matches.filter(m => m.round === category.draw.numberOfRounds - 1);
+
+      const champion = finalRound[0]?.winner;
+      const championPlayer = finalRound[0]?.player1?.id === champion ? finalRound[0].player1 : finalRound[0]?.player2;
+      const runnerUp = finalRound[0]?.player1?.id === champion ? finalRound[0].player2 : finalRound[0]?.player1;
+
+      // Semi-final losers
+      const semiLosers = semiRound
+        .filter(m => m.winner)
+        .map(m => m.player1?.id === m.winner ? m.player2 : m.player1)
+        .filter(Boolean);
+
+      category.draw.standings = {
+        champion: championPlayer ? { id: championPlayer.id, name: championPlayer.name } : null,
+        runnerUp: runnerUp ? { id: runnerUp.id, name: runnerUp.name } : null,
+        semiFinalists: semiLosers.map(p => ({ id: p.id, name: p.name }))
+      };
+    }
+
+    // For round robin, compute from group standings
+    if (category.draw.type === 'round_robin' && category.draw.roundRobinGroups) {
+      for (const group of category.draw.roundRobinGroups) {
+        const incompleteMatch = group.matches.find(m => m.status !== 'completed');
+        if (incompleteMatch) {
+          return res.status(400).json({
+            success: false,
+            message: `${group.groupName} has incomplete matches`
+          });
+        }
+
+        // Compute standings for this group
+        const standings = {};
+        group.players.forEach(p => {
+          standings[p.id] = { playerId: p.id, playerName: p.name, played: 0, won: 0, lost: 0, points: 0 };
+        });
+
+        group.matches.forEach(m => {
+          if (m.winner && m.player1 && m.player2) {
+            if (standings[m.player1.id]) { standings[m.player1.id].played++; }
+            if (standings[m.player2.id]) { standings[m.player2.id].played++; }
+            if (standings[m.winner]) {
+              standings[m.winner].won++;
+              standings[m.winner].points += 2;
+            }
+            const loserId = m.player1.id === m.winner ? m.player2.id : m.player1.id;
+            if (standings[loserId]) { standings[loserId].lost++; }
+          }
+        });
+
+        group.standings = Object.values(standings).sort((a, b) => b.points - a.points || b.won - a.won);
+      }
+    }
+
+    category.draw.finalized = true;
+    category.draw.finalizedAt = new Date();
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Results finalized successfully',
+      data: category.draw
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -933,9 +1205,9 @@ export const publicRegister = async (req, res) => {
         };
       }
 
-      // Calculate ages
+      // Calculate tennis age (year subtraction — official Dec 31 rule)
       const tournamentYear = new Date(tournament.startDate).getFullYear();
-      const ageOnDec31 = calculateAgeOnDec31(playerData.dateOfBirth, tournamentYear);
+      const ageOnDec31 = calculateTennisAge(playerData.dateOfBirth, tournamentYear);
       const currentAge = Math.floor((new Date() - new Date(playerData.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
 
       // Create entry data
@@ -993,10 +1265,21 @@ export const publicRegister = async (req, res) => {
       };
     }
 
+    // Generate pay-later token and link if not paying now and there's a fee
+    let payLaterLink = '';
+    if (!payNow && totalFee > 0) {
+      const payLaterToken = jwt.sign(
+        { tournamentId: tournament._id, purpose: 'PAY_LATER', payerEmail: payer.email, amount: totalFee },
+        process.env.JWT_SECRET,
+        { expiresIn: '72h' }
+      );
+      const webBaseUrl = process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com';
+      payLaterLink = `${webBaseUrl}/pay/complete?token=${payLaterToken}`;
+    }
+
     // Send confirmation email
     if (results.length > 0) {
       try {
-        const entriesList = results.map(r => `- ${r.playerName}: ${r.categoryName}`).join('\n');
         await sendEmail({
           email: payer.email,
           subject: `Tournament Registration - ${tournament.name}`,
@@ -1017,7 +1300,12 @@ export const publicRegister = async (req, res) => {
             ${totalFee > 0 ? `
             <p><strong>Payment:</strong></p>
             <p>Total Entry Fee: K${totalFee}</p>
-            <p>Status: ${payNow ? 'Payment Pending' : 'Pay Later - Entry will be confirmed upon payment'}</p>
+            ${payNow
+              ? '<p>Status: Payment Pending</p>'
+              : `<p>Status: Pay Later — Entry will be confirmed upon payment</p>
+                 <p><a href="${payLaterLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Complete Payment Now</a></p>
+                 <p style="font-size:12px;color:#666;">This link expires in 72 hours.</p>`
+            }
             ` : ''}
             ${errors.length > 0 ? `
             <p><strong>Note:</strong> Some entries could not be processed:</p>
@@ -1050,5 +1338,75 @@ export const publicRegister = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// @desc    Verify pay-later token and return payment info
+// @route   GET /api/tournaments/pay-later/verify
+// @access  Public
+export const verifyPayLaterToken = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Token is required' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ success: false, message: 'Payment link has expired. Please contact the organizer.' });
+      }
+      return res.status(401).json({ success: false, message: 'Invalid payment link' });
+    }
+
+    if (decoded.purpose !== 'PAY_LATER') {
+      return res.status(400).json({ success: false, message: 'Invalid token purpose' });
+    }
+
+    const tournament = await Tournament.findById(decoded.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Check if entries with pending_payment exist for this payer
+    const pendingEntries = [];
+    for (const category of tournament.categories) {
+      for (const entry of category.entries) {
+        if (entry.status === 'pending_payment' && entry.payer?.email === decoded.payerEmail) {
+          pendingEntries.push({
+            entryId: entry._id,
+            categoryId: category._id,
+            categoryName: category.name,
+            playerName: entry.playerName,
+            status: entry.status,
+            paymentStatus: entry.paymentStatus
+          });
+        }
+      }
+    }
+
+    if (pendingEntries.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'All entries are already paid or no longer pending'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tournamentId: tournament._id,
+        tournamentName: tournament.name,
+        amount: decoded.amount,
+        payerEmail: decoded.payerEmail,
+        entries: pendingEntries,
+        entryFee: tournament.entryFee
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

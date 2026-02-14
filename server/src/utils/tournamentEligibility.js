@@ -4,27 +4,23 @@
  */
 
 /**
- * Calculate a player's age on December 31st of the tournament year
- * This is the official age used for tournament eligibility
+ * Calculate a player's tennis age for a tournament year.
+ * Tennis age = tournamentYear - birthYear (age on Dec 31 of that year).
+ * No birthday-occurrence adjustment — always simple year subtraction.
  *
  * @param {Date|string} dateOfBirth - Player's date of birth
  * @param {number} tournamentYear - Year of the tournament
- * @returns {number} - Player's age on Dec 31st of tournament year
+ * @returns {number} - Player's tennis age for that year
  */
-export const calculateAgeOnDec31 = (dateOfBirth, tournamentYear) => {
-  const dec31 = new Date(tournamentYear, 11, 31); // December 31st
+export const calculateTennisAge = (dateOfBirth, tournamentYear) => {
   const dob = new Date(dateOfBirth);
-
-  let age = dec31.getFullYear() - dob.getFullYear();
-  const monthDiff = dec31.getMonth() - dob.getMonth();
-
-  // Adjust age if birthday hasn't occurred yet by Dec 31
-  if (monthDiff < 0 || (monthDiff === 0 && dec31.getDate() < dob.getDate())) {
-    age--;
-  }
-
-  return age;
+  return tournamentYear - dob.getFullYear();
 };
+
+/**
+ * @deprecated Use calculateTennisAge instead. Kept for backward compatibility.
+ */
+export const calculateAgeOnDec31 = calculateTennisAge;
 
 /**
  * Check if a player is eligible for a specific tournament category
@@ -36,7 +32,7 @@ export const calculateAgeOnDec31 = (dateOfBirth, tournamentYear) => {
  * @returns {Object} - { eligible: boolean, reason: string, ageOnDec31: number }
  */
 export const checkCategoryEligibility = (dateOfBirth, gender, categoryCode, tournamentYear) => {
-  const ageOnDec31 = calculateAgeOnDec31(dateOfBirth, tournamentYear);
+  const ageOnDec31 = calculateTennisAge(dateOfBirth, tournamentYear);
 
   // Parse category code (e.g., 'B10U' -> { gender: 'B', maxAge: 10 })
   const categoryGender = categoryCode.charAt(0); // 'B' or 'G'
@@ -79,7 +75,7 @@ export const checkCategoryEligibility = (dateOfBirth, gender, categoryCode, tour
  * @returns {Array} - Array of { categoryCode, eligible, suggested, ageOnDec31, reason }
  */
 export const getEligibleCategories = (dateOfBirth, gender, availableCategories, tournamentYear) => {
-  const ageOnDec31 = calculateAgeOnDec31(dateOfBirth, tournamentYear);
+  const ageOnDec31 = calculateTennisAge(dateOfBirth, tournamentYear);
   const genderPrefix = gender === 'male' ? 'B' : 'G';
 
   const categoriesList = [
@@ -145,8 +141,8 @@ export const validateTournamentEntry = (player, categoryCode, tournamentDate) =>
     return { eligible: false, errors, warnings, info: {} };
   }
 
-  // Calculate age
-  const ageOnDec31 = calculateAgeOnDec31(player.dateOfBirth, tournamentYear);
+  // Calculate tennis age (year subtraction)
+  const ageOnDec31 = calculateTennisAge(player.dateOfBirth, tournamentYear);
 
   // Check category eligibility
   const eligibility = checkCategoryEligibility(

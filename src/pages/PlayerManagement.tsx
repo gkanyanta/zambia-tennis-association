@@ -668,8 +668,15 @@ export function PlayerManagement() {
                               </Badge>
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <Badge variant={player.membershipStatus === 'active' ? 'default' : 'secondary'}>
-                                {player.membershipStatus || 'N/A'}
+                              <Badge
+                                variant={player.membershipStatus === 'active' ? 'default' : 'secondary'}
+                                className={
+                                  player.membershipStatus === 'active' ? 'bg-green-600' :
+                                  player.membershipStatus === 'inactive' ? 'text-orange-600' :
+                                  player.membershipStatus === 'expired' ? 'text-red-600' : ''
+                                }
+                              >
+                                {(player.membershipStatus || 'inactive').toUpperCase()}
                               </Badge>
                             </td>
                             <td className="px-4 py-3">
@@ -1049,6 +1056,7 @@ export function PlayerManagement() {
                     >
                       <option value="">Select Status</option>
                       <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
                       <option value="pending">Pending</option>
                       <option value="expired">Expired</option>
                     </select>

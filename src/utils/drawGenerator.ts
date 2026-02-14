@@ -8,11 +8,13 @@ import type {
 import { getNextPowerOfTwo, getRoundName } from '@/types/tournament'
 
 // Generate Single Elimination Draw
+// BYEs are assigned to top seeds first (seed 1 gets BYE, then seed 2, etc.)
 export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw {
   const acceptedEntries = entries.filter(e => e.status === 'accepted')
   const numPlayers = acceptedEntries.length
   const bracketSize = getNextPowerOfTwo(numPlayers)
   const numberOfRounds = Math.log2(bracketSize)
+  const numByes = bracketSize - numPlayers
 
   // Sort entries by seed (seeded players first, then unseeded)
   const sortedEntries = [...acceptedEntries].sort((a, b) => {
@@ -22,55 +24,100 @@ export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw 
     return 0
   })
 
-  // Create players array with byes
-  const players: (MatchPlayer | null)[] = []
-
-  // Place seeded players according to standard seeding positions
+  // Standard seeding positions for the bracket
   const seedingPositions = getSeedingPositions(bracketSize)
 
-  sortedEntries.forEach((entry) => {
+  // Initialize bracket positions
+  const players: (MatchPlayer | null)[] = new Array(bracketSize).fill(null)
+
+  // Place seeded players at their standard positions
+  const seededEntries = sortedEntries.filter(e => e.seed)
+  const unseededEntries = sortedEntries.filter(e => !e.seed)
+
+  seededEntries.forEach((entry) => {
     const player: MatchPlayer = {
       id: entry.playerId,
       name: entry.playerName,
       seed: entry.seed
     }
-
-    if (entry.seed && entry.seed <= seedingPositions.length) {
-      const position = seedingPositions[entry.seed - 1]
+    if (entry.seed! <= seedingPositions.length) {
+      const position = seedingPositions[entry.seed! - 1]
       players[position] = player
-    } else {
-      // Fill first empty position for unseeded players
-      const firstEmpty = players.findIndex(p => p === undefined)
-      if (firstEmpty !== -1) {
-        players[firstEmpty] = player
-      } else {
-        players.push(player)
-      }
     }
   })
 
-  // Fill remaining positions with byes
-  while (players.length < bracketSize) {
-    players.push(null)
+  // Determine which positions get BYEs.
+  // BYEs should go to the top seeds first.
+  // In a standard bracket, seed 1 is at position 0 and faces position 1,
+  // seed 2 is at the opposite end, etc. The BYE goes opposite the seed.
+  const byePositions = new Set<number>()
+
+  if (numByes > 0) {
+    // For each BYE, assign it opposite the highest seeds first
+    for (let i = 0; i < numByes && i < seedingPositions.length; i++) {
+      const seedPos = seedingPositions[i]
+      // The opponent position is the other half of the same first-round match
+      const opponentPos = seedPos % 2 === 0 ? seedPos + 1 : seedPos - 1
+      byePositions.add(opponentPos)
+    }
+
+    // If we have more BYEs than seeds, assign remaining BYEs to unfilled positions
+    if (byePositions.size < numByes) {
+      for (let i = 0; i < bracketSize && byePositions.size < numByes; i++) {
+        if (!players[i] && !byePositions.has(i)) {
+          byePositions.add(i)
+        }
+      }
+    }
   }
+
+  // Place unseeded players in remaining non-BYE positions
+  const availablePositions: number[] = []
+  for (let i = 0; i < bracketSize; i++) {
+    if (!players[i] && !byePositions.has(i)) {
+      availablePositions.push(i)
+    }
+  }
+
+  unseededEntries.forEach((entry, idx) => {
+    if (idx < availablePositions.length) {
+      players[availablePositions[idx]] = {
+        id: entry.playerId,
+        name: entry.playerName,
+        seed: entry.seed
+      }
+    }
+  })
 
   // Generate first round matches
   const matches: Match[] = []
   let matchNumber = 1
 
-  for (let i = 0; i < players.length; i += 2) {
+  for (let i = 0; i < bracketSize; i += 2) {
     const player1 = players[i]
-    const player2 = players[i + 1]
+    const player2 = byePositions.has(i + 1) ? null : players[i + 1]
+    const isByeP1 = byePositions.has(i)
+
+    const p1: MatchPlayer = isByeP1
+      ? { id: 'bye', name: 'BYE', isBye: true }
+      : player1 ? player1 : { id: 'bye', name: 'BYE', isBye: true }
+
+    const p2: MatchPlayer = byePositions.has(i + 1)
+      ? { id: 'bye', name: 'BYE', isBye: true }
+      : player2 ? player2 : { id: 'bye', name: 'BYE', isBye: true }
+
+    const hasBye = p1.isBye || p2.isBye
+    const realPlayer = p1.isBye ? (p2.isBye ? undefined : p2) : p1
 
     const match: Match = {
       id: `match-${matchNumber}`,
       matchNumber,
       round: 1,
       roundName: getRoundName(1, numberOfRounds),
-      player1: player1 ? player1 : { id: 'bye', name: 'BYE', isBye: true },
-      player2: player2 ? player2 : { id: 'bye', name: 'BYE', isBye: true },
-      status: (player1 && !player2) || (player2 && !player1) ? 'completed' : 'scheduled',
-      winner: !player1 && player2 ? player2.id : player1 && !player2 ? player1.id : undefined
+      player1: p1,
+      player2: p2,
+      status: hasBye && realPlayer ? 'completed' : 'scheduled',
+      winner: hasBye && realPlayer ? realPlayer.id : undefined
     }
 
     matches.push(match)
@@ -95,6 +142,28 @@ export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw 
 
     previousRoundMatches = matchesInRound
   }
+
+  // Auto-advance BYE winners into round 2
+  const round1Matches = matches.filter(m => m.round === 1)
+  const round2Matches = matches.filter(m => m.round === 2)
+
+  round1Matches.forEach((m, idx) => {
+    if (m.winner && m.status === 'completed') {
+      const nextMatchIdx = Math.floor(idx / 2)
+      const isFirstPlayer = idx % 2 === 0
+      const winner = m.player1?.id === m.winner ? m.player1 : m.player2
+
+      if (winner && round2Matches[nextMatchIdx]) {
+        const r2Match = round2Matches[nextMatchIdx]
+        const r2FullIdx = matches.findIndex(x => x.id === r2Match.id)
+        if (isFirstPlayer) {
+          matches[r2FullIdx].player1 = { ...winner, isBye: undefined }
+        } else {
+          matches[r2FullIdx].player2 = { ...winner, isBye: undefined }
+        }
+      }
+    }
+  })
 
   return {
     type: 'single_elimination',
@@ -170,7 +239,6 @@ export function generateFeedInDraw(entries: TournamentEntry[]): Draw {
   const mainDraw = generateSingleEliminationDraw(acceptedEntries)
 
   // Consolation draw - losers from first round feed into consolation bracket
-  // This is a simplified version - full compass draw would have multiple consolation levels
   const consolationMatches: Match[] = []
   const firstRoundMatches = mainDraw.matches.filter(m => m.round === 1)
 
