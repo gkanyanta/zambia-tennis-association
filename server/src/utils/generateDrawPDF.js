@@ -152,7 +152,7 @@ function renderSingleElimination(doc, tournament, category) {
   // Adaptive scaling: fit on one page if possible (up to 32-bracket / 16 R1 matches)
   // Only split to multi-page for 64+ brackets where single-page would be unreadable
   const spacePerMatch = firstRoundCount > 0 ? bracketAreaHeight / firstRoundCount : bracketAreaHeight;
-  const minReadableSpace = 22; // below this, text becomes too small to read
+  const minReadableSpace = 12; // below this, text becomes too small to read
   const needsMultiplePages = spacePerMatch < minReadableSpace;
 
   if (needsMultiplePages) {
@@ -186,7 +186,7 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
   const firstRoundCount = (roundMatches[1] || []).length;
   const spacePerR1Match = firstRoundCount > 0 ? drawAreaHeight / firstRoundCount : drawAreaHeight;
   // Box height uses most of the available space per match, with a gap
-  const boxHeight = Math.min(MATCH_BOX_HEIGHT, Math.max(20, spacePerR1Match - 4));
+  const boxHeight = Math.min(MATCH_BOX_HEIGHT, Math.max(12, spacePerR1Match - 4));
   const playerLineH = boxHeight / 2;
 
   // Render round labels
@@ -374,8 +374,8 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
   const lh = lineHeight || PLAYER_LINE_HEIGHT;
   // Scale font sizes with line height (base: 18pt line → 8.5pt name, 7pt seed/score)
   const scale = Math.min(1, lh / PLAYER_LINE_HEIGHT);
-  const nameFontSize = Math.max(5.5, Math.round(8.5 * scale * 10) / 10);
-  const smallFontSize = Math.max(5, Math.round(7 * scale * 10) / 10);
+  const nameFontSize = Math.max(4.5, Math.round(8.5 * scale * 10) / 10);
+  const smallFontSize = Math.max(4, Math.round(7 * scale * 10) / 10);
   const textY = y + Math.max(1, (lh - nameFontSize) / 2);
   const padding = 3;
   const nameX = x + padding;
