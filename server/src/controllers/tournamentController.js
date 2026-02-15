@@ -11,6 +11,7 @@ import {
   getCategoryDetails,
   getAllJuniorCategories
 } from '../utils/tournamentEligibility.js';
+import { generateDrawPDF } from '../utils/generateDrawPDF.js';
 
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
@@ -1425,6 +1426,45 @@ export const verifyPayLaterToken = async (req, res) => {
       }
     });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Download draw as PDF
+// @route   GET /api/tournaments/:tournamentId/categories/:categoryId/draw/pdf
+// @access  Public
+export const downloadDrawPDF = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    if (!category.draw) {
+      return res.status(400).json({ success: false, message: 'No draw generated for this category' });
+    }
+
+    const pdfBuffer = await generateDrawPDF(tournament, category);
+
+    const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${safeName(tournament.name)}-${safeName(category.name)}-Draw.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': pdfBuffer.length
+    });
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Draw PDF generation error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

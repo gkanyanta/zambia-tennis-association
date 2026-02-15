@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Grid3x3, RefreshCw, Eye, AlertCircle } from 'lucide-react'
+import { Grid3x3, RefreshCw, Eye, AlertCircle, FileDown } from 'lucide-react'
 import { DrawBracket } from '@/components/DrawBracket'
 import { MatchResultDialog } from '@/components/MatchResultDialog'
 import {
@@ -15,11 +15,13 @@ import type { TournamentCategory, Draw, Match } from '@/types/tournament'
 
 interface DrawGenerationProps {
   category: TournamentCategory
+  tournamentId?: string
+  categoryId?: string
   onGenerateDraw: (draw: Draw) => Promise<void>
   onUpdateMatch?: (matchId: string, result: { winner: string; score: string }) => Promise<void>
 }
 
-export function DrawGeneration({ category, onGenerateDraw, onUpdateMatch }: DrawGenerationProps) {
+export function DrawGeneration({ category, tournamentId, categoryId, onGenerateDraw, onUpdateMatch }: DrawGenerationProps) {
   const [previewDraw, setPreviewDraw] = useState<Draw | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -100,6 +102,18 @@ export function DrawGeneration({ category, onGenerateDraw, onUpdateMatch }: Draw
                 </p>
               </div>
               <div className="flex gap-2">
+                {tournamentId && categoryId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const apiUrl = import.meta.env.VITE_API_URL || ''
+                      window.open(`${apiUrl}/api/tournaments/${tournamentId}/categories/${categoryId}/draw/pdf`, '_blank')
+                    }}
+                  >
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Export PDF
+                  </Button>
+                )}
                 <Button variant="outline" onClick={handleRegenerateDraw}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Draw

@@ -18,7 +18,8 @@ import {
   getPlayerEligibleCategories,
   getJuniorCategories,
   publicRegister,
-  verifyPayLaterToken
+  verifyPayLaterToken,
+  downloadDrawPDF
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -51,6 +52,7 @@ router.put('/:tournamentId/categories/:categoryId/seeds', protect, authorize('ad
 router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authorize('admin', 'staff'), autoSeedCategory);
 
 // Draw management routes
+router.get('/:tournamentId/categories/:categoryId/draw/pdf', downloadDrawPDF);
 router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('admin', 'staff'), generateDraw);
 
 // Match result routes

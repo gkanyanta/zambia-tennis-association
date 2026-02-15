@@ -473,6 +473,8 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
 
       <DrawGeneration
         category={selectedCategory as any}
+        tournamentId={tournament._id}
+        categoryId={(selectedCategory as any)?._id}
         onGenerateDraw={handleGenerateDraw}
         onUpdateMatch={handleUpdateMatch}
       />

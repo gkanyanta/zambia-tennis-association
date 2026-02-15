@@ -18,7 +18,8 @@ import {
   Phone,
   CreditCard,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  FileDown
 } from 'lucide-react'
 import { tournamentService, Tournament } from '@/services/tournamentService'
 import { lencoPaymentService } from '@/services/lencoPaymentService'
@@ -575,7 +576,7 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
                 <Trophy className="h-5 w-5" />
                 {(activeCategory as any)?.name} - Draw
               </CardTitle>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 <Badge variant="outline">
                   {draw.type.replace('_', ' ')}
                 </Badge>
@@ -584,6 +585,17 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
                     {draw.bracketSize} draw
                   </Badge>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const apiUrl = import.meta.env.VITE_API_URL || ''
+                    window.open(`${apiUrl}/api/tournaments/${tournament._id}/categories/${activeCategoryId}/draw/pdf`, '_blank')
+                  }}
+                >
+                  <FileDown className="h-4 w-4 mr-1" />
+                  Export PDF
+                </Button>
               </div>
             </div>
           </CardHeader>
