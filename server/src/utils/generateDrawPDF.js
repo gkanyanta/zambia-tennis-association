@@ -372,27 +372,28 @@ function renderMatchBox(doc, match, x, y, boxWidth, boxHeight, playerLineH) {
 function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, score, isTopPlayer, boxWidth, lineHeight) {
   const w = boxWidth || MATCH_BOX_WIDTH;
   const lh = lineHeight || PLAYER_LINE_HEIGHT;
-  // Scale font sizes with line height (base: 18pt line → 7pt name, 6pt seed/score)
+  // Scale font sizes with line height (base: 18pt line → 8.5pt name, 7pt seed/score)
   const scale = Math.min(1, lh / PLAYER_LINE_HEIGHT);
-  const nameFontSize = Math.max(5, Math.round(7 * scale * 10) / 10);
-  const smallFontSize = Math.max(4, Math.round(6 * scale * 10) / 10);
-  const textY = y + Math.max(2, (lh - nameFontSize) / 2);
+  const nameFontSize = Math.max(5.5, Math.round(8.5 * scale * 10) / 10);
+  const smallFontSize = Math.max(5, Math.round(7 * scale * 10) / 10);
+  const textY = y + Math.max(1, (lh - nameFontSize) / 2);
   const padding = 3;
   const nameX = x + padding;
-  const scoreSpace = Math.min(30, w * 0.22);
-  const nameWidth = w - 2 * padding - scoreSpace;
 
   // Winner highlight background
   if (isWinner) {
     doc.rect(x + 0.5, y + 0.5, w - 1, lh - 1).fill(COLORS.winnerBg);
   }
 
+  // Full line width for non-scored lines
+  const fullWidth = w - 2 * padding;
+
   if (isBye) {
     doc
       .fontSize(nameFontSize)
       .fillColor(COLORS.byeText)
       .font('Helvetica-Oblique')
-      .text('BYE', nameX, textY, { width: nameWidth, lineBreak: false });
+      .text('BYE', nameX, textY, { width: fullWidth, lineBreak: false });
     doc.font('Helvetica');
     return;
   }
@@ -401,12 +402,19 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
     doc
       .fontSize(nameFontSize)
       .fillColor(COLORS.byeText)
-      .text('TBD', nameX, textY, { width: nameWidth, lineBreak: false });
+      .text('TBD', nameX, textY, { width: fullWidth, lineBreak: false });
     return;
   }
 
   // Max chars scales with box width
   const maxNameChars = Math.max(10, Math.floor(w / 8));
+
+  // Determine if we need to show score on this line
+  const showScore = matchCompleted && score && isWinner;
+  // Measure score width to place it right after the name with a small gap
+  const scoreText = showScore ? score : '';
+  const scoreWidth = showScore ? Math.min(w * 0.35, doc.fontSize(smallFontSize).widthOfString(scoreText) + 4) : 0;
+  const nameWidth = w - 2 * padding - (showScore ? scoreWidth + 4 : 0);
 
   // Seed badge
   let textStartX = nameX;
@@ -418,7 +426,7 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
       .font('Helvetica-Bold')
       .text(`[${seedText}]`, nameX, textY, { continued: true, lineBreak: false });
     doc.font('Helvetica');
-    textStartX = nameX + Math.round(12 * scale);
+    textStartX = nameX + Math.round(14 * scale);
     doc.text(' ', { continued: true, lineBreak: false });
   }
 
@@ -433,14 +441,14 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
       lineBreak: false
     });
 
-  // Score on right side (only for winner line for cleanliness)
-  if (matchCompleted && score && isWinner) {
+  // Score right after name area
+  if (showScore) {
     doc
       .fontSize(smallFontSize)
       .fillColor(COLORS.secondary)
       .font('Helvetica')
-      .text(score, x + w - scoreSpace - 3, textY, {
-        width: scoreSpace,
+      .text(scoreText, x + w - scoreWidth - padding, textY, {
+        width: scoreWidth,
         align: 'right',
         lineBreak: false
       });
