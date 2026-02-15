@@ -147,15 +147,17 @@ function renderSingleElimination(doc, tournament, category) {
   }
 
   const firstRoundCount = (roundMatches[1] || []).length;
-  const bracketAreaHeight = CONTENT_HEIGHT - 65; // space below header
+  const bracketAreaHeight = CONTENT_HEIGHT - 70; // space below header
 
-  // Determine how many first-round matches fit per page
-  const minSpacePerMatch = 42;
-  const matchesPerPage = Math.max(4, Math.floor(bracketAreaHeight / minSpacePerMatch));
-  const needsMultiplePages = firstRoundCount > matchesPerPage;
-  const pageCount = needsMultiplePages ? Math.ceil(firstRoundCount / matchesPerPage) : 1;
+  // Adaptive scaling: fit on one page if possible (up to 32-bracket / 16 R1 matches)
+  // Only split to multi-page for 64+ brackets where single-page would be unreadable
+  const spacePerMatch = firstRoundCount > 0 ? bracketAreaHeight / firstRoundCount : bracketAreaHeight;
+  const minReadableSpace = 22; // below this, text becomes too small to read
+  const needsMultiplePages = spacePerMatch < minReadableSpace;
 
   if (needsMultiplePages) {
+    const matchesPerPage = Math.max(4, Math.floor(bracketAreaHeight / 28));
+    const pageCount = Math.ceil(firstRoundCount / matchesPerPage);
     renderMultiPageBracket(doc, tournament, category, roundMatches, numberOfRounds, matchesPerPage, pageCount);
   } else {
     renderSinglePageBracket(doc, tournament, category, roundMatches, numberOfRounds);
@@ -179,6 +181,13 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
   const colWidth = CONTENT_WIDTH / numberOfRounds;
   // Scale match box width to fit within columns
   const boxWidth = Math.min(MATCH_BOX_WIDTH, colWidth - 8);
+
+  // Adaptive box height based on first-round match count
+  const firstRoundCount = (roundMatches[1] || []).length;
+  const spacePerR1Match = firstRoundCount > 0 ? drawAreaHeight / firstRoundCount : drawAreaHeight;
+  // Box height uses most of the available space per match, with a gap
+  const boxHeight = Math.min(MATCH_BOX_HEIGHT, Math.max(20, spacePerR1Match - 4));
+  const playerLineH = boxHeight / 2;
 
   // Render round labels
   const roundNames = getRoundNames(numberOfRounds);
@@ -208,9 +217,9 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
     for (let i = 0; i < rMatches.length; i++) {
       const match = rMatches[i];
       const centerY = drawAreaTop + spacing * (i + 0.5);
-      const boxY = centerY - MATCH_BOX_HEIGHT / 2;
+      const boxY = centerY - boxHeight / 2;
 
-      renderMatchBox(doc, match, colX, boxY, boxWidth);
+      renderMatchBox(doc, match, colX, boxY, boxWidth, boxHeight, playerLineH);
 
       const matchId = match._id ? match._id.toString() : `${r}-${i}`;
       matchPositions[matchId] = {
@@ -272,6 +281,11 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
 
     const matchPositions = {};
 
+    // Adaptive box height for multi-page (based on matches per page)
+    const spacePerMatch = drawAreaHeight / pageFirstRoundMatches.length;
+    const boxHeight = Math.min(MATCH_BOX_HEIGHT, Math.max(20, spacePerMatch - 4));
+    const playerLineH = boxHeight / 2;
+
     // Render first round matches for this page
     const r1ColX = MARGIN + (colWidth - boxWidth) / 2;
     const r1Spacing = drawAreaHeight / pageFirstRoundMatches.length;
@@ -279,9 +293,9 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
     for (let i = 0; i < pageFirstRoundMatches.length; i++) {
       const match = pageFirstRoundMatches[i];
       const centerY = drawAreaTop + r1Spacing * (i + 0.5);
-      const boxY = centerY - MATCH_BOX_HEIGHT / 2;
+      const boxY = centerY - boxHeight / 2;
 
-      renderMatchBox(doc, match, r1ColX, boxY, boxWidth);
+      renderMatchBox(doc, match, r1ColX, boxY, boxWidth, boxHeight, playerLineH);
       const matchId = match._id ? match._id.toString() : `1-${startIdx + i}`;
       matchPositions[matchId] = { x: r1ColX, y: boxY, midY: centerY, round: 1, index: startIdx + i, boxWidth };
     }
@@ -305,9 +319,9 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
       for (let i = 0; i < pageRoundMatches.length; i++) {
         const match = pageRoundMatches[i];
         const centerY = drawAreaTop + rSpacing * (i + 0.5);
-        const boxY = centerY - MATCH_BOX_HEIGHT / 2;
+        const boxY = centerY - boxHeight / 2;
 
-        renderMatchBox(doc, match, rColX, boxY, boxWidth);
+        renderMatchBox(doc, match, rColX, boxY, boxWidth, boxHeight, playerLineH);
         const matchId = match._id ? match._id.toString() : `${r}-${rStartIdx + i}`;
         matchPositions[matchId] = { x: rColX, y: boxY, midY: centerY, round: r, index: rStartIdx + i, boxWidth };
       }
@@ -321,25 +335,27 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
 /**
  * Render a single match box
  */
-function renderMatchBox(doc, match, x, y, boxWidth) {
+function renderMatchBox(doc, match, x, y, boxWidth, boxHeight, playerLineH) {
   const w = boxWidth || MATCH_BOX_WIDTH;
+  const h = boxHeight || MATCH_BOX_HEIGHT;
+  const plH = playerLineH || PLAYER_LINE_HEIGHT;
   const p1 = match.player1 || {};
   const p2 = match.player2 || {};
   const isCompleted = match.status === 'completed';
   const winnerId = match.winner;
 
   // Box background
-  doc.rect(x, y, w, MATCH_BOX_HEIGHT).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+  doc.rect(x, y, w, h).lineWidth(0.5).strokeColor(COLORS.border).stroke();
 
   // Player 1 line
   const p1IsWinner = winnerId && p1.id === winnerId;
   const p1IsBye = p1.isBye;
-  renderPlayerLine(doc, p1, x, y, p1IsWinner, p1IsBye, isCompleted, match.score, true, w);
+  renderPlayerLine(doc, p1, x, y, p1IsWinner, p1IsBye, isCompleted, match.score, true, w, plH);
 
   // Divider line
   doc
-    .moveTo(x, y + PLAYER_LINE_HEIGHT)
-    .lineTo(x + w, y + PLAYER_LINE_HEIGHT)
+    .moveTo(x, y + plH)
+    .lineTo(x + w, y + plH)
     .lineWidth(0.3)
     .strokeColor(COLORS.border)
     .stroke();
@@ -347,40 +363,45 @@ function renderMatchBox(doc, match, x, y, boxWidth) {
   // Player 2 line
   const p2IsWinner = winnerId && p2.id === winnerId;
   const p2IsBye = p2.isBye;
-  renderPlayerLine(doc, p2, x, y + PLAYER_LINE_HEIGHT, p2IsWinner, p2IsBye, isCompleted, match.score, false, w);
+  renderPlayerLine(doc, p2, x, y + plH, p2IsWinner, p2IsBye, isCompleted, match.score, false, w, plH);
 }
 
 /**
  * Render a player line within a match box
  */
-function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, score, isTopPlayer, boxWidth) {
+function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, score, isTopPlayer, boxWidth, lineHeight) {
   const w = boxWidth || MATCH_BOX_WIDTH;
-  const lineHeight = PLAYER_LINE_HEIGHT;
+  const lh = lineHeight || PLAYER_LINE_HEIGHT;
+  // Scale font sizes with line height (base: 18pt line → 7pt name, 6pt seed/score)
+  const scale = Math.min(1, lh / PLAYER_LINE_HEIGHT);
+  const nameFontSize = Math.max(5, Math.round(7 * scale * 10) / 10);
+  const smallFontSize = Math.max(4, Math.round(6 * scale * 10) / 10);
+  const textY = y + Math.max(2, (lh - nameFontSize) / 2);
   const padding = 3;
   const nameX = x + padding;
-  const scoreSpace = Math.min(30, w * 0.22); // scale score area with box
+  const scoreSpace = Math.min(30, w * 0.22);
   const nameWidth = w - 2 * padding - scoreSpace;
 
   // Winner highlight background
   if (isWinner) {
-    doc.rect(x + 0.5, y + 0.5, w - 1, lineHeight - 1).fill(COLORS.winnerBg);
+    doc.rect(x + 0.5, y + 0.5, w - 1, lh - 1).fill(COLORS.winnerBg);
   }
 
   if (isBye) {
     doc
-      .fontSize(7)
+      .fontSize(nameFontSize)
       .fillColor(COLORS.byeText)
       .font('Helvetica-Oblique')
-      .text('BYE', nameX, y + 5, { width: nameWidth, lineBreak: false });
+      .text('BYE', nameX, textY, { width: nameWidth, lineBreak: false });
     doc.font('Helvetica');
     return;
   }
 
   if (!player || !player.name) {
     doc
-      .fontSize(7)
+      .fontSize(nameFontSize)
       .fillColor(COLORS.byeText)
-      .text('TBD', nameX, y + 5, { width: nameWidth, lineBreak: false });
+      .text('TBD', nameX, textY, { width: nameWidth, lineBreak: false });
     return;
   }
 
@@ -392,23 +413,22 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
   if (player.seed) {
     const seedText = `${player.seed}`;
     doc
-      .fontSize(6)
+      .fontSize(smallFontSize)
       .fillColor(COLORS.seedBadge)
       .font('Helvetica-Bold')
-      .text(`[${seedText}]`, nameX, y + 5, { continued: true, lineBreak: false });
+      .text(`[${seedText}]`, nameX, textY, { continued: true, lineBreak: false });
     doc.font('Helvetica');
-    textStartX = nameX + 14;
-    // Space after seed
+    textStartX = nameX + Math.round(12 * scale);
     doc.text(' ', { continued: true, lineBreak: false });
   }
 
   // Player name
   const displayName = truncateName(player.name, maxNameChars);
   doc
-    .fontSize(7)
+    .fontSize(nameFontSize)
     .fillColor(isWinner ? '#059669' : COLORS.primary)
     .font(isWinner ? 'Helvetica-Bold' : 'Helvetica')
-    .text(displayName, textStartX, y + 5, {
+    .text(displayName, textStartX, textY, {
       width: nameWidth - (textStartX - nameX),
       lineBreak: false
     });
@@ -416,10 +436,10 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
   // Score on right side (only for winner line for cleanliness)
   if (matchCompleted && score && isWinner) {
     doc
-      .fontSize(6)
+      .fontSize(smallFontSize)
       .fillColor(COLORS.secondary)
       .font('Helvetica')
-      .text(score, x + w - scoreSpace - 3, y + 5, {
+      .text(score, x + w - scoreSpace - 3, textY, {
         width: scoreSpace,
         align: 'right',
         lineBreak: false
