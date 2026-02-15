@@ -26,6 +26,7 @@ import { lencoPaymentService } from '@/services/lencoPaymentService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/AuthContext'
+import { apiFetch } from '@/services/api'
 
 export function TournamentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -37,12 +38,22 @@ export function TournamentDetail() {
   const [registering, setRegistering] = useState(false)
   const [payingEntryFee, setPayingEntryFee] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [zpinPaidUp, setZpinPaidUp] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (id) {
       fetchTournament()
     }
   }, [id])
+
+  // Fetch user's ZPIN subscription status
+  useEffect(() => {
+    if (isAuthenticated) {
+      apiFetch('/membership/my-subscription')
+        .then(res => setZpinPaidUp(res.data?.hasActiveSubscription ?? false))
+        .catch(() => setZpinPaidUp(false))
+    }
+  }, [isAuthenticated])
 
   const fetchTournament = async () => {
     try {
@@ -451,14 +462,18 @@ export function TournamentDetail() {
                                       ) : (
                                         <>
                                           <CreditCard className="h-4 w-4 mr-2" />
-                                          Pay Entry Fee (K{tournament.entryFee})
+                                          Pay Entry Fee (K{zpinPaidUp === false ? Math.ceil(tournament.entryFee * 1.5) : tournament.entryFee})
                                         </>
                                       )}
                                     </Button>
                                   )}
 
                                   <p className="text-xs text-muted-foreground text-center">
-                                    Entry fee: K{tournament.entryFee}
+                                    {zpinPaidUp === false && tournament.entryFee > 0 ? (
+                                      <>Entry fee: K{Math.ceil(tournament.entryFee * 1.5)} <span className="text-amber-600">(includes 50% non-ZPIN surcharge)</span></>
+                                    ) : (
+                                      <>Entry fee: K{tournament.entryFee}</>
+                                    )}
                                   </p>
                                 </>
                               )}

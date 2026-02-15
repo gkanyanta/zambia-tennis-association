@@ -199,14 +199,18 @@ export const initializeTournamentPayment = async (req, res) => {
       });
     }
 
-    const amount = tournament.entryFee;
+    const baseFee = tournament.entryFee;
 
-    if (!amount || amount <= 0) {
+    if (!baseFee || baseFee <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Invalid tournament entry fee'
       });
     }
+
+    // Check ZPIN paid-up status — non-paid-up players pay 1.5x
+    const zpinPaidUp = await MembershipSubscription.hasActiveSubscription(user._id, 'player');
+    const amount = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
     // Generate unique reference
     const reference = generateReference('TOUR');
@@ -216,6 +220,8 @@ export const initializeTournamentPayment = async (req, res) => {
       data: {
         reference,
         amount,
+        baseFee,
+        zpinPaidUp,
         email: user.email,
         publicKey: LENCO_PUBLIC_KEY,
         tournamentId: tournament._id,

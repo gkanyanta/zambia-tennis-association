@@ -42,6 +42,8 @@ interface SelectedEntry {
   categoryId: string
   categoryName: string
   isNewPlayer?: boolean
+  fee: number
+  zpinPaidUp: boolean
 }
 
 interface NewPlayerData {
@@ -228,12 +230,18 @@ export function TournamentRegister() {
       return
     }
 
+    const zpinPaidUp = !!(selectedPlayer as PlayerSearchResult).hasActiveSubscription
+    const baseFee = tournament.entryFee || 0
+    const fee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5)
+
     setSelectedEntries([
       ...selectedEntries,
       {
         player: selectedPlayer,
         categoryId: selectedCategory,
-        categoryName: category.name
+        categoryName: category.name,
+        fee,
+        zpinPaidUp
       }
     ])
 
@@ -266,13 +274,18 @@ export function TournamentRegister() {
       isNew: true
     }
 
+    const baseFee = tournament.entryFee || 0
+    const fee = Math.ceil(baseFee * 1.5) // New players always pay surcharge
+
     setSelectedEntries([
       ...selectedEntries,
       {
         player: newPlayerData,
         categoryId: selectedCategory,
         categoryName: category.name,
-        isNewPlayer: true
+        isNewPlayer: true,
+        fee,
+        zpinPaidUp: false
       }
     ])
 
@@ -339,6 +352,10 @@ export function TournamentRegister() {
         continue
       }
 
+      const zpinPaidUp = !!player.hasActiveSubscription
+      const clubBaseFee = tournament.entryFee || 0
+      const fee = zpinPaidUp ? clubBaseFee : Math.ceil(clubBaseFee * 1.5)
+
       newEntries.push({
         player: {
           _id: player._id,
@@ -352,11 +369,13 @@ export function TournamentRegister() {
           isInternational: player.isInternational,
           fullName: `${player.firstName} ${player.lastName}`,
           membershipType: null,
-          hasActiveSubscription: false,
+          hasActiveSubscription: player.hasActiveSubscription || false,
           subscriptionExpiry: null
         },
         categoryId: clubCategoryId,
-        categoryName: category.name
+        categoryName: category.name,
+        fee,
+        zpinPaidUp
       })
     }
 
@@ -399,7 +418,7 @@ export function TournamentRegister() {
 
   const calculateTotalFee = () => {
     if (!tournament) return 0
-    return selectedEntries.length * tournament.entryFee
+    return selectedEntries.reduce((sum, e) => sum + e.fee, 0)
   }
 
   const handleProceedToPayment = () => {
@@ -1120,7 +1139,12 @@ export function TournamentRegister() {
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
-                            <span className="font-medium">K{tournament.entryFee}</span>
+                            <div className="text-right">
+                              <span className="font-medium">K{entry.fee}</span>
+                              {!entry.zpinPaidUp && tournament.entryFee > 0 && (
+                                <div className="text-xs text-amber-600">+50% surcharge</div>
+                              )}
+                            </div>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1148,6 +1172,17 @@ export function TournamentRegister() {
                             </Badge>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* ZPIN surcharge notice */}
+                    {selectedEntries.some(e => !e.zpinPaidUp) && tournament.entryFee > 0 && (
+                      <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mb-6 text-sm text-amber-800 dark:text-amber-200">
+                        <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>
+                          Players without a paid-up ZPIN for {new Date().getFullYear()} pay a 50% surcharge on the entry fee.
+                          Register for a ZPIN to pay the standard rate.
+                        </span>
                       </div>
                     )}
 
@@ -1251,9 +1286,21 @@ export function TournamentRegister() {
                       <span className="font-medium">{selectedEntries.length}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Entry Fee (per entry)</span>
+                      <span>Base Entry Fee</span>
                       <span className="font-medium">K{tournament.entryFee}</span>
                     </div>
+                    {selectedEntries.some(e => !e.zpinPaidUp) && tournament.entryFee > 0 && (
+                      <div className="flex justify-between text-amber-600">
+                        <span>Non-ZPIN surcharge (50%)</span>
+                        <span className="font-medium">K{Math.ceil(tournament.entryFee * 1.5)} per entry</span>
+                      </div>
+                    )}
+                    {selectedEntries.map((entry, i) => (
+                      <div key={i} className="flex justify-between text-muted-foreground">
+                        <span>{entry.player.firstName} {entry.player.lastName}</span>
+                        <span>K{entry.fee}</span>
+                      </div>
+                    ))}
                   </div>
                   <div className="pt-3 border-t flex justify-between font-semibold text-lg">
                     <span>Total Amount</span>

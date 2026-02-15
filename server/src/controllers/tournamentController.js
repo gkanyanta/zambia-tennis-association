@@ -12,6 +12,7 @@ import {
   getAllJuniorCategories
 } from '../utils/tournamentEligibility.js';
 import { generateDrawPDF } from '../utils/generateDrawPDF.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
@@ -1118,6 +1119,8 @@ export const publicRegister = async (req, res) => {
 
     const results = [];
     const errors = [];
+    const baseFee = tournament.entryFee || 0;
+    let totalFee = 0;
 
     // Process each entry
     for (const entry of entries) {
@@ -1198,6 +1201,12 @@ export const publicRegister = async (req, res) => {
         };
       }
 
+      // Check ZPIN paid-up status and calculate per-entry fee
+      const zpinPaidUp = !isNewPlayerEntry && playerData._id
+        ? await MembershipSubscription.hasActiveSubscription(playerData._id, 'player')
+        : false;
+      const entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+
       // Validate eligibility for junior categories (skip for new players without full validation)
       let eligibilityCheck = { eligible: true, reason: isNewPlayerEntry ? 'Pending verification' : 'Eligible', warnings: [], errors: [] };
 
@@ -1253,26 +1262,28 @@ export const publicRegister = async (req, res) => {
         newPlayerContact: isNewPlayerEntry ? {
           phone: newPlayerData.phone,
           email: newPlayerData.email
-        } : null
+        } : null,
+        entryFee,
+        zpinPaidUp
       };
 
       // Add entry
       category.entries.push(entryData);
       category.entryCount = category.entries.length;
+      totalFee += entryFee;
 
       results.push({
         playerId: isNewPlayerEntry ? 'new' : playerId,
         playerName: `${playerData.firstName} ${playerData.lastName}`,
         categoryName: category.name,
         status: isNewPlayerEntry ? 'pending_approval' : 'registered',
-        isNewPlayer: isNewPlayerEntry
+        isNewPlayer: isNewPlayerEntry,
+        entryFee,
+        zpinPaidUp
       });
     }
 
     await tournament.save();
-
-    // Calculate total fee
-    const totalFee = results.length * (tournament.entryFee || 0);
 
     // If payNow is true and there's a fee, return payment info
     let paymentInfo = null;

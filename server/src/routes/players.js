@@ -1,5 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 import { protect, authorize } from '../middleware/auth.js';
 import xlsx from 'xlsx';
 import { generateNextZPIN } from '../utils/generateZPIN.js';
@@ -51,10 +52,17 @@ router.get('/', async (req, res) => {
 
     const players = await query;
 
+    // Enrich with ZPIN subscription status
+    const enriched = await Promise.all(players.map(async p => {
+      const obj = p.toObject();
+      obj.hasActiveSubscription = await MembershipSubscription.hasActiveSubscription(p._id, 'player');
+      return obj;
+    }));
+
     res.status(200).json({
       success: true,
-      count: players.length,
-      data: players
+      count: enriched.length,
+      data: enriched
     });
   } catch (error) {
     res.status(500).json({
