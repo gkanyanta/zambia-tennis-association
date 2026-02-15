@@ -10,6 +10,7 @@
     "seed": "node src/utils/seed.js",
     "seed:admin": "node src/scripts/seedAdmin.js",
     "fix:images": "node src/scripts/fixImageUrls.js",
+    "import:calendar:2026": "node src/scripts/importZtaCalendar2026.js",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --forceExit"
   },
   "dependencies": {
