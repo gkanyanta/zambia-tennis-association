@@ -1,15 +1,15 @@
 [
   {
-    "title": "Coaches Education / Instruction Training",
+    "title": "Coaches Education / Interaction Training",
     "description": "Training session for coaches in Lusaka",
-    "startDate": "2026-02-07",
-    "endDate": "2026-02-07",
+    "startDate": "2026-02-21",
+    "endDate": "2026-02-21",
     "location": "Lusaka",
     "type": "education",
     "published": true
   },
   {
-    "title": "Coaches Education / Instruction Training",
+    "title": "Coaches Education / Interaction Training",
     "description": "Training session for coaches in Nkana",
     "startDate": "2026-02-21",
     "endDate": "2026-02-21",
@@ -18,10 +18,10 @@
     "published": true
   },
   {
-    "title": "Training Programme",
-    "description": "Multi-week training programme",
-    "startDate": "2026-03-06",
-    "endDate": "2026-03-29",
+    "title": "Training Camp for ITF/CAT - Juniors",
+    "description": "Training camp for ITF/CAT junior players",
+    "startDate": "2026-03-04",
+    "endDate": "2026-03-28",
     "location": "TBA",
     "type": "education",
     "published": true
@@ -37,7 +37,7 @@
   },
   {
     "title": "Girls Tournament",
-    "description": "ZTA Junior Under 10 to Under 14 Girls",
+    "description": "ZTA Junior (Under 10 to Under 14 Girls)",
     "startDate": "2026-03-07",
     "endDate": "2026-03-08",
     "location": "Nkana & Chibuluma",
@@ -45,8 +45,8 @@
     "published": true
   },
   {
-    "title": "Wiklund Tournament",
-    "description": "Junior tournament in Ndola",
+    "title": "Womens Tournament",
+    "description": "ZTA Senior",
     "startDate": "2026-03-07",
     "endDate": "2026-03-08",
     "location": "Ndola",
@@ -55,7 +55,7 @@
   },
   {
     "title": "Champions Haven Midlands Junior Closed",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-03-12",
     "endDate": "2026-03-15",
     "location": "Lusaka",
@@ -64,10 +64,10 @@
   },
   {
     "title": "Champions Haven Copperbelt Junior Closed",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
-    "startDate": "2026-03-14",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
+    "startDate": "2026-03-12",
     "endDate": "2026-03-15",
-    "location": "Lusaka/Ndola",
+    "location": "Kamenza/Nchanga",
     "type": "tournament",
     "published": true
   },
@@ -81,20 +81,20 @@
     "published": true
   },
   {
-    "title": "ITF Under 18 J5 (Bulawayo)",
+    "title": "ITF Under 18 J30 (Bulawayo)",
     "description": "ITF Junior international tournament",
     "startDate": "2026-03-23",
     "endDate": "2026-03-29",
-    "location": "Bulawayo, Zimbabwe",
+    "location": "Zimbabwe",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "ITF Under 13 J50 (Bulawayo)",
-    "description": "ITF Junior international tournament",
-    "startDate": "2026-03-31",
-    "endDate": "2026-04-05",
-    "location": "Bulawayo, Zimbabwe",
+    "title": "ITF Under 18 J30 (Bulawayo)",
+    "description": "ITF Junior international tournament - Week 2",
+    "startDate": "2026-03-30",
+    "endDate": "2026-04-03",
+    "location": "Zimbabwe",
     "type": "tournament",
     "published": true
   },
@@ -103,7 +103,7 @@
     "description": "ZTA Junior/Senior",
     "startDate": "2026-04-03",
     "endDate": "2026-04-06",
-    "location": "Lusaka",
+    "location": "TBA",
     "type": "tournament",
     "published": true
   },
@@ -112,12 +112,21 @@
     "description": "ZTA Junior/Senior",
     "startDate": "2026-04-03",
     "endDate": "2026-04-06",
-    "location": "Ndola",
+    "location": "TBA",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "African Junior Championships - Individual",
+    "title": "ITF Under 18 J30 (Gaborone)",
+    "description": "ITF Junior international tournament",
+    "startDate": "2026-04-06",
+    "endDate": "2026-04-11",
+    "location": "Botswana",
+    "type": "tournament",
+    "published": true
+  },
+  {
+    "title": "African Junior Championships - Individual (Under 14)",
     "description": "CAT Junior (Under 14) - Continental championship",
     "startDate": "2026-04-06",
     "endDate": "2026-04-11",
@@ -126,43 +135,52 @@
     "published": true
   },
   {
-    "title": "Vimba Amulasc Season Opener",
+    "title": "Vinya Madalas Season Opener",
     "description": "ZTA Veterans",
-    "startDate": "2026-04-04",
-    "endDate": "2026-04-04",
+    "startDate": "2026-04-11",
+    "endDate": "2026-04-11",
     "location": "Chibuluma",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "ITF Under 14 J10 (Harare)",
-    "description": "ITF Junior international tournament",
-    "startDate": "2026-04-11",
+    "title": "ITF Under 18 J30 (Gaborone)",
+    "description": "ITF Junior international tournament - Week 2",
+    "startDate": "2026-04-13",
     "endDate": "2026-04-18",
-    "location": "Harare, Zimbabwe",
+    "location": "Botswana",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "Peter Simbile Academy Midlands Junior Closed",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "title": "African Junior Championships - Individual (Under 16)",
+    "description": "CAT Junior (Under 16) - Continental championship",
     "startDate": "2026-04-13",
+    "endDate": "2026-04-18",
+    "location": "TBA",
+    "type": "tournament",
+    "published": true
+  },
+  {
+    "title": "Peter Simbeye Academy Midlands Junior Closed",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
+    "startDate": "2026-04-17",
     "endDate": "2026-04-19",
     "location": "Lusaka",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "String Under 10 Team Tournament",
+    "title": "BTNNS Under 10 Team Tournament",
     "description": "ZTA Junior (Under 10)",
-    "startDate": "2026-04-17",
+    "startDate": "2026-04-18",
     "endDate": "2026-04-19",
     "location": "Nkana",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "ZTA Makulu Tournament",
+    "title": "ZCSA Madalas Tournament",
     "description": "ZTA Veterans",
     "startDate": "2026-04-18",
     "endDate": "2026-04-18",
@@ -180,17 +198,26 @@
     "published": true
   },
   {
-    "title": "ITF Under 13 J50 (Windhoek)",
+    "title": "ITF Under 18 J30 (Windhoek)",
     "description": "ITF Junior international tournament",
-    "startDate": "2026-04-19",
+    "startDate": "2026-04-20",
+    "endDate": "2026-04-24",
+    "location": "Namibia",
+    "type": "tournament",
+    "published": true
+  },
+  {
+    "title": "ITF Under 18 J30 (Windhoek)",
+    "description": "ITF Junior international tournament - Week 2",
+    "startDate": "2026-04-27",
     "endDate": "2026-05-01",
-    "location": "Windhoek, Namibia",
+    "location": "Namibia",
     "type": "tournament",
     "published": true
   },
   {
     "title": "Champions Haven Midlands Junior Closed",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-04-30",
     "endDate": "2026-05-04",
     "location": "Lusaka",
@@ -198,18 +225,18 @@
     "published": true
   },
   {
-    "title": "Champions Haven Copperbelt Closed",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "title": "Champions Haven Copperbelt Junior Closed",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-04-30",
     "endDate": "2026-05-04",
-    "location": "Ndola",
+    "location": "Nkana",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "Solly Phil Midlands Open",
-    "description": "ZTA Junior (Under 14)",
-    "startDate": "2026-05-02",
+    "title": "Solly Patel Midlands Open",
+    "description": "ZTA (Under 20)",
+    "startDate": "2026-05-01",
     "endDate": "2026-05-03",
     "location": "Lusaka",
     "type": "tournament",
@@ -225,9 +252,18 @@
     "published": true
   },
   {
-    "title": "African Union Champions Under 14 - Team",
+    "title": "Training Camp for ITF/CAT - Under 14/16",
+    "description": "Training camp for ITF/CAT Under 14 and Under 16 players",
+    "startDate": "2026-05-04",
+    "endDate": "2026-05-18",
+    "location": "TBA",
+    "type": "education",
+    "published": true
+  },
+  {
+    "title": "African Junior Championships Under 14 - Team",
     "description": "CAT Junior (Under 14) - Continental team championship",
-    "startDate": "2026-05-09",
+    "startDate": "2026-05-04",
     "endDate": "2026-05-10",
     "location": "TBC",
     "type": "tournament",
@@ -236,14 +272,14 @@
   {
     "title": "League Matches Regional - Week 3",
     "description": "Team Event - Regional league matches, Week 3",
-    "startDate": "2026-05-10",
-    "endDate": "2026-05-10",
+    "startDate": "2026-05-09",
+    "endDate": "2026-05-09",
     "location": "TBA",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "ZTA National Tennis Championships",
+    "title": "ZCSA National Tennis Championships",
     "description": "ZTA Senior - National championships",
     "startDate": "2026-05-14",
     "endDate": "2026-05-18",
@@ -253,17 +289,26 @@
   },
   {
     "title": "Zambia Junior Closed",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
-    "startDate": "2026-05-24",
-    "endDate": "2026-05-24",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls) - Leg 1",
+    "startDate": "2026-05-23",
+    "endDate": "2026-05-25",
     "location": "Ndola",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "ITF/CAT Junior International (Botswana)",
-    "description": "International junior tournament",
-    "startDate": "2026-06-13",
+    "title": "Zambia Junior Closed",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls) - Leg 2",
+    "startDate": "2026-06-12",
+    "endDate": "2026-06-14",
+    "location": "Ndola",
+    "type": "tournament",
+    "published": true
+  },
+  {
+    "title": "CAT 14 and Under Circuit 2x Legs",
+    "description": "CAT Junior (Under 14)",
+    "startDate": "2026-06-15",
     "endDate": "2026-06-21",
     "location": "Botswana",
     "type": "tournament",
@@ -279,8 +324,8 @@
     "published": true
   },
   {
-    "title": "ZTA Fundraiser Tournament",
-    "description": "ZTA Veterans",
+    "title": "ZTA Fundraiser",
+    "description": "ZTA Veterans fundraiser event",
     "startDate": "2026-06-27",
     "endDate": "2026-06-27",
     "location": "Nkana",
@@ -288,10 +333,10 @@
     "published": true
   },
   {
-    "title": "Zambia All Stars Tennis Championship",
+    "title": "Zambia Closed Tennis Championships",
     "description": "ZTA Senior",
-    "startDate": "2026-06-27",
-    "endDate": "2026-06-27",
+    "startDate": "2026-07-03",
+    "endDate": "2026-07-07",
     "location": "TBA",
     "type": "tournament",
     "published": true
@@ -301,13 +346,13 @@
     "description": "First aid training for coaches",
     "startDate": "2026-07-06",
     "endDate": "2026-07-06",
-    "location": "Lusaka/TBA",
+    "location": "TBA",
     "type": "education",
     "published": true
   },
   {
-    "title": "Coaching Chair Clinic",
-    "description": "Training clinic for coaching chairs",
+    "title": "Coaching Clinic - Love 40",
+    "description": "Training clinic",
     "startDate": "2026-07-11",
     "endDate": "2026-07-11",
     "location": "Lusaka/TBA",
@@ -316,7 +361,7 @@
   },
   {
     "title": "Champions Haven - National Tournament",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-07-17",
     "endDate": "2026-07-19",
     "location": "Lusaka",
@@ -324,7 +369,16 @@
     "published": true
   },
   {
-    "title": "Makulu Invitational (Nchanga)",
+    "title": "Officiating Training",
+    "description": "Training for tennis officials",
+    "startDate": "2026-07-18",
+    "endDate": "2026-07-18",
+    "location": "Lusaka/Nkana",
+    "type": "education",
+    "published": true
+  },
+  {
+    "title": "Madalas Invitational",
     "description": "ZTA Veterans",
     "startDate": "2026-07-18",
     "endDate": "2026-07-18",
@@ -333,7 +387,7 @@
     "published": true
   },
   {
-    "title": "Makulu Invitational (Lusaka)",
+    "title": "Madalas Invitational",
     "description": "ZTA Veterans",
     "startDate": "2026-07-18",
     "endDate": "2026-07-18",
@@ -342,17 +396,17 @@
     "published": true
   },
   {
-    "title": "CAT 14 and Senior Under 21 (East Africa)",
+    "title": "CAT 14 and Under Circuit 2x Legs",
     "description": "CAT Junior (Under 14)",
-    "startDate": "2026-07-25",
+    "startDate": "2026-07-20",
     "endDate": "2026-07-26",
-    "location": "Harare, Zimbabwe",
+    "location": "Zimbabwe",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "League Matches Regional - Week 4",
-    "description": "Team Event - Regional league matches",
+    "title": "League Matches Regional - Week 5",
+    "description": "Team Event - Regional league matches, Week 5",
     "startDate": "2026-07-25",
     "endDate": "2026-07-25",
     "location": "TBA",
@@ -360,56 +414,65 @@
     "published": true
   },
   {
-    "title": "ITU Regional Team Competition",
+    "title": "12U Regional Team Competition",
     "description": "CAT Junior (Under 12) - Regional team competition",
-    "startDate": "2026-08-01",
+    "startDate": "2026-07-29",
     "endDate": "2026-08-04",
     "location": "TBA",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "Copperbelt Senior Open",
-    "description": "Senior open tournament",
-    "startDate": "2026-08-01",
-    "endDate": "2026-08-02",
+    "title": "Copperbelt/Midlands Senior Open",
+    "description": "ZTA Senior",
+    "startDate": "2026-07-31",
+    "endDate": "2026-08-03",
     "location": "Nkana Tennis Club/Lusaka Tennis Club",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "Kangarshi Junior Under 10 and Under",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "title": "Kansanshi Junior Open - 10 and Under",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-08-01",
     "endDate": "2026-08-03",
-    "location": "Kangarshi",
+    "location": "Kansanshi",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "League Matches Regional - Week 5",
-    "description": "Team Event - Regional league matches, Week 5",
-    "startDate": "2026-08-28",
-    "endDate": "2026-08-28",
+    "title": "Coaching Clinic - Love 40",
+    "description": "Training clinic",
+    "startDate": "2026-08-08",
+    "endDate": "2026-08-08",
     "location": "Mufulira",
+    "type": "education",
+    "published": true
+  },
+  {
+    "title": "League Matches Regional - Week 6",
+    "description": "Team Event - Regional league matches, Week 6",
+    "startDate": "2026-08-08",
+    "endDate": "2026-08-08",
+    "location": "TBA",
     "type": "tournament",
     "published": true
   },
   {
     "title": "Champions Haven - National Tournament",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-08-14",
-    "endDate": "2026-08-15",
+    "endDate": "2026-08-16",
     "location": "Lusaka",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "Love 40 Top 8 Junior Tennis Championship",
-    "description": "Love 40 Top 8 Junior Tennis Championship",
+    "title": "Love 40 Top 8 Junior Tennis Champions",
+    "description": "Love 40 Top 8 Junior Tennis Champions",
     "startDate": "2026-08-22",
     "endDate": "2026-08-23",
-    "location": "Nkana/Lusaka",
+    "location": "Mufulira",
     "type": "tournament",
     "published": true
   },
@@ -423,17 +486,17 @@
     "published": true
   },
   {
-    "title": "League Midlands Copperbelt Top 16",
+    "title": "Leadway Insurance Copperbelt Top 16",
     "description": "ZTA Senior",
     "startDate": "2026-08-29",
     "endDate": "2026-08-30",
-    "location": "TBA",
+    "location": "Ndola",
     "type": "tournament",
     "published": true
   },
   {
-    "title": "Champions Haven 4th National Junior Tournament",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "title": "Champions Haven - KPMG National Junior Tournament",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-09-03",
     "endDate": "2026-09-06",
     "location": "Lusaka",
@@ -441,7 +504,7 @@
     "published": true
   },
   {
-    "title": "Play & Stay Doubles Tournament (Midlands Closed)",
+    "title": "Play & Stay Doubles Tourney (Midlands Closed)",
     "description": "All Ages",
     "startDate": "2026-09-12",
     "endDate": "2026-09-13",
@@ -450,8 +513,17 @@
     "published": true
   },
   {
-    "title": "League Matches Regional - Week 6",
-    "description": "Team Event - Regional league matches, Week 6",
+    "title": "League Matches Regional - Week 7",
+    "description": "Team Event - Regional league matches, Week 7",
+    "startDate": "2026-09-12",
+    "endDate": "2026-09-12",
+    "location": "TBA",
+    "type": "tournament",
+    "published": true
+  },
+  {
+    "title": "Chairmans Tournament",
+    "description": "ZTA Veterans",
     "startDate": "2026-09-12",
     "endDate": "2026-09-12",
     "location": "Ndola",
@@ -459,25 +531,25 @@
     "published": true
   },
   {
-    "title": "ZTA Chairman's Tournament",
-    "description": "ZTA Veterans",
-    "startDate": "2026-09-17",
-    "endDate": "2026-09-17",
-    "location": "Ndola",
-    "type": "tournament",
-    "published": true
-  },
-  {
-    "title": "ITF Level 1 Coaching Course",
+    "title": "ITF Level I Coaching Course",
     "description": "Training - ITF coaching certification",
     "startDate": "2026-09-14",
     "endDate": "2026-09-14",
-    "location": "Lusaka/TBA",
+    "location": "Lusaka",
     "type": "education",
     "published": true
   },
   {
-    "title": "Copperbelt/Midlands Seniors Open",
+    "title": "Mike Mambwe Junior Championships",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
+    "startDate": "2026-09-25",
+    "endDate": "2026-09-27",
+    "location": "Mufulira",
+    "type": "tournament",
+    "published": true
+  },
+  {
+    "title": "Copperbelt/Midlands Senior Open",
     "description": "ZTA Senior",
     "startDate": "2026-10-02",
     "endDate": "2026-10-05",
@@ -486,8 +558,8 @@
     "published": true
   },
   {
-    "title": "League Matches Regional - Week 7",
-    "description": "Team Event - Regional league matches, Week 7",
+    "title": "League Matches Regional - Week 8",
+    "description": "Team Event - Regional league matches, Week 8",
     "startDate": "2026-10-10",
     "endDate": "2026-10-10",
     "location": "TBA",
@@ -495,7 +567,7 @@
     "published": true
   },
   {
-    "title": "Play & Stay Doubles Tournament (Midlands Closed)",
+    "title": "Play & Stay Doubles Tourney (Midlands Closed)",
     "description": "All Ages",
     "startDate": "2026-10-17",
     "endDate": "2026-10-19",
@@ -513,7 +585,7 @@
     "published": true
   },
   {
-    "title": "Makulu Mansa Tournament",
+    "title": "Madalas Mansa Tournament",
     "description": "ZTA Veterans",
     "startDate": "2026-10-24",
     "endDate": "2026-10-25",
@@ -522,17 +594,26 @@
     "published": true
   },
   {
+    "title": "Training Camp for AUSC Region 5 - Under 20",
+    "description": "Training camp for AUSC Region 5 Under 20 players",
+    "startDate": "2026-11-01",
+    "endDate": "2026-11-30",
+    "location": "TBA",
+    "type": "education",
+    "published": true
+  },
+  {
     "title": "League Matches Regional - Play Off",
     "description": "Team Event - Regional league play-off matches",
-    "startDate": "2026-11-01",
+    "startDate": "2026-11-07",
     "endDate": "2026-11-08",
-    "location": "Lusaka",
+    "location": "TBA",
     "type": "tournament",
     "published": true
   },
   {
     "title": "Champions Haven Top 8",
-    "description": "ZTA Junior Under 10 to Under 18 Boys and Girls",
+    "description": "ZTA Junior (Under 10 to Under 18 Boys and Girls)",
     "startDate": "2026-11-14",
     "endDate": "2026-11-15",
     "location": "Lusaka",
@@ -540,7 +621,7 @@
     "published": true
   },
   {
-    "title": "President's Cup - Top 16",
+    "title": "Presidents Cup - Top 16",
     "description": "ZTA Senior - Premier event",
     "startDate": "2026-11-28",
     "endDate": "2026-11-29",
@@ -549,18 +630,18 @@
     "published": true
   },
   {
-    "title": "AGM & Awards Ceremony",
-    "description": "Annual General Meeting and awards",
-    "startDate": "2026-12-06",
+    "title": "AUSC Region 5 Games",
+    "description": "Under 20",
+    "startDate": "2026-12-04",
     "endDate": "2026-12-13",
-    "location": "TBA",
-    "type": "meeting",
+    "location": "Mozambique",
+    "type": "tournament",
     "published": true
   },
   {
     "title": "Midlands Junior Closed (Christmas Tournament)",
-    "description": "ZTA Junior Under 12 to 18 Boys and Girls",
-    "startDate": "2026-12-06",
+    "description": "ZTA Junior (Under 12 to 18 Boys and Girls)",
+    "startDate": "2026-12-26",
     "endDate": "2026-12-27",
     "location": "Lusaka/TBA",
     "type": "tournament",
@@ -568,7 +649,7 @@
   },
   {
     "title": "Copperbelt Junior Closed (Christmas Tournament)",
-    "description": "ZTA Junior Under 12 to 18 Boys and Girls",
+    "description": "ZTA Junior (Under 12 to 18 Boys and Girls)",
     "startDate": "2026-12-26",
     "endDate": "2026-12-27",
     "location": "Nkana & Chibuluma",
