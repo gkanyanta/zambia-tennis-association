@@ -84,65 +84,50 @@ function renderHeader(doc, tournament, category, subtitle) {
   const logoPath = path.join(__dirname, '../assets/zta-logo.png');
 
   // Header background
-  doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, 50).fill(COLORS.headerBg);
+  doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, 55).fill(COLORS.headerBg);
 
-  // Try to add logo
+  // Logo on the left
   try {
-    doc.image(logoPath, MARGIN + 8, MARGIN + 5, { height: 40 });
+    doc.image(logoPath, MARGIN + 8, MARGIN + 8, { height: 40 });
   } catch (e) {
     // Logo not available
   }
 
-  // Tournament name
+  // Tournament name — centred across full width
   doc
-    .fontSize(16)
+    .fontSize(15)
     .fillColor(COLORS.headerText)
     .font('Helvetica-Bold')
-    .text(tournament.name, MARGIN + 55, MARGIN + 8, {
-      width: CONTENT_WIDTH - 120,
-      align: 'left',
+    .text(tournament.name, MARGIN, MARGIN + 6, {
+      width: CONTENT_WIDTH,
+      align: 'center',
       lineBreak: false
     });
 
-  // Category name
+  // Category + subtitle — centred
   doc
     .fontSize(10)
     .font('Helvetica')
-    .text(`${category.name}${subtitle ? ' - ' + subtitle : ''}`, MARGIN + 55, MARGIN + 28, {
-      width: CONTENT_WIDTH - 120,
-      align: 'left',
+    .text(`${category.name}${subtitle ? ' — ' + subtitle : ''}`, MARGIN, MARGIN + 24, {
+      width: CONTENT_WIDTH,
+      align: 'center',
       lineBreak: false
     });
 
-  // Venue and dates (right side)
+  // Venue, city, dates — centred on third line
   const dateStr = formatDateRange(tournament.startDate, tournament.endDate);
   doc
-    .fontSize(8)
-    .fillColor(COLORS.headerText)
-    .text(tournament.venue + ', ' + tournament.city, MARGIN + 55, MARGIN + 8, {
-      width: CONTENT_WIDTH - 70,
-      align: 'right',
-      lineBreak: false
-    })
-    .text(dateStr, MARGIN + 55, MARGIN + 20, {
-      width: CONTENT_WIDTH - 70,
-      align: 'right',
-      lineBreak: false
-    });
-
-  // ZTA branding
-  doc
     .fontSize(7)
-    .text('Zambia Tennis Association', MARGIN + 55, MARGIN + 36, {
-      width: CONTENT_WIDTH - 70,
-      align: 'right',
+    .text(`${tournament.venue}, ${tournament.city}  |  ${dateStr}  |  Zambia Tennis Association`, MARGIN, MARGIN + 40, {
+      width: CONTENT_WIDTH,
+      align: 'center',
       lineBreak: false
     });
 
   // Reset color
   doc.fillColor(COLORS.primary);
 
-  return MARGIN + 55; // return Y position after header
+  return MARGIN + 60; // return Y position after header
 }
 
 /**
@@ -192,6 +177,8 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
   const drawAreaHeight = bracketHeight - roundLabelHeight;
 
   const colWidth = CONTENT_WIDTH / numberOfRounds;
+  // Scale match box width to fit within columns
+  const boxWidth = Math.min(MATCH_BOX_WIDTH, colWidth - 8);
 
   // Render round labels
   const roundNames = getRoundNames(numberOfRounds);
@@ -214,7 +201,7 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
 
   for (let r = 1; r <= numberOfRounds; r++) {
     const rMatches = roundMatches[r] || [];
-    const colX = MARGIN + (r - 1) * colWidth + (colWidth - MATCH_BOX_WIDTH) / 2;
+    const colX = MARGIN + (r - 1) * colWidth + (colWidth - boxWidth) / 2;
     const totalSpace = drawAreaHeight;
     const spacing = rMatches.length > 0 ? totalSpace / rMatches.length : totalSpace;
 
@@ -223,7 +210,7 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
       const centerY = drawAreaTop + spacing * (i + 0.5);
       const boxY = centerY - MATCH_BOX_HEIGHT / 2;
 
-      renderMatchBox(doc, match, colX, boxY);
+      renderMatchBox(doc, match, colX, boxY, boxWidth);
 
       const matchId = match._id ? match._id.toString() : `${r}-${i}`;
       matchPositions[matchId] = {
@@ -231,13 +218,14 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
         y: boxY,
         midY: centerY,
         round: r,
-        index: i
+        index: i,
+        boxWidth
       };
     }
   }
 
   // Draw connector lines
-  renderConnectorLines(doc, roundMatches, matchPositions, numberOfRounds);
+  renderConnectorLines(doc, roundMatches, matchPositions, numberOfRounds, boxWidth);
 }
 
 /**
@@ -259,6 +247,8 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
     const drawAreaHeight = bracketHeight - roundLabelHeight;
 
     const colWidth = CONTENT_WIDTH / numberOfRounds;
+    // Scale match box width to fit within columns
+    const boxWidth = Math.min(MATCH_BOX_WIDTH, colWidth - 8);
 
     // Round labels
     const roundNames = getRoundNames(numberOfRounds);
@@ -283,7 +273,7 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
     const matchPositions = {};
 
     // Render first round matches for this page
-    const r1ColX = MARGIN + (colWidth - MATCH_BOX_WIDTH) / 2;
+    const r1ColX = MARGIN + (colWidth - boxWidth) / 2;
     const r1Spacing = drawAreaHeight / pageFirstRoundMatches.length;
 
     for (let i = 0; i < pageFirstRoundMatches.length; i++) {
@@ -291,15 +281,15 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
       const centerY = drawAreaTop + r1Spacing * (i + 0.5);
       const boxY = centerY - MATCH_BOX_HEIGHT / 2;
 
-      renderMatchBox(doc, match, r1ColX, boxY);
+      renderMatchBox(doc, match, r1ColX, boxY, boxWidth);
       const matchId = match._id ? match._id.toString() : `1-${startIdx + i}`;
-      matchPositions[matchId] = { x: r1ColX, y: boxY, midY: centerY, round: 1, index: startIdx + i };
+      matchPositions[matchId] = { x: r1ColX, y: boxY, midY: centerY, round: 1, index: startIdx + i, boxWidth };
     }
 
     // Render subsequent rounds (subset relevant to this page's matches)
     for (let r = 2; r <= numberOfRounds; r++) {
       const rMatches = roundMatches[r] || [];
-      const rColX = MARGIN + (r - 1) * colWidth + (colWidth - MATCH_BOX_WIDTH) / 2;
+      const rColX = MARGIN + (r - 1) * colWidth + (colWidth - boxWidth) / 2;
 
       // Determine which matches in this round correspond to this page's first-round matches
       const firstMatchGlobalIdx = startIdx;
@@ -317,38 +307,39 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
         const centerY = drawAreaTop + rSpacing * (i + 0.5);
         const boxY = centerY - MATCH_BOX_HEIGHT / 2;
 
-        renderMatchBox(doc, match, rColX, boxY);
+        renderMatchBox(doc, match, rColX, boxY, boxWidth);
         const matchId = match._id ? match._id.toString() : `${r}-${rStartIdx + i}`;
-        matchPositions[matchId] = { x: rColX, y: boxY, midY: centerY, round: r, index: rStartIdx + i };
+        matchPositions[matchId] = { x: rColX, y: boxY, midY: centerY, round: r, index: rStartIdx + i, boxWidth };
       }
     }
 
     // Draw connector lines for this page
-    renderPageConnectorLines(doc, matchPositions, numberOfRounds);
+    renderPageConnectorLines(doc, matchPositions, numberOfRounds, boxWidth);
   }
 }
 
 /**
  * Render a single match box
  */
-function renderMatchBox(doc, match, x, y) {
+function renderMatchBox(doc, match, x, y, boxWidth) {
+  const w = boxWidth || MATCH_BOX_WIDTH;
   const p1 = match.player1 || {};
   const p2 = match.player2 || {};
   const isCompleted = match.status === 'completed';
   const winnerId = match.winner;
 
   // Box background
-  doc.rect(x, y, MATCH_BOX_WIDTH, MATCH_BOX_HEIGHT).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+  doc.rect(x, y, w, MATCH_BOX_HEIGHT).lineWidth(0.5).strokeColor(COLORS.border).stroke();
 
   // Player 1 line
   const p1IsWinner = winnerId && p1.id === winnerId;
   const p1IsBye = p1.isBye;
-  renderPlayerLine(doc, p1, x, y, p1IsWinner, p1IsBye, isCompleted, match.score, true);
+  renderPlayerLine(doc, p1, x, y, p1IsWinner, p1IsBye, isCompleted, match.score, true, w);
 
   // Divider line
   doc
     .moveTo(x, y + PLAYER_LINE_HEIGHT)
-    .lineTo(x + MATCH_BOX_WIDTH, y + PLAYER_LINE_HEIGHT)
+    .lineTo(x + w, y + PLAYER_LINE_HEIGHT)
     .lineWidth(0.3)
     .strokeColor(COLORS.border)
     .stroke();
@@ -356,21 +347,23 @@ function renderMatchBox(doc, match, x, y) {
   // Player 2 line
   const p2IsWinner = winnerId && p2.id === winnerId;
   const p2IsBye = p2.isBye;
-  renderPlayerLine(doc, p2, x, y + PLAYER_LINE_HEIGHT, p2IsWinner, p2IsBye, isCompleted, match.score, false);
+  renderPlayerLine(doc, p2, x, y + PLAYER_LINE_HEIGHT, p2IsWinner, p2IsBye, isCompleted, match.score, false, w);
 }
 
 /**
  * Render a player line within a match box
  */
-function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, score, isTopPlayer) {
+function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, score, isTopPlayer, boxWidth) {
+  const w = boxWidth || MATCH_BOX_WIDTH;
   const lineHeight = PLAYER_LINE_HEIGHT;
   const padding = 3;
   const nameX = x + padding;
-  const nameWidth = MATCH_BOX_WIDTH - 2 * padding - 30; // reserve space for seed/score
+  const scoreSpace = Math.min(30, w * 0.22); // scale score area with box
+  const nameWidth = w - 2 * padding - scoreSpace;
 
   // Winner highlight background
   if (isWinner) {
-    doc.rect(x + 0.5, y + 0.5, MATCH_BOX_WIDTH - 1, lineHeight - 1).fill(COLORS.winnerBg);
+    doc.rect(x + 0.5, y + 0.5, w - 1, lineHeight - 1).fill(COLORS.winnerBg);
   }
 
   if (isBye) {
@@ -391,6 +384,9 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
     return;
   }
 
+  // Max chars scales with box width
+  const maxNameChars = Math.max(10, Math.floor(w / 8));
+
   // Seed badge
   let textStartX = nameX;
   if (player.seed) {
@@ -407,7 +403,7 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
   }
 
   // Player name
-  const displayName = truncateName(player.name, 18);
+  const displayName = truncateName(player.name, maxNameChars);
   doc
     .fontSize(7)
     .fillColor(isWinner ? '#059669' : COLORS.primary)
@@ -423,8 +419,8 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
       .fontSize(6)
       .fillColor(COLORS.secondary)
       .font('Helvetica')
-      .text(score, x + MATCH_BOX_WIDTH - 40, y + 5, {
-        width: 37,
+      .text(score, x + w - scoreSpace - 3, y + 5, {
+        width: scoreSpace,
         align: 'right',
         lineBreak: false
       });
@@ -434,7 +430,8 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
 /**
  * Draw connector lines between rounds
  */
-function renderConnectorLines(doc, roundMatches, matchPositions, numberOfRounds) {
+function renderConnectorLines(doc, roundMatches, matchPositions, numberOfRounds, boxWidth) {
+  const w = boxWidth || MATCH_BOX_WIDTH;
   doc.strokeColor(COLORS.border).lineWidth(0.5);
 
   for (let r = 1; r < numberOfRounds; r++) {
@@ -461,7 +458,7 @@ function renderConnectorLines(doc, roundMatches, matchPositions, numberOfRounds)
       if (!nextPos) continue;
 
       // Horizontal line from match1 right edge
-      const rightEdge = pos1.x + MATCH_BOX_WIDTH;
+      const rightEdge = pos1.x + w;
       const midX = (rightEdge + nextPos.x) / 2;
 
       // Match 1 -> vertical bar
@@ -480,7 +477,8 @@ function renderConnectorLines(doc, roundMatches, matchPositions, numberOfRounds)
 /**
  * Draw connector lines for a multi-page bracket (using stored positions)
  */
-function renderPageConnectorLines(doc, matchPositions, numberOfRounds) {
+function renderPageConnectorLines(doc, matchPositions, numberOfRounds, boxWidth) {
+  const w = boxWidth || MATCH_BOX_WIDTH;
   doc.strokeColor(COLORS.border).lineWidth(0.5);
 
   // Group positions by round
@@ -500,11 +498,10 @@ function renderPageConnectorLines(doc, matchPositions, numberOfRounds) {
       if (!pos1 || !pos2) continue;
 
       const nextMatchIdx = Math.floor(pos1.index / 2);
-      // Adjust index to be relative to this page's positions
       const nextPos = nextPositions.find(p => p.index === nextMatchIdx);
       if (!nextPos) continue;
 
-      const rightEdge = pos1.x + MATCH_BOX_WIDTH;
+      const rightEdge = pos1.x + w;
       const midX = (rightEdge + nextPos.x) / 2;
 
       doc.moveTo(rightEdge, pos1.midY).lineTo(midX, pos1.midY).stroke();
