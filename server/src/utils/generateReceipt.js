@@ -149,20 +149,25 @@ export const generateReceipt = (transaction) => {
         .fillColor('#1F2937')
         .text(formatPaymentMethod(transaction.paymentMethod), valuesLeft, currentY);
 
-      // Amount box
+      // Amount box — spans full width of the payment details box
       currentY = boxTop + 160;
+      const amountBoxLeft = 50;
+      const amountBoxWidth = 495;
       doc
-        .roundedRect(detailsLeft - 10, currentY, 445, 35, 4)
+        .roundedRect(amountBoxLeft, currentY, amountBoxWidth, 35, 4)
         .fillColor('#059669')
         .fill();
 
       doc
         .fontSize(14)
         .fillColor('#FFFFFF')
-        .text('Amount Paid:', detailsLeft + 10, currentY + 10)
+        .text('Amount Paid:', amountBoxLeft + 20, currentY + 10)
         .fontSize(16)
         .font('Helvetica-Bold')
-        .text(`K${parseFloat(transaction.amount).toFixed(2)}`, 400, currentY + 9, { align: 'right' });
+        .text(`K${parseFloat(transaction.amount).toFixed(2)}`, amountBoxLeft, currentY + 9, {
+          width: amountBoxWidth - 20,
+          align: 'right'
+        });
 
       // Reset font
       doc.font('Helvetica');
