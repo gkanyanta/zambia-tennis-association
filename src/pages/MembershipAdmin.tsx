@@ -97,6 +97,8 @@ export function MembershipAdmin() {
   const [confirmingSub, setConfirmingSub] = useState<MembershipSubscription | null>(null)
   const [confirmPaymentMethod, setConfirmPaymentMethod] = useState('bank_transfer')
   const [confirmingPayment, setConfirmingPayment] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
+  const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null)
 
   // Manual payment dialog
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false)
@@ -237,13 +239,15 @@ export function MembershipAdmin() {
     if (!confirmingSub) return
     try {
       setConfirmingPayment(true)
-      setError(null)
-      await membershipService.confirmSubscription(confirmingSub._id, confirmPaymentMethod)
-      setConfirmDialogOpen(false)
-      setConfirmingSub(null)
+      setConfirmError(null)
+      setConfirmSuccess(null)
+      const result = await membershipService.confirmSubscription(confirmingSub._id, confirmPaymentMethod)
+      setConfirmSuccess(
+        `Activated ${confirmingSub.entityName}${result.zpin ? ` (ZPIN: ${result.zpin})` : ''}. Receipt: ${result.transaction?.receiptNumber || 'N/A'}`
+      )
       fetchData()
     } catch (err: any) {
-      setError(err.message || 'Failed to confirm payment')
+      setConfirmError(err.message || 'Failed to confirm payment')
     } finally {
       setConfirmingPayment(false)
     }
@@ -557,6 +561,8 @@ export function MembershipAdmin() {
                                     onClick={() => {
                                       setConfirmingSub(sub)
                                       setConfirmPaymentMethod('bank_transfer')
+                                      setConfirmError(null)
+                                      setConfirmSuccess(null)
                                       setConfirmDialogOpen(true)
                                     }}
                                   >
@@ -881,43 +887,71 @@ export function MembershipAdmin() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>Payment Method</Label>
-              <Select value={confirmPaymentMethod} onValueChange={setConfirmPaymentMethod}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+          {confirmSuccess ? (
+            <div className="py-6">
+              <div className="text-center">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                <p className="font-semibold text-lg mb-2">Payment Confirmed</p>
+                <p className="text-sm text-muted-foreground">{confirmSuccess}</p>
+              </div>
+              <div className="flex justify-center mt-6">
+                <Button onClick={() => {
+                  setConfirmDialogOpen(false)
+                  setConfirmingSub(null)
+                  setConfirmSuccess(null)
+                }}>
+                  Close
+                </Button>
+              </div>
             </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmPayment} disabled={confirmingPayment}>
-              {confirmingPayment ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Confirming...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Confirm &amp; Activate
-                </>
+          ) : (
+            <>
+              {confirmError && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                  <p className="text-sm text-destructive">{confirmError}</p>
+                </div>
               )}
-            </Button>
-          </DialogFooter>
+
+              <div className="space-y-4 py-4">
+                <div>
+                  <Label>Payment Method</Label>
+                  <Select value={confirmPaymentMethod} onValueChange={setConfirmPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConfirmPayment} disabled={confirmingPayment}>
+                  {confirmingPayment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Confirming...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Confirm &amp; Activate
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
