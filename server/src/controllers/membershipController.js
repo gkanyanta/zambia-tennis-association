@@ -72,9 +72,10 @@ export const confirmSubscriptionPayment = async (req, res) => {
 
     await subscription.save();
 
-    // Create transaction record
+    // Create transaction record (use unique reference to avoid duplicate key on shared bulk references)
+    const confirmRef = `CONFIRM-${subscription._id}-${Date.now()}`;
     const transaction = await Transaction.create({
-      reference: subscription.paymentReference || `CONFIRM-${Date.now()}`,
+      reference: confirmRef,
       type: 'membership',
       amount: subscription.amount,
       currency: subscription.currency || 'ZMW',
@@ -144,7 +145,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
     console.error('Confirm subscription payment error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to confirm subscription payment',
+      message: `Failed to confirm subscription payment: ${error.message}`,
       error: error.message
     });
   }
