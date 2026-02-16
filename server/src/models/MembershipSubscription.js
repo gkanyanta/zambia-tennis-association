@@ -83,7 +83,7 @@ const membershipSubscriptionSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['online', 'bank_transfer', 'cash', 'mobile_money', 'other'],
+    enum: ['online', 'bank_transfer', 'cash', 'mobile_money', 'cheque', 'other'],
     default: 'online'
   },
 
