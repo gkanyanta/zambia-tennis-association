@@ -7,6 +7,150 @@ import { generateReceipt } from '../utils/generateReceipt.js';
 import sendEmail from '../utils/sendEmail.js';
 
 // ============================================
+// ADMIN: CONFIRM PENDING SUBSCRIPTION
+// ============================================
+
+// @desc    Confirm/activate a pending subscription payment (admin)
+// @route   PUT /api/membership/subscriptions/:id/confirm
+// @access  Private (Admin)
+export const confirmSubscriptionPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paymentMethod = 'other' } = req.body;
+
+    const subscription = await MembershipSubscription.findById(id);
+
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription not found'
+      });
+    }
+
+    if (subscription.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Subscription is already ${subscription.status}`
+      });
+    }
+
+    // Activate subscription
+    subscription.status = 'active';
+    subscription.paymentDate = new Date();
+    subscription.paymentMethod = paymentMethod;
+
+    // Update entity (player or club)
+    let entityEmail;
+    if (subscription.entityType === 'player') {
+      const player = await User.findById(subscription.entityId);
+      if (player) {
+        if (!player.zpin) {
+          const year = new Date().getFullYear().toString().slice(-2);
+          const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
+          player.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+        }
+        player.membershipType = subscription.membershipTypeCode;
+        player.membershipStatus = 'active';
+        player.membershipExpiry = subscription.endDate;
+        player.lastPaymentDate = new Date();
+        player.lastPaymentAmount = subscription.amount;
+        await player.save();
+
+        subscription.zpin = player.zpin;
+        entityEmail = player.email;
+      }
+    } else if (subscription.entityType === 'club') {
+      const club = await Club.findById(subscription.entityId);
+      if (club) {
+        club.affiliationStatus = 'active';
+        club.affiliationType = subscription.membershipTypeCode;
+        club.affiliationExpiry = subscription.endDate;
+        await club.save();
+        entityEmail = club.email;
+      }
+    }
+
+    await subscription.save();
+
+    // Create transaction record
+    const transaction = await Transaction.create({
+      reference: subscription.paymentReference || `CONFIRM-${Date.now()}`,
+      type: 'membership',
+      amount: subscription.amount,
+      currency: subscription.currency || 'ZMW',
+      payerName: subscription.entityName,
+      payerEmail: entityEmail,
+      status: 'completed',
+      paymentGateway: 'manual',
+      paymentMethod,
+      relatedId: subscription._id,
+      relatedModel: 'MembershipSubscription',
+      description: `${subscription.membershipTypeName} - ${subscription.year} (Confirmed)`,
+      metadata: {
+        membershipType: subscription.membershipTypeCode,
+        membershipYear: subscription.year,
+        entityType: subscription.entityType,
+        confirmedBy: req.user.id
+      },
+      paymentDate: new Date()
+    });
+
+    subscription.receiptNumber = transaction.receiptNumber;
+    await subscription.save();
+
+    // Generate and send receipt
+    try {
+      const pdfBuffer = await generateReceipt(transaction);
+      if (entityEmail) {
+        await sendEmail({
+          email: entityEmail,
+          subject: `Membership Payment Confirmed - ${transaction.receiptNumber} - ZTA`,
+          html: `
+            <h2>Membership Payment Confirmed!</h2>
+            <p>Dear ${subscription.entityName},</p>
+            <p>Your ${subscription.membershipTypeName} has been confirmed and activated.</p>
+            <p><strong>Details:</strong></p>
+            <ul>
+              <li>Receipt Number: ${transaction.receiptNumber}</li>
+              <li>Membership: ${subscription.membershipTypeName}</li>
+              <li>Amount: K${subscription.amount}</li>
+              <li>Valid Until: December 31, ${subscription.year}</li>
+              ${subscription.zpin ? `<li>ZPIN: ${subscription.zpin}</li>` : ''}
+            </ul>
+            <p>Please find your official receipt attached.</p>
+            <p>Thank you for being a member of the Zambia Tennis Association!</p>
+          `,
+          attachments: [{
+            filename: `ZTA-Receipt-${transaction.receiptNumber}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }]
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send confirmation receipt email:', emailError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Subscription confirmed and activated',
+      data: {
+        subscription,
+        transaction,
+        zpin: subscription.zpin
+      }
+    });
+  } catch (error) {
+    console.error('Confirm subscription payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to confirm subscription payment',
+      error: error.message
+    });
+  }
+};
+
+// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
@@ -453,6 +597,8 @@ export const verifyBulkPayment = async (req, res) => {
       status: 'completed',
       paymentGateway: 'lenco',
       paymentMethod: 'online',
+      relatedId: subscriptions[0]?._id,
+      relatedModel: 'MembershipSubscription',
       description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
       metadata: {
         playerCount: activatedPlayers.length,

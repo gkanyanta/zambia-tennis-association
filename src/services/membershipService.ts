@@ -371,6 +371,21 @@ export const membershipService = {
   },
 
   /**
+   * Confirm/activate a pending subscription (admin)
+   */
+  async confirmSubscription(id: string, paymentMethod: string): Promise<{
+    subscription: MembershipSubscription;
+    transaction: any;
+    zpin?: string;
+  }> {
+    const response = await apiFetch(`/membership/subscriptions/${id}/confirm`, {
+      method: 'PUT',
+      body: JSON.stringify({ paymentMethod }),
+    });
+    return response.data;
+  },
+
+  /**
    * Record manual/offline payment (admin)
    */
   async recordManualPayment(data: {

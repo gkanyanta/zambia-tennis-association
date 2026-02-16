@@ -12,6 +12,7 @@ import {
   getSubscriptions,
   getSubscriptionStats,
   recordManualPayment,
+  confirmSubscriptionPayment,
   searchPlayersForPayment,
   getPlayerPaymentDetails,
   initializeBulkPayment,
@@ -98,5 +99,8 @@ router.get('/stats', protect, authorize('admin'), getSubscriptionStats);
 
 // Record manual/offline payment
 router.post('/record-payment', protect, authorize('admin'), recordManualPayment);
+
+// Confirm/activate a pending subscription
+router.put('/subscriptions/:id/confirm', protect, authorize('admin'), confirmSubscriptionPayment);
 
 export default router;

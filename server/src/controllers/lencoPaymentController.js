@@ -470,6 +470,8 @@ export const verifyPayment = async (req, res) => {
           amount: totalAmount,
           payerName: payerInfo?.[1]?.trim() || 'Bulk Payer',
           payerEmail: firstPlayer?.email || null,
+          relatedId: subscriptions[0]?._id,
+          relatedModel: 'MembershipSubscription',
           description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
           metadata: {
             playerCount: activatedPlayers.length,
@@ -1021,6 +1023,12 @@ const syncMissingTransactions = async () => {
 
     const existingIdSet = new Set(existingRelatedIds.map(id => id.toString()));
 
+    // Also collect existing Transaction references to handle bulk payments
+    // where the Transaction exists but uses a shared reference without relatedId
+    const existingReferences = new Set(
+      await Transaction.distinct('reference', { type: 'membership' })
+    );
+
     // Find active subscriptions with payment dates that have no Transaction
     const activeSubscriptions = await MembershipSubscription.find({
       status: 'active',
@@ -1028,7 +1036,8 @@ const syncMissingTransactions = async () => {
     });
 
     const missing = activeSubscriptions.filter(
-      sub => !existingIdSet.has(sub._id.toString())
+      sub => !existingIdSet.has(sub._id.toString()) &&
+             !existingReferences.has(sub.paymentReference)
     );
 
     if (missing.length === 0) return 0;

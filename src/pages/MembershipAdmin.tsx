@@ -92,6 +92,12 @@ export function MembershipAdmin() {
   })
   const [savingType, setSavingType] = useState(false)
 
+  // Confirm payment dialog
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [confirmingSub, setConfirmingSub] = useState<MembershipSubscription | null>(null)
+  const [confirmPaymentMethod, setConfirmPaymentMethod] = useState('bank_transfer')
+  const [confirmingPayment, setConfirmingPayment] = useState(false)
+
   // Manual payment dialog
   const [manualPaymentOpen, setManualPaymentOpen] = useState(false)
   const [manualEntityType, setManualEntityType] = useState<'player' | 'club'>('club')
@@ -224,6 +230,22 @@ export function MembershipAdmin() {
       fetchData()
     } catch (err: any) {
       setError(err.message || 'Failed to delete membership type')
+    }
+  }
+
+  const handleConfirmPayment = async () => {
+    if (!confirmingSub) return
+    try {
+      setConfirmingPayment(true)
+      setError(null)
+      await membershipService.confirmSubscription(confirmingSub._id, confirmPaymentMethod)
+      setConfirmDialogOpen(false)
+      setConfirmingSub(null)
+      fetchData()
+    } catch (err: any) {
+      setError(err.message || 'Failed to confirm payment')
+    } finally {
+      setConfirmingPayment(false)
     }
   }
 
@@ -480,6 +502,7 @@ export function MembershipAdmin() {
                             <TableHead>Status</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>Expiry</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -524,6 +547,23 @@ export function MembershipAdmin() {
                                   month: 'short',
                                   year: 'numeric'
                                 })}
+                              </TableCell>
+                              <TableCell>
+                                {sub.status === 'pending' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-green-600 border-green-600 hover:bg-green-50"
+                                    onClick={() => {
+                                      setConfirmingSub(sub)
+                                      setConfirmPaymentMethod('bank_transfer')
+                                      setConfirmDialogOpen(true)
+                                    }}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Confirm
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -820,6 +860,61 @@ export function MembershipAdmin() {
                 </>
               ) : (
                 'Save'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Payment Dialog */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Confirm Payment
+            </DialogTitle>
+            <DialogDescription>
+              Activate the pending subscription for{' '}
+              <span className="font-semibold">{confirmingSub?.entityName}</span>
+              {' '}({confirmingSub?.membershipTypeName} — K{confirmingSub?.amount})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Payment Method</Label>
+              <Select value={confirmPaymentMethod} onValueChange={setConfirmPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmPayment} disabled={confirmingPayment}>
+              {confirmingPayment ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Confirming...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Confirm &amp; Activate
+                </>
               )}
             </Button>
           </DialogFooter>
