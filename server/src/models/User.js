@@ -91,7 +91,6 @@ const userSchema = new mongoose.Schema({
   },
   membershipType: {
     type: String,
-    enum: ['junior', 'adult', 'family', null],
     default: null
   },
   membershipStatus: {
