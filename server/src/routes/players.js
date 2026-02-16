@@ -52,10 +52,35 @@ router.get('/', async (req, res) => {
 
     const players = await query;
 
-    // Enrich with ZPIN subscription status
+    // Derive membership status from current-year subscription records
+    const currentYear = new Date().getFullYear();
     const enriched = await Promise.all(players.map(async p => {
       const obj = p.toObject();
-      obj.hasActiveSubscription = await MembershipSubscription.hasActiveSubscription(p._id, 'player');
+
+      // Look up this year's subscription
+      const subscription = await MembershipSubscription.findOne({
+        entityId: p._id,
+        entityType: 'player',
+        year: currentYear
+      });
+
+      if (subscription) {
+        if (subscription.status === 'active') {
+          obj.membershipStatus = 'active';
+          obj.hasActiveSubscription = true;
+        } else if (subscription.status === 'pending') {
+          obj.membershipStatus = 'pending';
+          obj.hasActiveSubscription = false;
+        } else {
+          obj.membershipStatus = 'expired';
+          obj.hasActiveSubscription = false;
+        }
+      } else {
+        // No subscription record for current year
+        obj.membershipStatus = 'expired';
+        obj.hasActiveSubscription = false;
+      }
+
       return obj;
     }));
 
