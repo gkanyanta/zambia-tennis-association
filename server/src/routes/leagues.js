@@ -6,35 +6,44 @@ import {
   updateLeague,
   deleteLeague,
   getLeagueStandings,
-  getLeagueFixtures,
-  generateFixtures,
-  updateFixtureResult,
+  getLeagueTies,
+  getTie,
+  generateTies,
+  updateTie,
   getAvailablePlayers,
-  updateFixturePlayers,
-  updateMatchScore,
-  getFixture
+  updateTiePlayers,
+  updateRubberScore,
+  recordWalkover
 } from '../controllers/leagueController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { validateLeagueDates, validateRubberScores } from '../middleware/leagueValidation.js';
 
 const router = express.Router();
 
-// League routes
+// League CRUD
 router.get('/', getLeagues);
 router.get('/:id', getLeague);
-router.post('/', protect, authorize('admin', 'staff'), createLeague);
-router.put('/:id', protect, authorize('admin', 'staff'), updateLeague);
+router.post('/', protect, authorize('admin', 'staff'), validateLeagueDates, createLeague);
+router.put('/:id', protect, authorize('admin', 'staff'), validateLeagueDates, updateLeague);
 router.delete('/:id', protect, authorize('admin'), deleteLeague);
 
-// League standings and fixtures
+// Standings
 router.get('/:id/standings', getLeagueStandings);
-router.get('/:id/fixtures', getLeagueFixtures);
-router.post('/:id/fixtures/generate', protect, authorize('admin', 'staff'), generateFixtures);
 
-// Fixture management
-router.get('/:leagueId/fixtures/:fixtureId', getFixture);
-router.put('/:leagueId/fixtures/:fixtureId', protect, authorize('admin', 'staff'), updateFixtureResult);
-router.get('/:leagueId/fixtures/:fixtureId/available-players', protect, authorize('admin', 'staff'), getAvailablePlayers);
-router.put('/:leagueId/fixtures/:fixtureId/players', protect, authorize('admin', 'staff'), updateFixturePlayers);
-router.put('/:leagueId/fixtures/:fixtureId/matches/:matchIndex/score', protect, authorize('admin', 'staff'), updateMatchScore);
+// Ties (fixtures)
+router.get('/:id/ties', getLeagueTies);
+router.post('/:id/ties/generate', protect, authorize('admin', 'staff'), generateTies);
+router.get('/:leagueId/ties/:tieId', getTie);
+router.put('/:leagueId/ties/:tieId', protect, authorize('admin', 'staff'), updateTie);
+
+// Player selection
+router.get('/:leagueId/ties/:tieId/available-players', protect, authorize('admin', 'staff'), getAvailablePlayers);
+router.put('/:leagueId/ties/:tieId/players', protect, authorize('admin', 'staff'), updateTiePlayers);
+
+// Rubber scoring
+router.put('/:leagueId/ties/:tieId/rubbers/:rubberIndex/score', protect, authorize('admin', 'staff'), validateRubberScores, updateRubberScore);
+
+// Walkover
+router.post('/:leagueId/ties/:tieId/walkover', protect, authorize('admin', 'staff'), recordWalkover);
 
 export default router;

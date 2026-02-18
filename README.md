@@ -183,6 +183,79 @@ npm run preview
 
 **See `README_SETUP.md` for complete setup instructions!**
 
+## Fix Missing Ranked Players
+
+Players who appear in the ranking system but don't have a User record (no ZPIN assigned) can be detected, exported, reviewed, and imported using the tools below.
+
+### How to Export
+
+**Via Admin UI:**
+1. Go to Admin Dashboard > "Missing Ranked Players"
+2. Click "Run Detection" to scan for unmatched players
+3. Review the summary counts
+4. Click "Download CSV" or "Download XLSX"
+
+**Via CLI:**
+```bash
+cd server
+node src/scripts/exportMissingPlayers.js --output-dir ./exports --format both
+```
+
+The export produces a spreadsheet with columns: `action`, `segment`, `status`, `proposed_zpin`, `full_name`, `first_name`, `last_name`, `gender`, `date_of_birth`, `club`, `phone`, `email`, `ranking_source_ids`, `categories`, `matched_player_id`, `current_zpin`, `match_method`, `notes`.
+
+### How to Review the Spreadsheet
+
+1. Open the exported CSV/XLSX
+2. For each row check:
+   - **action=CREATE**: A new player will be created. Verify the name and proposed ZPIN
+   - **action=UPDATE**: An existing player will get a ZPIN assigned
+   - **action=SKIP**: No action. Change to CREATE/UPDATE if you want to include it
+3. Edit `first_name`/`last_name` if the auto-split is wrong (rankings store full names as "LAST FIRST")
+4. Add `date_of_birth`, `phone`, `email`, `club` if you have the data
+5. For ambiguous matches, decide whether to CREATE a new record or SKIP
+
+### How to Import
+
+**Via Admin UI:**
+1. Go to Admin Dashboard > "Missing Ranked Players"
+2. Upload the reviewed file
+3. Click "Dry Run" first to validate without changes
+4. Click "Import" to apply
+
+**Via CLI:**
+```bash
+# Validate first (dry run)
+node src/scripts/importMissingPlayers.js ./exports/ZTA_Missing_Players_2026-02-18.csv --dry-run
+
+# Apply changes
+node src/scripts/importMissingPlayers.js ./exports/ZTA_Missing_Players_2026-02-18.csv
+```
+
+### Common Errors
+
+| Error | Fix |
+|-------|-----|
+| `ZPIN "ZTASXXXX" already assigned to another player` | Another person has that ZPIN. Change `proposed_zpin` in the spreadsheet |
+| `full_name is required for CREATE` | The `full_name` column is empty for a CREATE row |
+| `Invalid ZPIN format` | ZPIN must match `ZTA[J\|S]NNNN` (e.g., ZTAS0091, ZTAJ0205) |
+| `Duplicate proposed_zpin in file` | Two rows have the same ZPIN. Make each unique |
+| `Transaction aborted due to duplicate key` | A database constraint was hit. Check for ZPIN/email conflicts |
+
+### API Endpoints
+
+- `GET /api/missing-players/detect` — Run detection (admin/staff)
+- `GET /api/missing-players/export/csv` — Download CSV (admin/staff)
+- `GET /api/missing-players/export/xlsx` — Download XLSX (admin/staff)
+- `POST /api/missing-players/import?dryRun=true` — Import with validation only (admin)
+- `POST /api/missing-players/import` — Import and apply changes (admin)
+
+### Running Tests
+
+```bash
+cd server
+npm test -- --testPathPatterns=missingPlayers
+```
+
 ## 🌐 Browser Support
 
 - Chrome (latest)
