@@ -49,6 +49,7 @@ import calendarRoutes from './routes/calendar.js';
 import membershipRoutes from './routes/membership.js';
 import playerRegistrationRoutes from './routes/playerRegistration.js';
 import documentUploadRoutes from './routes/documentUpload.js';
+import missingPlayersRoutes from './routes/missingPlayers.js';
 
 // Initialize app
 const app = express();
@@ -143,6 +144,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/player-registration', playerRegistrationRoutes);
 app.use('/api/upload/document', documentUploadRoutes);
+app.use('/api/missing-players', missingPlayersRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

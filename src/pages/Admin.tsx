@@ -17,7 +17,8 @@ import {
   FileText,
   CreditCard,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  UserSearch
 } from 'lucide-react';
 
 export function Admin() {
@@ -134,6 +135,13 @@ export function Admin() {
       icon: Trophy,
       action: () => navigate('/admin/leagues'),
       color: 'text-red-500'
+    },
+    {
+      title: 'Missing Ranked Players',
+      description: 'Find and fix ranking players without ZPIN assignments',
+      icon: UserSearch,
+      action: () => navigate('/admin/rankings/missing-players'),
+      color: 'text-amber-500'
     },
     {
       title: 'Traffic & Analytics',
