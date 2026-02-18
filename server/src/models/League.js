@@ -56,12 +56,25 @@ const leagueSchema = new mongoose.Schema({
     },
     matchFormat: {
       type: String,
-      enum: ['2singles_1doubles', '3singles_2doubles', 'custom'],
-      default: '2singles_1doubles'
+      enum: ['2s1d', '3s2d', '4s1d'],
+      default: '2s1d'
     },
     numberOfRounds: {
       type: Number,
       default: 1
+    },
+    bestOfSets: {
+      type: Number,
+      enum: [3, 5],
+      default: 3
+    },
+    matchTiebreak: {
+      type: Boolean,
+      default: true
+    },
+    noAdScoring: {
+      type: Boolean,
+      default: false
     }
   },
   organizer: {

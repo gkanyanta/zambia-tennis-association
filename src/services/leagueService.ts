@@ -3,6 +3,38 @@ import { Club } from './clubService';
 
 const API_URL = '/leagues';
 
+// ─── Match format definitions (mirrors backend) ────────────────
+
+export const MATCH_FORMATS: Record<string, { rubberNumber: number; type: string; label: string }[]> = {
+  '2s1d': [
+    { rubberNumber: 1, type: 'singles1', label: 'Singles 1' },
+    { rubberNumber: 2, type: 'singles2', label: 'Singles 2' },
+    { rubberNumber: 3, type: 'doubles1', label: 'Doubles' }
+  ],
+  '3s2d': [
+    { rubberNumber: 1, type: 'singles1', label: 'Singles 1' },
+    { rubberNumber: 2, type: 'singles2', label: 'Singles 2' },
+    { rubberNumber: 3, type: 'singles3', label: 'Singles 3' },
+    { rubberNumber: 4, type: 'doubles1', label: 'Doubles 1' },
+    { rubberNumber: 5, type: 'doubles2', label: 'Doubles 2' }
+  ],
+  '4s1d': [
+    { rubberNumber: 1, type: 'singles1', label: 'Singles 1' },
+    { rubberNumber: 2, type: 'singles2', label: 'Singles 2' },
+    { rubberNumber: 3, type: 'singles3', label: 'Singles 3' },
+    { rubberNumber: 4, type: 'singles4', label: 'Singles 4' },
+    { rubberNumber: 5, type: 'doubles1', label: 'Doubles' }
+  ]
+};
+
+export const FORMAT_LABELS: Record<string, string> = {
+  '2s1d': '2 Singles + 1 Doubles',
+  '3s2d': '3 Singles + 2 Doubles',
+  '4s1d': '4 Singles + 1 Doubles'
+};
+
+// ─── Types ──────────────────────────────────────────────────────
+
 export interface League {
   _id: string;
   name: string;
@@ -21,6 +53,9 @@ export interface League {
     pointsForLoss: number;
     matchFormat: string;
     numberOfRounds: number;
+    bestOfSets: number;
+    matchTiebreak: boolean;
+    noAdScoring: boolean;
   };
   organizer?: string;
   contactEmail?: string;
@@ -29,60 +64,39 @@ export interface League {
   updatedAt: string;
 }
 
-export interface LeagueTeam {
-  _id: string;
-  name: string;
-  shortName: string;
-  region: 'northern' | 'southern';
-  city: string;
-  province?: string;
-  homeVenue: {
-    name: string;
-    address?: string;
-    numberOfCourts?: number;
-    courtSurface?: string;
+export interface TieSet {
+  setNumber: number;
+  homeGames: number;
+  awayGames: number;
+  tiebreak?: {
+    played: boolean;
+    homePoints?: number;
+    awayPoints?: number;
   };
-  clubAffiliation?: string | {
-    _id: string;
-    name: string;
-    city?: string;
-    province?: string;
-  };
-  captain?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-  };
-  coach?: {
-    name?: string;
-    email?: string;
-    phone?: string;
-  };
-  roster?: any[];
-  contactEmail?: string;
-  contactPhone?: string;
-  logo?: string;
-  colors?: {
-    primary?: string;
-    secondary?: string;
-  };
-  isActive: boolean;
+  isMatchTiebreak?: boolean;
 }
 
-export interface MatchResult {
-  matchType: 'singles1' | 'singles2' | 'singles3' | 'doubles' | 'doubles2';
-  homeScore: number;
-  awayScore: number;
-  homePlayer?: string;
-  awayPlayer?: string;
-  homePlayers?: string[];
-  awayPlayers?: string[];
-  detailedScore?: string;
+export interface Rubber {
+  rubberNumber: number;
+  type: string;
+  homePlayer?: { _id: string; firstName: string; lastName: string; zpin?: string; club?: Club };
+  awayPlayer?: { _id: string; firstName: string; lastName: string; zpin?: string; club?: Club };
+  homePlayers?: { _id: string; firstName: string; lastName: string }[];
+  awayPlayers?: { _id: string; firstName: string; lastName: string }[];
+  sets: TieSet[];
+  score: {
+    homeSetsWon: number;
+    awaySetsWon: number;
+  };
+  winner: 'home' | 'away' | null;
+  status: 'not_started' | 'in_progress' | 'completed' | 'retired' | 'walkover' | 'defaulted';
   duration?: number;
   completedAt?: string;
+  retirementReason?: string;
+  walkoverTeam?: string;
 }
 
-export interface LeagueFixture {
+export interface Tie {
   _id: string;
   league: string;
   round: number;
@@ -94,17 +108,22 @@ export interface LeagueFixture {
   venue: string;
   venueAddress?: string;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed' | 'walkover';
-  matches: MatchResult[];
-  overallScore: {
-    homeWins: number;
-    awayWins: number;
+  rubbers: Rubber[];
+  score: {
+    home: number;
+    away: number;
+  };
+  stats: {
+    home: { rubbersWon: number; setsWon: number; gamesWon: number };
+    away: { rubbersWon: number; setsWon: number; gamesWon: number };
   };
   winner?: Club;
   isDraw: boolean;
   notes?: string;
   referee?: string;
-  weather?: string;
   completedAt?: string;
+  walkoverTeam?: string;
+  walkoverReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,16 +134,30 @@ export interface LeagueStanding {
   won: number;
   drawn: number;
   lost: number;
-  matchesFor: number;
-  matchesAgainst: number;
-  matchesDifference: number;
+  rubbersFor: number;
+  rubbersAgainst: number;
+  setsFor: number;
+  setsAgainst: number;
+  gamesFor: number;
+  gamesAgainst: number;
   points: number;
 }
 
-// Fetch all leagues
+export interface Player {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  gender?: string;
+  zpin?: string;
+  club?: Club;
+}
+
+// ─── League API ─────────────────────────────────────────────────
+
 export const fetchLeagues = async (params?: {
-  region?: 'northern' | 'southern';
-  gender?: 'men' | 'women';
+  region?: string;
+  gender?: string;
   season?: string;
   year?: number;
   status?: string;
@@ -133,191 +166,116 @@ export const fetchLeagues = async (params?: {
   return response.data;
 };
 
-// Fetch single league
 export const fetchLeague = async (id: string): Promise<{ success: boolean; data: League }> => {
   const response = await apiClient.get(`${API_URL}/${id}`);
   return response.data;
 };
 
-// Create league (admin only)
-export const createLeague = async (leagueData: Partial<League>): Promise<{ success: boolean; data: League }> => {
-  const response = await apiClient.post(API_URL, leagueData);
+export const createLeague = async (data: Partial<League>): Promise<{ success: boolean; data: League }> => {
+  const response = await apiClient.post(API_URL, data);
   return response.data;
 };
 
-// Update league (admin only)
-export const updateLeague = async (id: string, leagueData: Partial<League>): Promise<{ success: boolean; data: League }> => {
-  const response = await apiClient.put(`${API_URL}/${id}`, leagueData);
+export const updateLeague = async (id: string, data: Partial<League>): Promise<{ success: boolean; data: League }> => {
+  const response = await apiClient.put(`${API_URL}/${id}`, data);
   return response.data;
 };
 
-// Delete league (admin only)
-export const deleteLeague = async (id: string): Promise<{ success: boolean; data: {} }> => {
+export const deleteLeague = async (id: string): Promise<{ success: boolean }> => {
   const response = await apiClient.delete(`${API_URL}/${id}`);
   return response.data;
 };
 
-// Get league standings
+// ─── Standings API ──────────────────────────────────────────────
+
 export const fetchLeagueStandings = async (leagueId: string): Promise<{ success: boolean; data: LeagueStanding[] }> => {
   const response = await apiClient.get(`${API_URL}/${leagueId}/standings`);
   return response.data;
 };
 
-// Get league fixtures
-export const fetchLeagueFixtures = async (
+// ─── Ties API ───────────────────────────────────────────────────
+
+export const fetchLeagueTies = async (
   leagueId: string,
   params?: { status?: string; round?: number }
-): Promise<{ success: boolean; count: number; data: LeagueFixture[] }> => {
-  const response = await apiClient.get(`${API_URL}/${leagueId}/fixtures`, { params });
+): Promise<{ success: boolean; count: number; data: Tie[] }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/ties`, { params });
   return response.data;
 };
 
-// Generate fixtures for league (admin only)
-export const generateLeagueFixtures = async (
+export const fetchTie = async (
+  leagueId: string,
+  tieId: string
+): Promise<{ success: boolean; data: Tie }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/ties/${tieId}`);
+  return response.data;
+};
+
+export const generateLeagueTies = async (
   leagueId: string,
   data?: { startDate?: string }
-): Promise<{ success: boolean; count: number; data: LeagueFixture[] }> => {
-  const response = await apiClient.post(`${API_URL}/${leagueId}/fixtures/generate`, data);
+): Promise<{ success: boolean; count: number; data: Tie[] }> => {
+  const response = await apiClient.post(`${API_URL}/${leagueId}/ties/generate`, data);
   return response.data;
 };
 
-// Update fixture result (admin only)
-export const updateFixtureResult = async (
+export const updateTie = async (
   leagueId: string,
-  fixtureId: string,
-  data: {
-    matches?: MatchResult[];
-    status?: string;
-    notes?: string;
-  }
-): Promise<{ success: boolean; data: LeagueFixture }> => {
-  const response = await apiClient.put(`${API_URL}/${leagueId}/fixtures/${fixtureId}`, data);
+  tieId: string,
+  data: { status?: string; notes?: string; scheduledDate?: string; scheduledTime?: string; venue?: string }
+): Promise<{ success: boolean; data: Tie }> => {
+  const response = await apiClient.put(`${API_URL}/${leagueId}/ties/${tieId}`, data);
   return response.data;
 };
 
-// League Teams API
-const TEAMS_API_URL = '/league-teams';
+// ─── Player selection API ───────────────────────────────────────
 
-// Fetch all league teams
-export const fetchLeagueTeams = async (params?: {
-  region?: 'northern' | 'southern';
-  city?: string;
-  isActive?: boolean;
-}): Promise<{ success: boolean; count: number; data: LeagueTeam[] }> => {
-  const response = await apiClient.get(TEAMS_API_URL, { params });
-  return response.data;
-};
-
-// Fetch single league team
-export const fetchLeagueTeam = async (id: string): Promise<{ success: boolean; data: LeagueTeam }> => {
-  const response = await apiClient.get(`${TEAMS_API_URL}/${id}`);
-  return response.data;
-};
-
-// Create league team (admin only)
-export const createLeagueTeam = async (teamData: Partial<LeagueTeam>): Promise<{ success: boolean; data: LeagueTeam }> => {
-  const response = await apiClient.post(TEAMS_API_URL, teamData);
-  return response.data;
-};
-
-// Update league team (admin only)
-export const updateLeagueTeam = async (id: string, teamData: Partial<LeagueTeam>): Promise<{ success: boolean; data: LeagueTeam }> => {
-  const response = await apiClient.put(`${TEAMS_API_URL}/${id}`, teamData);
-  return response.data;
-};
-
-// Delete league team (admin only)
-export const deleteLeagueTeam = async (id: string): Promise<{ success: boolean; data: {} }> => {
-  const response = await apiClient.delete(`${TEAMS_API_URL}/${id}`);
-  return response.data;
-};
-
-// Add player to team roster (admin only)
-export const addPlayerToRoster = async (
-  teamId: string,
-  playerData: {
-    playerId: string;
-    playerName: string;
-    gender?: string;
-    ranking?: number;
-    position?: string;
-  }
-): Promise<{ success: boolean; data: LeagueTeam }> => {
-  const response = await apiClient.post(`${TEAMS_API_URL}/${teamId}/roster`, playerData);
-  return response.data;
-};
-
-// Remove player from team roster (admin only)
-export const removePlayerFromRoster = async (teamId: string, playerId: string): Promise<{ success: boolean; data: LeagueTeam }> => {
-  const response = await apiClient.delete(`${TEAMS_API_URL}/${teamId}/roster/${playerId}`);
-  return response.data;
-};
-
-// Update player position in roster (admin only)
-export const updatePlayerPosition = async (
-  teamId: string,
-  playerId: string,
-  data: { position?: string; ranking?: number }
-): Promise<{ success: boolean; data: LeagueTeam }> => {
-  const response = await apiClient.put(`${TEAMS_API_URL}/${teamId}/roster/${playerId}`, data);
-  return response.data;
-};
-
-// Get available players for fixture
 export const fetchAvailablePlayers = async (
   leagueId: string,
-  fixtureId: string
-): Promise<{ success: boolean; count: number; data: any[] }> => {
-  const response = await apiClient.get(`${API_URL}/${leagueId}/fixtures/${fixtureId}/available-players`);
+  tieId: string
+): Promise<{ success: boolean; count: number; data: Player[] }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/ties/${tieId}/available-players`);
   return response.data;
 };
 
-// Update fixture players
-export const updateFixturePlayers = async (
+export const updateTiePlayers = async (
   leagueId: string,
-  fixtureId: string,
+  tieId: string,
   data: {
-    matches: Array<{
-      matchType: string;
+    rubbers: Array<{
       homePlayer?: string;
       awayPlayer?: string;
       homePlayers?: string[];
       awayPlayers?: string[];
     }>;
   }
-): Promise<{ success: boolean; data: LeagueFixture }> => {
-  const response = await apiClient.put(`${API_URL}/${leagueId}/fixtures/${fixtureId}/players`, data);
+): Promise<{ success: boolean; data: Tie }> => {
+  const response = await apiClient.put(`${API_URL}/${leagueId}/ties/${tieId}/players`, data);
   return response.data;
 };
 
-// Update match score
-export const updateMatchScore = async (
+// ─── Rubber scoring API ─────────────────────────────────────────
+
+export const updateRubberScore = async (
   leagueId: string,
-  fixtureId: string,
-  matchIndex: number,
+  tieId: string,
+  rubberIndex: number,
   data: {
-    sets: Array<{
-      setNumber: number;
-      homeGames: number;
-      awayGames: number;
-      tiebreak?: {
-        played: boolean;
-        homePoints?: number;
-        awayPoints?: number;
-      };
-    }>;
+    sets: TieSet[];
     status?: string;
   }
-): Promise<{ success: boolean; data: LeagueFixture }> => {
-  const response = await apiClient.put(`${API_URL}/${leagueId}/fixtures/${fixtureId}/matches/${matchIndex}/score`, data);
+): Promise<{ success: boolean; data: Tie }> => {
+  const response = await apiClient.put(`${API_URL}/${leagueId}/ties/${tieId}/rubbers/${rubberIndex}/score`, data);
   return response.data;
 };
 
-// Get single fixture with full details
-export const fetchFixture = async (
+// ─── Walkover API ───────────────────────────────────────────────
+
+export const recordWalkover = async (
   leagueId: string,
-  fixtureId: string
-): Promise<{ success: boolean; data: LeagueFixture }> => {
-  const response = await apiClient.get(`${API_URL}/${leagueId}/fixtures/${fixtureId}`);
+  tieId: string,
+  data: { walkoverTeam: string; reason?: string; rubberIndex?: number }
+): Promise<{ success: boolean; data: Tie }> => {
+  const response = await apiClient.post(`${API_URL}/${leagueId}/ties/${tieId}/walkover`, data);
   return response.data;
 };
