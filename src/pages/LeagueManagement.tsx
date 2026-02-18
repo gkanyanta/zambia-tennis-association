@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, Edit, Trash2, Calendar, PlayCircle } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   fetchLeagues,
@@ -13,7 +13,11 @@ import {
   updateLeague,
   deleteLeague,
   generateLeagueTies,
+  fetchLeagueRegistrations,
+  reviewLeagueRegistration,
+  generatePlayoffs,
   League,
+  LeagueRegistration,
   FORMAT_LABELS
 } from '@/services/leagueService'
 import { clubService, Club } from '@/services/clubService'
@@ -158,12 +162,56 @@ export function LeagueManagement() {
   }
 
   const handleGenerateTies = async (league: League) => {
-    if (!confirm(`Generate round-robin ties for "${league.name}"?`)) return
+    if (!confirm(`Generate round-robin ties for "${league.name}"? Make sure league match days are set on the calendar.`)) return
     try {
       const response = await generateLeagueTies(league._id, { startDate: league.startDate })
       toast({ title: 'Success', description: `Generated ${response.count} ties` })
     } catch (err: any) {
       toast({ title: 'Error', description: err.response?.data?.error || 'Failed to generate ties', variant: 'destructive' })
+    }
+  }
+
+  // Registrations
+  const [registrations, setRegistrations] = useState<LeagueRegistration[]>([])
+  const [showRegistrations, setShowRegistrations] = useState<string | null>(null)
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false)
+
+  const handleViewRegistrations = async (leagueId: string) => {
+    if (showRegistrations === leagueId) {
+      setShowRegistrations(null)
+      return
+    }
+    setLoadingRegistrations(true)
+    try {
+      const response = await fetchLeagueRegistrations(leagueId)
+      setRegistrations(response.data)
+      setShowRegistrations(leagueId)
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to load registrations', variant: 'destructive' })
+    } finally {
+      setLoadingRegistrations(false)
+    }
+  }
+
+  const handleReviewRegistration = async (leagueId: string, registrationId: string, status: 'approved' | 'rejected') => {
+    try {
+      await reviewLeagueRegistration(leagueId, registrationId, { status })
+      toast({ title: 'Success', description: `Registration ${status}` })
+      handleViewRegistrations(leagueId)
+      loadLeagues()
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to review registration', variant: 'destructive' })
+    }
+  }
+
+  // Playoffs
+  const handleGeneratePlayoffs = async (league: League) => {
+    if (!confirm(`Generate playoff bracket for "${league.name}"? This picks the top 2 teams from each region.`)) return
+    try {
+      const response = await generatePlayoffs(league._id)
+      toast({ title: 'Playoffs Generated', description: `Created ${response.count} playoff ties` })
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to generate playoffs', variant: 'destructive' })
     }
   }
 
@@ -217,13 +265,61 @@ export function LeagueManagement() {
                       <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(league)}>
                         <Edit className="h-4 w-4 mr-1" />Edit
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleViewRegistrations(league._id)} title="View Registrations">
+                        <ClipboardList className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => handleGenerateTies(league)} title="Generate Ties">
                         <PlayCircle className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleGeneratePlayoffs(league)} title="Generate Playoffs">
+                        <Trophy className="h-4 w-4" />
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => handleDelete(league)} title="Delete League">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
+
+                    {/* Registration Review Panel */}
+                    {showRegistrations === league._id && (
+                      <div className="mt-4 border-t pt-4">
+                        <h4 className="font-semibold text-sm mb-3">Club Registrations</h4>
+                        {loadingRegistrations ? (
+                          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                        ) : registrations.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No registrations yet</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {registrations.map(reg => (
+                              <div key={reg._id} className="flex items-center justify-between p-2 bg-muted/30 rounded text-sm">
+                                <div>
+                                  <span className="font-medium">{reg.club.name}</span>
+                                  {reg.club.city && <span className="text-muted-foreground"> ({reg.club.city})</span>}
+                                  <div className="text-xs text-muted-foreground">
+                                    By {reg.registeredBy.firstName} {reg.registeredBy.lastName} - {new Date(reg.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {reg.status === 'pending' ? (
+                                    <>
+                                      <Button size="sm" variant="outline" className="h-7 text-xs"
+                                        onClick={() => handleReviewRegistration(league._id, reg._id, 'approved')}>
+                                        <CheckCircle className="h-3 w-3 mr-1" />Approve
+                                      </Button>
+                                      <Button size="sm" variant="outline" className="h-7 text-xs"
+                                        onClick={() => handleReviewRegistration(league._id, reg._id, 'rejected')}>
+                                        <XCircle className="h-3 w-3 mr-1" />Reject
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Badge variant={reg.status === 'approved' ? 'default' : 'destructive'}>{reg.status}</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

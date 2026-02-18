@@ -3,6 +3,7 @@ import Tie from '../models/Tie.js';
 import User from '../models/User.js';
 import Club from '../models/Club.js';
 import CalendarEvent from '../models/CalendarEvent.js';
+import LeagueRegistration from '../models/LeagueRegistration.js';
 
 // Match format definitions (ITF-aligned)
 export const MATCH_FORMATS = {
@@ -559,6 +560,26 @@ export const updateTie = async (req, res) => {
   }
 };
 
+// ─── Club official access check ─────────────────────────────────
+
+/**
+ * Check if a club_official user has access to a tie (their club is involved).
+ * Admin/staff always have access. Returns false if club_official's club
+ * does not match either home or away team.
+ */
+async function checkTieAccess(user, tie) {
+  if (user.role === 'admin' || user.role === 'staff') return true;
+  if (user.role !== 'club_official' || !user.club) return false;
+
+  // Populate team names if not already populated
+  const populatedTie = tie.homeTeam?.name ? tie : await Tie.findById(tie._id).populate('homeTeam awayTeam');
+  const userClub = user.club.toLowerCase();
+  return (
+    populatedTie.homeTeam.name.toLowerCase() === userClub ||
+    populatedTie.awayTeam.name.toLowerCase() === userClub
+  );
+}
+
 // ─── Player selection ───────────────────────────────────────────
 
 // GET /api/leagues/:leagueId/ties/:tieId/available-players
@@ -567,15 +588,19 @@ export const getAvailablePlayers = async (req, res) => {
     const tie = await Tie.findOne({
       _id: req.params.tieId,
       league: req.params.leagueId
-    });
+    }).populate('homeTeam awayTeam');
     if (!tie) {
       return res.status(404).json({ success: false, error: 'Tie not found' });
     }
 
+    if (!(await checkTieAccess(req.user, tie))) {
+      return res.status(403).json({ success: false, error: 'You can only manage ties involving your club' });
+    }
+
     const league = await League.findById(req.params.leagueId);
 
-    // Look up club names from ObjectIds (User.club stores name as string)
-    const clubs = await Club.find({ _id: { $in: [tie.homeTeam, tie.awayTeam] } }).select('name');
+    // Use populated team names (User.club stores name as string)
+    const clubs = [tie.homeTeam, tie.awayTeam];
     const clubNames = clubs.map(c => c.name);
 
     const filter = {
@@ -617,9 +642,13 @@ export const updateTiePlayers = async (req, res) => {
   try {
     const { rubbers } = req.body;
 
-    const tie = await Tie.findOne({ _id: req.params.tieId, league: req.params.leagueId });
+    const tie = await Tie.findOne({ _id: req.params.tieId, league: req.params.leagueId }).populate('homeTeam awayTeam');
     if (!tie) {
       return res.status(404).json({ success: false, error: 'Tie not found' });
+    }
+
+    if (!(await checkTieAccess(req.user, tie))) {
+      return res.status(403).json({ success: false, error: 'You can only manage ties involving your club' });
     }
 
     rubbers.forEach((rubber, index) => {
@@ -655,9 +684,13 @@ export const updateRubberScore = async (req, res) => {
     const { sets, status } = req.body;
     const rubberIndex = parseInt(req.params.rubberIndex);
 
-    const tie = await Tie.findOne({ _id: req.params.tieId, league: req.params.leagueId });
+    const tie = await Tie.findOne({ _id: req.params.tieId, league: req.params.leagueId }).populate('homeTeam awayTeam');
     if (!tie) {
       return res.status(404).json({ success: false, error: 'Tie not found' });
+    }
+
+    if (!(await checkTieAccess(req.user, tie))) {
+      return res.status(403).json({ success: false, error: 'You can only score ties involving your club' });
     }
     if (!tie.rubbers[rubberIndex]) {
       return res.status(404).json({ success: false, error: 'Rubber not found' });
@@ -774,5 +807,264 @@ export const recordWalkover = async (req, res) => {
     res.json({ success: true, data: updated });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// ─── League Registration ────────────────────────────────────────
+
+// POST /api/leagues/:id/register
+export const registerForLeague = async (req, res) => {
+  try {
+    const leagueId = req.params.id;
+    const league = await League.findById(leagueId);
+    if (!league) {
+      return res.status(404).json({ success: false, error: 'League not found' });
+    }
+
+    if (league.status !== 'upcoming') {
+      return res.status(400).json({ success: false, error: 'Registration is only open for upcoming leagues' });
+    }
+
+    // Find the club matching the user's club name
+    if (!req.user.club) {
+      return res.status(400).json({ success: false, error: 'You must be associated with a club to register' });
+    }
+
+    const club = await Club.findOne({
+      name: { $regex: new RegExp(`^${req.user.club.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+    });
+    if (!club) {
+      return res.status(400).json({ success: false, error: 'Your club was not found in the system' });
+    }
+
+    // Check for existing registration
+    const existing = await LeagueRegistration.findOne({ league: leagueId, club: club._id });
+    if (existing) {
+      return res.status(400).json({ success: false, error: `Your club has already ${existing.status === 'pending' ? 'applied' : 'been ' + existing.status} for this league` });
+    }
+
+    const registration = await LeagueRegistration.create({
+      league: leagueId,
+      club: club._id,
+      registeredBy: req.user._id,
+      notes: req.body.notes || ''
+    });
+
+    const populated = await LeagueRegistration.findById(registration._id)
+      .populate('club', 'name city province')
+      .populate('registeredBy', 'firstName lastName');
+
+    res.status(201).json({ success: true, data: populated });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, error: 'Your club has already registered for this league' });
+    }
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// GET /api/leagues/:id/registrations
+export const getLeagueRegistrations = async (req, res) => {
+  try {
+    const registrations = await LeagueRegistration.find({ league: req.params.id })
+      .populate('club', 'name city province')
+      .populate('registeredBy', 'firstName lastName email')
+      .populate('reviewedBy', 'firstName lastName')
+      .sort('-createdAt');
+
+    res.json({ success: true, count: registrations.length, data: registrations });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// PUT /api/leagues/:id/registrations/:registrationId
+export const reviewRegistration = async (req, res) => {
+  try {
+    const { status, rejectionReason } = req.body;
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Status must be approved or rejected' });
+    }
+
+    const registration = await LeagueRegistration.findOne({
+      _id: req.params.registrationId,
+      league: req.params.id
+    });
+    if (!registration) {
+      return res.status(404).json({ success: false, error: 'Registration not found' });
+    }
+
+    registration.status = status;
+    registration.reviewedBy = req.user._id;
+    registration.reviewedAt = new Date();
+    if (rejectionReason) registration.rejectionReason = rejectionReason;
+    await registration.save();
+
+    // If approved, add club to league teams
+    if (status === 'approved') {
+      await League.findByIdAndUpdate(req.params.id, {
+        $addToSet: { teams: registration.club }
+      });
+    }
+
+    const populated = await LeagueRegistration.findById(registration._id)
+      .populate('club', 'name city province')
+      .populate('registeredBy', 'firstName lastName email')
+      .populate('reviewedBy', 'firstName lastName');
+
+    res.json({ success: true, data: populated });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// ─── Playoffs ───────────────────────────────────────────────────
+
+// POST /api/leagues/:id/playoffs/generate
+export const generatePlayoffs = async (req, res) => {
+  try {
+    const league = await League.findById(req.params.id).populate('teams');
+    if (!league) {
+      return res.status(404).json({ success: false, error: 'League not found' });
+    }
+
+    // Check if playoff ties already exist
+    const existingPlayoffs = await Tie.countDocuments({ league: req.params.id, roundName: /Semi|Final/ });
+    if (existingPlayoffs > 0) {
+      return res.status(400).json({ success: false, error: 'Playoff ties already exist. Delete them first to regenerate.' });
+    }
+
+    // Find the sibling league (opposite gender, same region, same year)
+    const oppositeGender = league.gender === 'men' ? 'women' : 'men';
+    const siblingLeague = await League.findOne({
+      region: league.region === 'northern' ? 'southern' : 'northern',
+      gender: league.gender,
+      year: league.year,
+      status: { $in: ['active', 'completed'] }
+    }).populate('teams');
+
+    if (!siblingLeague) {
+      return res.status(400).json({
+        success: false,
+        error: `No ${league.region === 'northern' ? 'southern' : 'northern'} region ${league.gender} league found for ${league.year}`
+      });
+    }
+
+    // Get standings for both regions
+    const thisTies = await Tie.find({ league: req.params.id, status: 'completed' }).populate('homeTeam awayTeam');
+    const siblingTies = await Tie.find({ league: siblingLeague._id, status: 'completed' }).populate('homeTeam awayTeam');
+
+    const settings = league.settings || { pointsForWin: 3, pointsForDraw: 1, pointsForLoss: 0 };
+    const thisStandings = calculateStandings(league.teams, thisTies, settings);
+    const siblingStandings = calculateStandings(siblingLeague.teams, siblingTies, siblingLeague.settings || settings);
+
+    if (thisStandings.length < 2) {
+      return res.status(400).json({ success: false, error: `${league.region} region needs at least 2 teams with standings` });
+    }
+    if (siblingStandings.length < 2) {
+      return res.status(400).json({ success: false, error: `${siblingLeague.region} region needs at least 2 teams with standings` });
+    }
+
+    // Determine teams: this region's 1st & 2nd, other region's 1st & 2nd
+    const thisFirst = thisStandings[0].team;
+    const thisSecond = thisStandings[1].team;
+    const otherFirst = siblingStandings[0].team;
+    const otherSecond = siblingStandings[1].team;
+
+    // Get playoff dates from calendar
+    const playoffDates = await CalendarEvent.find({
+      type: 'league',
+      startDate: { $gte: new Date() }
+    }).sort('startDate').limit(2);
+
+    const format = MATCH_FORMATS[league.settings.matchFormat] || MATCH_FORMATS['2s1d'];
+    const emptyRubbers = format.map(f => ({
+      rubberNumber: f.rubberNumber,
+      type: f.type,
+      sets: [],
+      score: { homeSetsWon: 0, awaySetsWon: 0 },
+      status: 'not_started'
+    }));
+
+    const semiDate = playoffDates[0]?.startDate || new Date();
+    const finalDate = playoffDates[1]?.startDate || new Date(semiDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Determine which region is "this" vs "other" for naming
+    const thisRegionLabel = league.region.charAt(0).toUpperCase() + league.region.slice(1);
+    const otherRegionLabel = siblingLeague.region.charAt(0).toUpperCase() + siblingLeague.region.slice(1);
+
+    // Semi-finals: Region1 1st vs Region2 2nd, Region2 1st vs Region1 2nd
+    const playoffTies = [
+      {
+        league: req.params.id,
+        round: 100,
+        roundName: `Semi-Final 1`,
+        homeTeam: thisFirst._id,
+        awayTeam: otherSecond._id,
+        scheduledDate: semiDate,
+        venue: thisFirst.name || 'TBD',
+        venueAddress: thisFirst.address || '',
+        status: 'scheduled',
+        rubbers: emptyRubbers.map(r => ({ ...r })),
+        notes: `${thisRegionLabel} 1st vs ${otherRegionLabel} 2nd`
+      },
+      {
+        league: req.params.id,
+        round: 100,
+        roundName: `Semi-Final 2`,
+        homeTeam: otherFirst._id,
+        awayTeam: thisSecond._id,
+        scheduledDate: semiDate,
+        venue: otherFirst.name || 'TBD',
+        venueAddress: otherFirst.address || '',
+        status: 'scheduled',
+        rubbers: emptyRubbers.map(r => ({ ...r })),
+        notes: `${otherRegionLabel} 1st vs ${thisRegionLabel} 2nd`
+      },
+      {
+        league: req.params.id,
+        round: 200,
+        roundName: 'Final',
+        homeTeam: thisFirst._id, // Placeholder — updated after semis
+        awayTeam: otherFirst._id, // Placeholder — updated after semis
+        scheduledDate: finalDate,
+        venue: 'TBD',
+        status: 'scheduled',
+        rubbers: emptyRubbers.map(r => ({ ...r })),
+        notes: 'Winner SF1 vs Winner SF2 — teams updated after semi-finals'
+      }
+    ];
+
+    const saved = await Tie.insertMany(playoffTies);
+
+    res.status(201).json({
+      success: true,
+      count: saved.length,
+      data: saved,
+      bracket: {
+        semiFinal1: { home: `${thisRegionLabel} 1st: ${thisFirst.name}`, away: `${otherRegionLabel} 2nd: ${otherSecond.name}` },
+        semiFinal2: { home: `${otherRegionLabel} 1st: ${otherFirst.name}`, away: `${thisRegionLabel} 2nd: ${thisSecond.name}` },
+        final: 'Winner SF1 vs Winner SF2'
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// GET /api/leagues/:id/playoffs
+export const getPlayoffBracket = async (req, res) => {
+  try {
+    const playoffTies = await Tie.find({
+      league: req.params.id,
+      round: { $gte: 100 }
+    })
+      .populate('homeTeam awayTeam winner')
+      .populate('rubbers.homePlayer rubbers.awayPlayer rubbers.homePlayers rubbers.awayPlayers')
+      .sort('round roundName');
+
+    res.json({ success: true, count: playoffTies.length, data: playoffTies });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 };

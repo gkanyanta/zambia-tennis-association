@@ -281,3 +281,58 @@ export const recordWalkover = async (
   const response = await apiClient.post(`${API_URL}/${leagueId}/ties/${tieId}/walkover`, data);
   return response.data;
 };
+
+// ─── League Registration API ───────────────────────────────────
+
+export interface LeagueRegistration {
+  _id: string;
+  league: string;
+  club: { _id: string; name: string; city?: string; province?: string };
+  registeredBy: { _id: string; firstName: string; lastName: string; email?: string };
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  reviewedBy?: { _id: string; firstName: string; lastName: string };
+  reviewedAt?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+export const registerForLeague = async (
+  leagueId: string,
+  data?: { notes?: string }
+): Promise<{ success: boolean; data: LeagueRegistration }> => {
+  const response = await apiClient.post(`${API_URL}/${leagueId}/register`, data || {});
+  return response.data;
+};
+
+export const fetchLeagueRegistrations = async (
+  leagueId: string
+): Promise<{ success: boolean; count: number; data: LeagueRegistration[] }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/registrations`);
+  return response.data;
+};
+
+export const reviewLeagueRegistration = async (
+  leagueId: string,
+  registrationId: string,
+  data: { status: 'approved' | 'rejected'; rejectionReason?: string }
+): Promise<{ success: boolean; data: LeagueRegistration }> => {
+  const response = await apiClient.put(`${API_URL}/${leagueId}/registrations/${registrationId}`, data);
+  return response.data;
+};
+
+// ─── Playoffs API ──────────────────────────────────────────────
+
+export const generatePlayoffs = async (
+  leagueId: string
+): Promise<{ success: boolean; count: number; data: Tie[]; bracket: any }> => {
+  const response = await apiClient.post(`${API_URL}/${leagueId}/playoffs/generate`);
+  return response.data;
+};
+
+export const fetchPlayoffBracket = async (
+  leagueId: string
+): Promise<{ success: boolean; count: number; data: Tie[] }> => {
+  const response = await apiClient.get(`${API_URL}/${leagueId}/playoffs`);
+  return response.data;
+};

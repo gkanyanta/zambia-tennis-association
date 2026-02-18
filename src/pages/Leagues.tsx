@@ -6,10 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Trophy, Calendar, MapPin, Edit, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/context/AuthContext'
 import {
   fetchLeagues,
   fetchLeagueStandings,
   fetchLeagueTies,
+  fetchPlayoffBracket,
+  registerForLeague,
   League,
   LeagueStanding,
   Tie,
@@ -18,11 +21,14 @@ import {
 
 type Region = 'northern' | 'southern'
 type Gender = 'men' | 'women'
-type TabType = 'standings' | 'fixtures' | 'results'
+type TabType = 'standings' | 'fixtures' | 'results' | 'playoffs'
 
 export function Leagues() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user, isAdmin } = useAuth()
+  const canScore = isAdmin || user?.role === 'club_official'
+  const isClubOfficial = user?.role === 'club_official'
   const [selectedRegion, setSelectedRegion] = useState<Region>('northern')
   const [selectedGender, setSelectedGender] = useState<Gender>('men')
   const [activeTab, setActiveTab] = useState<TabType>('standings')
@@ -30,27 +36,61 @@ export function Leagues() {
   const [currentLeague, setCurrentLeague] = useState<League | null>(null)
   const [standings, setStandings] = useState<LeagueStanding[]>([])
   const [ties, setTies] = useState<Tie[]>([])
+  const [playoffTies, setPlayoffTies] = useState<Tie[]>([])
   const [loading, setLoading] = useState(false)
+  const [registering, setRegistering] = useState(false)
 
   useEffect(() => { loadLeagues() }, [selectedRegion, selectedGender])
   useEffect(() => { if (currentLeague && activeTab === 'standings') loadStandings() }, [currentLeague, activeTab])
   useEffect(() => { if (currentLeague && (activeTab === 'fixtures' || activeTab === 'results')) loadTies() }, [currentLeague, activeTab])
+  useEffect(() => { if (currentLeague && activeTab === 'playoffs') loadPlayoffs() }, [currentLeague, activeTab])
 
   const loadLeagues = async () => {
     setLoading(true)
     try {
-      const response = await fetchLeagues({ region: selectedRegion, gender: selectedGender, status: 'active' })
+      // Try active first, then upcoming
+      let response = await fetchLeagues({ region: selectedRegion, gender: selectedGender, status: 'active' })
+      if (response.data.length === 0) {
+        response = await fetchLeagues({ region: selectedRegion, gender: selectedGender, status: 'upcoming' })
+      }
       if (response.data.length > 0) {
         setCurrentLeague(response.data[0])
       } else {
         setCurrentLeague(null)
         setStandings([])
         setTies([])
+        setPlayoffTies([])
       }
     } catch (error: any) {
       toast({ title: 'Error', description: error.response?.data?.error || 'Failed to load leagues', variant: 'destructive' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadPlayoffs = async () => {
+    if (!currentLeague) return
+    setLoading(true)
+    try {
+      const response = await fetchPlayoffBracket(currentLeague._id)
+      setPlayoffTies(response.data)
+    } catch (error: any) {
+      setPlayoffTies([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegister = async () => {
+    if (!currentLeague) return
+    setRegistering(true)
+    try {
+      await registerForLeague(currentLeague._id)
+      toast({ title: 'Registration Submitted', description: 'Your club registration is pending admin approval.' })
+    } catch (error: any) {
+      toast({ title: 'Registration Failed', description: error.response?.data?.error || 'Failed to register', variant: 'destructive' })
+    } finally {
+      setRegistering(false)
     }
   }
 
@@ -142,14 +182,39 @@ export function Leagues() {
           {!currentLeague ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                No active league found for {selectedRegion} region - {selectedGender === 'men' ? "Men's" : "Women's"} division.
+                No league found for {selectedRegion} region - {selectedGender === 'men' ? "Men's" : "Women's"} division.
               </CardContent>
             </Card>
           ) : (
             <>
+              {/* Registration banner for upcoming leagues */}
+              {currentLeague.status === 'upcoming' && isClubOfficial && (
+                <Card className="mb-6 border-primary/30 bg-primary/5">
+                  <CardContent className="py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold">{currentLeague.name} - Registration Open</h3>
+                      <p className="text-sm text-muted-foreground">Register your club for this league. Admin approval required.</p>
+                    </div>
+                    <Button onClick={handleRegister} disabled={registering}>
+                      {registering ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      Register Club
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {currentLeague.status === 'upcoming' && !isClubOfficial && (
+                <Card className="mb-6">
+                  <CardContent className="py-4 text-center text-muted-foreground">
+                    <p className="font-medium">{currentLeague.name} - Registration Open</p>
+                    <p className="text-sm">Club officials can register their clubs for this league.</p>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Tab Navigation */}
               <div className="flex gap-2 mb-8 border-b">
-                {(['standings', 'fixtures', 'results'] as TabType[]).map(tab => (
+                {(['standings', 'fixtures', 'results', 'playoffs'] as TabType[]).map(tab => (
                   <button
                     key={tab}
                     className={`px-4 py-2 font-medium capitalize transition-colors ${
@@ -272,10 +337,12 @@ export function Leagues() {
                                 </div>
                               </div>
                             </div>
-                            <Button variant="outline" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Enter Scores
-                            </Button>
+                            {canScore && (
+                              <Button variant="outline" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
+                                <Edit className="h-4 w-4 mr-2" />
+                                Enter Scores
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -342,6 +409,67 @@ export function Leagues() {
                         </CardContent>
                       </Card>
                     ))
+                  )}
+                </div>
+              )}
+
+              {/* Playoffs */}
+              {activeTab === 'playoffs' && (
+                <div className="space-y-4">
+                  {loading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : playoffTies.length === 0 ? (
+                    <Card><CardContent className="py-12 text-center text-muted-foreground">Playoffs have not been generated yet. Top 2 teams from each region will qualify.</CardContent></Card>
+                  ) : (
+                    <>
+                      <CardHeader className="px-0">
+                        <CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5" /> National Championship Playoffs</CardTitle>
+                        <CardDescription>Top 2 from each region compete for the national title</CardDescription>
+                      </CardHeader>
+                      {playoffTies.map(tie => (
+                        <Card key={tie._id} className="card-elevated border-primary/20">
+                          <CardContent className="pt-6">
+                            <div className="flex items-center gap-3 mb-4">
+                              <Badge variant="default">{tie.roundName}</Badge>
+                              <Badge variant={tie.status === 'completed' ? 'secondary' : 'outline'}>{tie.status}</Badge>
+                              {tie.notes && <span className="text-xs text-muted-foreground">{tie.notes}</span>}
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 items-center">
+                              <div className="text-right">
+                                <div className="font-semibold text-lg">{tie.homeTeam.name}</div>
+                              </div>
+                              <div className="text-center">
+                                {tie.status === 'completed' ? (
+                                  <div className="text-3xl font-bold">{tie.score.home} - {tie.score.away}</div>
+                                ) : (
+                                  <div className="text-2xl font-bold text-muted-foreground">vs</div>
+                                )}
+                              </div>
+                              <div className="text-left">
+                                <div className="font-semibold text-lg">{tie.awayTeam.name}</div>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-3 mt-3 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4" />
+                                {new Date(tie.scheduledDate).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-4 w-4" />
+                                {tie.venue}
+                              </div>
+                            </div>
+                            {canScore && tie.status === 'scheduled' && (
+                              <div className="mt-4">
+                                <Button variant="outline" size="sm" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
+                                  <Edit className="h-4 w-4 mr-2" /> Enter Scores
+                                </Button>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </>
                   )}
                 </div>
               )}

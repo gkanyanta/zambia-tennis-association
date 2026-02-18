@@ -51,6 +51,7 @@ export const register = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
+        club: user.club || null,
         token: generateToken(user._id)
       }
     });
@@ -111,6 +112,7 @@ export const login = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
+        club: user.club || null,
         token: generateToken(user._id)
       }
     });
