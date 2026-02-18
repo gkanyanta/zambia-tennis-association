@@ -1,6 +1,8 @@
 import League from '../models/League.js';
 import Tie from '../models/Tie.js';
 import User from '../models/User.js';
+import Club from '../models/Club.js';
+import CalendarEvent from '../models/CalendarEvent.js';
 
 // Match format definitions (ITF-aligned)
 export const MATCH_FORMATS = {
@@ -341,10 +343,44 @@ export const generateTies = async (req, res) => {
       });
     }
 
-    const startDate = req.body.startDate ? new Date(req.body.startDate) : league.startDate;
     const format = MATCH_FORMATS[league.settings.matchFormat] || MATCH_FORMATS['2s1d'];
 
-    const tieData = generateRoundRobin(league.teams, league.settings.numberOfRounds, startDate, format);
+    // Fetch league match dates from calendar
+    const leagueDates = await CalendarEvent.find({
+      type: 'league',
+      startDate: { $gte: league.startDate, $lte: league.endDate }
+    }).sort('startDate');
+
+    if (leagueDates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No league match days found on the calendar between the league start and end dates. Please add "League Match Day" events to the calendar first.'
+      });
+    }
+
+    // Check if opposite-gender league exists in same region for coordinated scheduling
+    const oppositeGender = league.gender === 'men' ? 'women' : 'men';
+    const siblingLeague = await League.findOne({
+      region: league.region,
+      gender: oppositeGender,
+      year: league.year,
+      status: { $in: ['upcoming', 'active'] },
+      _id: { $ne: league._id }
+    }).populate('teams');
+
+    // Check if sibling league already has ties (use its matchup order)
+    let siblingTies = [];
+    if (siblingLeague) {
+      siblingTies = await Tie.find({ league: siblingLeague._id }).sort('round scheduledDate');
+    }
+
+    let tieData;
+    if (siblingTies.length > 0) {
+      // Mirror sibling league matchups: same clubs play each other on same dates
+      tieData = generateMirroredTies(league.teams, siblingTies, leagueDates, format);
+    } else {
+      tieData = generateRoundRobin(league.teams, league.settings.numberOfRounds, leagueDates, format);
+    }
 
     const saved = await Tie.insertMany(
       tieData.map(t => ({ ...t, league: req.params.id }))
@@ -356,7 +392,11 @@ export const generateTies = async (req, res) => {
   }
 };
 
-function generateRoundRobin(clubs, numberOfRounds, startDate, format, intervalDays = 7) {
+/**
+ * Generate round-robin ties using calendar dates instead of fixed intervals.
+ * Each matchday maps to a calendar league date.
+ */
+function generateRoundRobin(clubs, numberOfRounds, leagueDates, format) {
   if (!clubs || clubs.length === 0) {
     throw new Error('No clubs provided for tie generation');
   }
@@ -364,9 +404,15 @@ function generateRoundRobin(clubs, numberOfRounds, startDate, format, intervalDa
   const n = clubs.length;
   const hasBye = n % 2 === 1;
   const total = hasBye ? n + 1 : n;
-  const ties = [];
+  const matchdaysNeeded = (total - 1) * numberOfRounds;
 
-  // Create empty rubber slots from the match format
+  if (leagueDates.length < matchdaysNeeded) {
+    throw new Error(
+      `Not enough league dates on calendar. Need ${matchdaysNeeded} match days but only ${leagueDates.length} found. Please add more "League Match Day" events to the calendar.`
+    );
+  }
+
+  const ties = [];
   const emptyRubbers = format.map(f => ({
     rubberNumber: f.rubberNumber,
     type: f.type,
@@ -380,8 +426,7 @@ function generateRoundRobin(clubs, numberOfRounds, startDate, format, intervalDa
 
     for (let matchday = 0; matchday < total - 1; matchday++) {
       const actualMatchday = matchday + roundOffset;
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + actualMatchday * intervalDays);
+      const date = leagueDates[actualMatchday].startDate;
 
       for (let m = 0; m < total / 2; m++) {
         let home, away;
@@ -413,6 +458,65 @@ function generateRoundRobin(clubs, numberOfRounds, startDate, format, intervalDa
           rubbers: emptyRubbers.map(r => ({ ...r }))
         });
       }
+    }
+  }
+
+  return ties;
+}
+
+/**
+ * Generate ties that mirror an existing sibling league's schedule.
+ * Maps club names between leagues so the same clubs play on the same dates.
+ * Example: If men's Lusaka TC vs Ndola TC plays on March 5,
+ *          then women's Lusaka TC vs Ndola TC also plays on March 5.
+ */
+function generateMirroredTies(clubs, siblingTies, leagueDates, format) {
+  const ties = [];
+  const emptyRubbers = format.map(f => ({
+    rubberNumber: f.rubberNumber,
+    type: f.type,
+    sets: [],
+    score: { homeSetsWon: 0, awaySetsWon: 0 },
+    status: 'not_started'
+  }));
+
+  // Build map from club name to this league's club object
+  const clubByName = {};
+  clubs.forEach(c => { clubByName[c.name.toLowerCase()] = c; });
+
+  // Group sibling ties by round
+  const siblingByRound = {};
+  siblingTies.forEach(t => {
+    if (!siblingByRound[t.round]) siblingByRound[t.round] = [];
+    siblingByRound[t.round].push(t);
+  });
+
+  const rounds = Object.keys(siblingByRound).sort((a, b) => a - b);
+
+  for (let i = 0; i < rounds.length && i < leagueDates.length; i++) {
+    const round = rounds[i];
+    const roundTies = siblingByRound[round];
+    const date = leagueDates[i].startDate;
+
+    for (const sibTie of roundTies) {
+      // Find corresponding clubs in this league by name
+      const homeClub = clubByName[sibTie.homeTeam.name?.toLowerCase()];
+      const awayClub = clubByName[sibTie.awayTeam.name?.toLowerCase()];
+
+      // Skip if this league doesn't have the corresponding club
+      if (!homeClub || !awayClub) continue;
+
+      ties.push({
+        round: parseInt(round),
+        roundName: `Round ${round}`,
+        homeTeam: homeClub._id,
+        awayTeam: awayClub._id,
+        scheduledDate: date,
+        venue: homeClub.name || 'TBD',
+        venueAddress: homeClub.address || '',
+        status: 'scheduled',
+        rubbers: emptyRubbers.map(r => ({ ...r }))
+      });
     }
   }
 
@@ -470,19 +574,39 @@ export const getAvailablePlayers = async (req, res) => {
 
     const league = await League.findById(req.params.leagueId);
 
-    // Filter players by club membership (home and away teams in this tie)
-    const teamIds = [tie.homeTeam, tie.awayTeam];
-    const filter = { club: { $in: teamIds } };
+    // Look up club names from ObjectIds (User.club stores name as string)
+    const clubs = await Club.find({ _id: { $in: [tie.homeTeam, tie.awayTeam] } }).select('name');
+    const clubNames = clubs.map(c => c.name);
+
+    const filter = {
+      role: 'player',
+      club: { $in: clubNames.map(name => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) }
+    };
 
     // Filter by gender based on league
     if (league?.gender === 'men') filter.gender = 'male';
     else if (league?.gender === 'women') filter.gender = 'female';
 
-    const players = await User.find(filter)
-      .select('firstName lastName email gender zpin club')
-      .populate('club', 'name');
+    // Filter by tennis age: 14+ years old
+    const cutoffDate = new Date();
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 14);
+    filter.dateOfBirth = { $lte: cutoffDate };
 
-    res.json({ success: true, count: players.length, data: players });
+    const players = await User.find(filter)
+      .select('firstName lastName email gender zpin club dateOfBirth')
+      .sort('club lastName firstName');
+
+    // Attach club ObjectId so frontend can group by team
+    const clubNameToId = {};
+    clubs.forEach(c => { clubNameToId[c.name.toLowerCase()] = c._id; });
+
+    const playersWithClubId = players.map(p => {
+      const obj = p.toObject();
+      obj.clubId = clubNameToId[p.club?.toLowerCase()] || null;
+      return obj;
+    });
+
+    res.json({ success: true, count: playersWithClubId.length, data: playersWithClubId });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

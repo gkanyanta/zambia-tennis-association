@@ -150,7 +150,9 @@ export interface Player {
   email?: string;
   gender?: string;
   zpin?: string;
-  club?: Club;
+  club?: string;
+  clubId?: string;
+  dateOfBirth?: string;
 }
 
 // ─── League API ─────────────────────────────────────────────────

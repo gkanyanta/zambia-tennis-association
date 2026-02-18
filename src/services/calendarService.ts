@@ -7,7 +7,7 @@ export interface CalendarEvent {
   startDate: string;
   endDate: string;
   location?: string;
-  type: 'tournament' | 'education' | 'meeting' | 'social' | 'other';
+  type: 'tournament' | 'league' | 'education' | 'meeting' | 'social' | 'other';
   published: boolean;
   createdBy?: {
     _id: string;

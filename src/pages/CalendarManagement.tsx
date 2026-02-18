@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const eventTypes = [
   { value: 'tournament', label: 'Tournament', color: 'bg-blue-500' },
+  { value: 'league', label: 'League Match Day', color: 'bg-emerald-500' },
   { value: 'education', label: 'Education', color: 'bg-green-500' },
   { value: 'meeting', label: 'Meeting', color: 'bg-purple-500' },
   { value: 'social', label: 'Social', color: 'bg-orange-500' },

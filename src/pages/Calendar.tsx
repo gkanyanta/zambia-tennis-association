@@ -7,6 +7,7 @@ import { calendarService, CalendarEvent } from '@/services/calendarService'
 
 const typeColors: Record<string, string> = {
   tournament: 'bg-blue-500',
+  league: 'bg-emerald-500',
   education: 'bg-green-500',
   meeting: 'bg-purple-500',
   social: 'bg-orange-500',
@@ -15,6 +16,7 @@ const typeColors: Record<string, string> = {
 
 const typeLabels: Record<string, string> = {
   tournament: 'Tournament',
+  league: 'League Match Day',
   education: 'Education',
   meeting: 'Meeting',
   social: 'Social',

@@ -83,8 +83,8 @@ const TieScoreEntry: React.FC = () => {
 
   const formatDefs = MATCH_FORMATS[matchFormat] || MATCH_FORMATS['2s1d'];
 
-  const homePlayers = players.filter(p => p.club?._id === tie?.homeTeam?._id);
-  const awayPlayers = players.filter(p => p.club?._id === tie?.awayTeam?._id);
+  const homePlayers = players.filter(p => p.clubId === tie?.homeTeam?._id);
+  const awayPlayers = players.filter(p => p.clubId === tie?.awayTeam?._id);
 
   const handleSavePlayers = async () => {
     if (!leagueId || !tieId || !tie) return;
