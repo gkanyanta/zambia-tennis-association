@@ -1,6 +1,7 @@
 import League from '../models/League.js';
 import LeagueTeam from '../models/LeagueTeam.js';
 import LeagueFixture from '../models/LeagueFixture.js';
+import User from '../models/User.js';
 
 // Simple in-memory cache for standings
 const standingsCache = new Map();
@@ -78,7 +79,12 @@ export const getLeague = async (req, res) => {
 // @access  Private (Admin/Staff)
 export const createLeague = async (req, res) => {
   try {
-    const league = await League.create(req.body);
+    const { name, season, year, region, gender, description, startDate, endDate,
+      status, teams, settings, organizer, contactEmail, contactPhone } = req.body;
+    const league = await League.create({
+      name, season, year, region, gender, description, startDate, endDate,
+      status, teams, settings, organizer, contactEmail, contactPhone
+    });
 
     res.status(201).json({
       success: true,
@@ -97,9 +103,12 @@ export const createLeague = async (req, res) => {
 // @access  Private (Admin/Staff)
 export const updateLeague = async (req, res) => {
   try {
+    const { name, season, year, region, gender, description, startDate, endDate,
+      status, teams, settings, organizer, contactEmail, contactPhone } = req.body;
     const league = await League.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { name, season, year, region, gender, description, startDate, endDate,
+        status, teams, settings, organizer, contactEmail, contactPhone },
       { new: true, runValidators: true }
     ).populate('teams');
 
@@ -454,7 +463,12 @@ export const getLeagueTeam = async (req, res) => {
 // @access  Private (Admin/Staff)
 export const createLeagueTeam = async (req, res) => {
   try {
-    const team = await LeagueTeam.create(req.body);
+    const { name, shortName, region, city, province, homeVenue, clubAffiliation,
+      captain, coach, roster, contactEmail, contactPhone, logo, colors, founded, isActive } = req.body;
+    const team = await LeagueTeam.create({
+      name, shortName, region, city, province, homeVenue, clubAffiliation,
+      captain, coach, roster, contactEmail, contactPhone, logo, colors, founded, isActive
+    });
 
     res.status(201).json({
       success: true,
@@ -473,9 +487,12 @@ export const createLeagueTeam = async (req, res) => {
 // @access  Private (Admin/Staff)
 export const updateLeagueTeam = async (req, res) => {
   try {
+    const { name, shortName, region, city, province, homeVenue, clubAffiliation,
+      captain, coach, roster, contactEmail, contactPhone, logo, colors, founded, isActive } = req.body;
     const team = await LeagueTeam.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { name, shortName, region, city, province, homeVenue, clubAffiliation,
+        captain, coach, roster, contactEmail, contactPhone, logo, colors, founded, isActive },
       { new: true, runValidators: true }
     );
 
@@ -847,8 +864,6 @@ function generateRoundRobinFixtures(clubs, numberOfRounds, startDate, fixtureInt
 // @access  Private (Admin/Staff)
 export const getAvailablePlayers = async (req, res) => {
   try {
-    const User = (await import('../models/User.js')).default;
-    
     const players = await User.find({
       role: 'player',
       membershipStatus: 'active'

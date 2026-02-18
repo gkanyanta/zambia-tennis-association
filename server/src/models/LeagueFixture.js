@@ -216,8 +216,8 @@ leagueFixtureSchema.pre('save', function(next) {
     } else if (awayWins > homeWins) {
       this.winner = this.awayTeam;
       this.isDraw = false;
-    } else if (homeWins === awayWins) {
-      // Equal wins = draw (regardless of completion status)
+    } else if (homeWins === awayWins && (homeWins + awayWins) > 0) {
+      // Equal wins = draw, but only if matches have actually been played
       this.isDraw = true;
       this.winner = null;
     }
