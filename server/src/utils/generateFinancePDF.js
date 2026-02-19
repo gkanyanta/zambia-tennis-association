@@ -87,7 +87,9 @@ function renderPageHeader(doc, tournament, title) {
   const logoPath = path.join(__dirname, '../assets/zta-logo.png');
 
   // Header background
+  doc.save();
   doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, 55).fill(COLORS.headerBg);
+  doc.restore();
 
   // Logo
   try {
@@ -97,6 +99,7 @@ function renderPageHeader(doc, tournament, title) {
   }
 
   // Tournament name
+  doc.save();
   doc
     .fontSize(14)
     .fillColor(COLORS.headerText)
@@ -106,43 +109,87 @@ function renderPageHeader(doc, tournament, title) {
       align: 'center',
       lineBreak: false,
     });
+  doc.restore();
 
   // Title
+  doc.save();
   doc
     .fontSize(10)
     .font('Helvetica')
+    .fillColor(COLORS.headerText)
     .text(title, MARGIN, MARGIN + 24, {
       width: CONTENT_WIDTH,
       align: 'center',
       lineBreak: false,
     });
+  doc.restore();
 
   // Venue, dates
   const dateStr = formatDateRange(tournament.startDate, tournament.endDate);
   const venue = [tournament.venue, tournament.city].filter(Boolean).join(', ');
+  doc.save();
   doc
     .fontSize(7)
+    .fillColor(COLORS.headerText)
     .text(`${venue}  |  ${dateStr}  |  Zambia Tennis Association`, MARGIN, MARGIN + 40, {
       width: CONTENT_WIDTH,
       align: 'center',
       lineBreak: false,
     });
+  doc.restore();
 
-  doc.fillColor(COLORS.primary);
   return MARGIN + 65;
+}
+
+/**
+ * Render page footer
+ */
+function renderFooter(doc) {
+  doc.save();
+  doc
+    .fontSize(7)
+    .fillColor(COLORS.secondary)
+    .font('Helvetica')
+    .text(
+      `Generated on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} — Zambia Tennis Association`,
+      MARGIN,
+      PAGE_HEIGHT - MARGIN - 15,
+      { width: CONTENT_WIDTH, align: 'center' }
+    );
+  doc.restore();
+}
+
+/**
+ * Draw a table header row (used for initial render and page-break re-render)
+ */
+function drawTableHeader(doc, columns, y, tableWidth, headerBg, headerTextColor, headerFontSize, headerRowHeight) {
+  doc.save();
+  doc.rect(MARGIN, y, tableWidth, headerRowHeight).fill(headerBg);
+  doc.fontSize(headerFontSize).font('Helvetica-Bold').fillColor(headerTextColor);
+
+  let colX = MARGIN;
+  for (const col of columns) {
+    doc.text(col.label, colX + 4, y + 6, {
+      width: col.width - 8,
+      align: col.align || 'left',
+      lineBreak: false,
+    });
+    colX += col.width;
+  }
+  doc.restore();
 }
 
 /**
  * Render a table. Returns the Y position after the table.
  * columns: [{ label, width, align?, key? }]
- * rows: [{ col0, col1, ... }] — values accessed by column index or key
+ * rows: [[val0, val1, ...]] — values accessed by column index
  * options: { headerBg, rowHeight, fontSize, totalRow?, colorFn? }
  */
 function renderTable(doc, columns, rows, startY, options = {}) {
   const {
     headerBg = COLORS.headerBg,
     headerTextColor = COLORS.headerText,
-    rowHeight = 16,
+    rowHeight = 22,
     fontSize = 8,
     headerFontSize = 8,
     totalRow = null,
@@ -151,101 +198,92 @@ function renderTable(doc, columns, rows, startY, options = {}) {
 
   let y = startY;
   const tableWidth = columns.reduce((s, c) => s + c.width, 0);
+  const headerRowHeight = rowHeight + 2;
+  const textPadY = Math.round((rowHeight - fontSize) / 2);
 
   // Header row
-  doc.rect(MARGIN, y, tableWidth, rowHeight + 2).fill(headerBg);
-  doc.fontSize(headerFontSize).font('Helvetica-Bold').fillColor(headerTextColor);
-
-  let colX = MARGIN;
-  for (const col of columns) {
-    doc.text(col.label, colX + 3, y + 4, {
-      width: col.width - 6,
-      align: col.align || 'left',
-      lineBreak: false,
-    });
-    colX += col.width;
-  }
-  y += rowHeight + 2;
+  drawTableHeader(doc, columns, y, tableWidth, headerBg, headerTextColor, headerFontSize, headerRowHeight);
+  y += headerRowHeight;
 
   // Data rows
-  doc.font('Helvetica').fillColor(COLORS.primary).fontSize(fontSize);
-
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const isEven = i % 2 === 0;
 
     // Check if we need a new page
     if (y + rowHeight > PAGE_HEIGHT - MARGIN - 20) {
       doc.addPage({ size: 'A4', margin: MARGIN });
       y = MARGIN + 10;
-
-      // Re-render header
-      doc.rect(MARGIN, y, tableWidth, rowHeight + 2).fill(headerBg);
-      doc.fontSize(headerFontSize).font('Helvetica-Bold').fillColor(headerTextColor);
-      colX = MARGIN;
-      for (const col of columns) {
-        doc.text(col.label, colX + 3, y + 4, {
-          width: col.width - 6,
-          align: col.align || 'left',
-          lineBreak: false,
-        });
-        colX += col.width;
-      }
-      y += rowHeight + 2;
-      doc.font('Helvetica').fillColor(COLORS.primary).fontSize(fontSize);
+      drawTableHeader(doc, columns, y, tableWidth, headerBg, headerTextColor, headerFontSize, headerRowHeight);
+      y += headerRowHeight;
     }
 
-    // Row background
-    if (isEven) {
+    // Row background (alternating)
+    if (i % 2 === 0) {
+      doc.save();
       doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.lightBg);
+      doc.restore();
     }
+
+    // Row bottom border
+    doc.save();
+    doc.moveTo(MARGIN, y + rowHeight)
+      .lineTo(MARGIN + tableWidth, y + rowHeight)
+      .lineWidth(0.3)
+      .strokeColor(COLORS.border)
+      .stroke();
+    doc.restore();
 
     // Row data
-    colX = MARGIN;
+    let colX = MARGIN;
     for (let j = 0; j < columns.length; j++) {
       const col = columns[j];
       const val = row[j] !== undefined ? row[j] : (col.key ? row[col.key] : '');
       const textVal = String(val ?? '-');
 
-      // Custom color function
+      // Determine text color
+      let textColor = COLORS.primary;
       if (colorFn) {
         const color = colorFn(row, j, col);
-        if (color) {
-          doc.fillColor(color);
-        } else {
-          doc.fillColor(COLORS.primary);
-        }
+        if (color) textColor = color;
       }
 
-      doc.font('Helvetica').fontSize(fontSize);
-      doc.text(textVal, colX + 3, y + 4, {
-        width: col.width - 6,
+      doc.save();
+      doc.font('Helvetica').fontSize(fontSize).fillColor(textColor);
+      doc.text(textVal, colX + 4, y + textPadY, {
+        width: col.width - 8,
         align: col.align || 'left',
         lineBreak: false,
       });
+      doc.restore();
+
       colX += col.width;
     }
-    doc.fillColor(COLORS.primary);
     y += rowHeight;
   }
 
   // Total row
   if (totalRow) {
-    doc.rect(MARGIN, y, tableWidth, rowHeight + 2).fill(COLORS.headerBg);
+    if (y + headerRowHeight > PAGE_HEIGHT - MARGIN - 20) {
+      doc.addPage({ size: 'A4', margin: MARGIN });
+      y = MARGIN + 10;
+    }
+
+    doc.save();
+    doc.rect(MARGIN, y, tableWidth, headerRowHeight).fill(COLORS.headerBg);
     doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.headerText);
-    colX = MARGIN;
+    let colX = MARGIN;
     for (let j = 0; j < columns.length; j++) {
       const col = columns[j];
       const val = totalRow[j] !== undefined ? totalRow[j] : '';
-      doc.text(String(val), colX + 3, y + 4, {
-        width: col.width - 6,
+      doc.text(String(val), colX + 4, y + 6, {
+        width: col.width - 8,
         align: col.align || 'left',
         lineBreak: false,
       });
       colX += col.width;
     }
-    y += rowHeight + 2;
-    doc.fillColor(COLORS.primary);
+    doc.restore();
+    y += headerRowHeight;
   }
 
   return y;
@@ -257,48 +295,67 @@ function renderTable(doc, columns, rows, startY, options = {}) {
 function renderSummaryBox(doc, items, startY, title) {
   let y = startY;
 
+  // Check if we need a new page
+  const boxPadding = 14;
+  const lineHeight = 26;
+  const titleSpace = title ? 24 : 0;
+  const boxHeight = boxPadding * 2 + items.length * lineHeight;
+  const totalNeeded = titleSpace + boxHeight;
+
+  if (y + totalNeeded > PAGE_HEIGHT - MARGIN - 20) {
+    doc.addPage({ size: 'A4', margin: MARGIN });
+    y = MARGIN + 10;
+  }
+
   if (title) {
+    doc.save();
     doc.fontSize(12).font('Helvetica-Bold').fillColor(COLORS.primary).text(title, MARGIN, y);
-    y += 20;
+    doc.restore();
+    y += titleSpace;
   }
 
   const boxWidth = CONTENT_WIDTH;
-  const boxPadding = 12;
-  const lineHeight = 22;
-  const boxHeight = boxPadding * 2 + items.length * lineHeight;
 
   // Box border
+  doc.save();
   doc.rect(MARGIN, y, boxWidth, boxHeight).lineWidth(1).strokeColor(COLORS.border).stroke();
+  doc.restore();
 
   let itemY = y + boxPadding;
   for (const item of items) {
     // Label
+    doc.save();
     doc
       .fontSize(10)
       .font('Helvetica')
       .fillColor(COLORS.secondary)
-      .text(item.label, MARGIN + boxPadding, itemY, { width: boxWidth / 2 - boxPadding, lineBreak: false });
+      .text(item.label, MARGIN + boxPadding, itemY + 3, { width: boxWidth / 2 - boxPadding, lineBreak: false });
+    doc.restore();
 
     // Value
     const valueColor = item.color || COLORS.primary;
+    doc.save();
     doc
       .fontSize(10)
       .font('Helvetica-Bold')
       .fillColor(valueColor)
-      .text(item.value, MARGIN + boxWidth / 2, itemY, {
+      .text(item.value, MARGIN + boxWidth / 2, itemY + 3, {
         width: boxWidth / 2 - boxPadding,
         align: 'right',
         lineBreak: false,
       });
+    doc.restore();
 
     // Divider line (except last)
     if (item !== items[items.length - 1]) {
+      doc.save();
       doc
         .moveTo(MARGIN + boxPadding, itemY + lineHeight - 2)
         .lineTo(MARGIN + boxWidth - boxPadding, itemY + lineHeight - 2)
         .lineWidth(0.3)
         .strokeColor(COLORS.border)
         .stroke();
+      doc.restore();
     }
 
     itemY += lineHeight;
@@ -378,17 +435,7 @@ export const generateBudgetPDF = (tournament, financeData) => {
         },
       ], y + 10, 'Budget Summary');
 
-      // Footer
-      const footerY = PAGE_HEIGHT - MARGIN - 15;
-      doc
-        .fontSize(7)
-        .fillColor(COLORS.secondary)
-        .font('Helvetica')
-        .text(`Generated on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} — Zambia Tennis Association`, MARGIN, footerY, {
-          width: CONTENT_WIDTH,
-          align: 'center',
-        });
-
+      renderFooter(doc);
       doc.end();
     } catch (error) {
       reject(error);
@@ -662,17 +709,7 @@ export const generateFinanceReportPDF = (tournament, financeData) => {
         },
       ], y, 'Variance Summary');
 
-      // Footer on last page
-      const footerY = PAGE_HEIGHT - MARGIN - 15;
-      doc
-        .fontSize(7)
-        .fillColor(COLORS.secondary)
-        .font('Helvetica')
-        .text(`Generated on ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} — Zambia Tennis Association`, MARGIN, footerY, {
-          width: CONTENT_WIDTH,
-          align: 'center',
-        });
-
+      renderFooter(doc);
       doc.end();
     } catch (error) {
       reject(error);
