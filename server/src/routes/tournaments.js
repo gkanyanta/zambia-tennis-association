@@ -89,8 +89,8 @@ router.post('/:tournamentId/finance/income', protect, authorize('admin', 'staff'
 router.put('/:tournamentId/finance/income/:incomeId', protect, authorize('admin', 'staff'), updateManualIncome);
 router.delete('/:tournamentId/finance/income/:incomeId', protect, authorize('admin', 'staff'), deleteManualIncome);
 
-// Finance PDF export routes
-router.get('/:tournamentId/finance/export/budget-pdf', protect, authorize('admin', 'staff'), exportBudgetPDF);
-router.get('/:tournamentId/finance/export/report-pdf', protect, authorize('admin', 'staff'), exportFinanceReportPDF);
+// Finance PDF export routes (public GET like draw PDF — opened via window.open)
+router.get('/:tournamentId/finance/export/budget-pdf', exportBudgetPDF);
+router.get('/:tournamentId/finance/export/report-pdf', exportFinanceReportPDF);
 
 export default router;
