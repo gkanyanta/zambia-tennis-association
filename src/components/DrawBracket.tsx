@@ -9,6 +9,11 @@ interface DrawBracketProps {
 }
 
 export function DrawBracket({ draw, onMatchClick }: DrawBracketProps) {
+  if (draw.type === 'mixer') {
+    // Mixer draws are rendered by MixerDrawView, not DrawBracket
+    return null
+  }
+
   if (draw.type === 'round_robin') {
     return <RoundRobinView draw={draw} onMatchClick={onMatchClick} />
   }

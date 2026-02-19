@@ -40,10 +40,11 @@ export interface TournamentCategory {
   maxAge?: number;
   minAge?: number;
   ageCalculationDate?: string;
-  drawType: 'single_elimination' | 'round_robin' | 'feed_in';
+  drawType: 'single_elimination' | 'round_robin' | 'feed_in' | 'mixer';
   maxEntries: number;
   entryCount: number;
   entries: TournamentEntry[];
+  mixerRatings?: Array<{ playerId: string; playerName: string; gender: string; rating: 'A' | 'B' }>;
   draw?: {
     type: string;
     matches: Array<{
@@ -75,7 +76,32 @@ export interface TournamentCategory {
       champion?: { id: string; name: string };
       runnerUp?: { id: string; name: string };
       semiFinalists?: Array<{ id: string; name: string }>;
+      overallWinner?: { id: string; name: string; gamesWon: number };
+      ladiesWinner?: { id: string; name: string; gamesWon: number };
     };
+    mixerRounds?: Array<{
+      roundNumber: number;
+      courts: Array<{
+        _id?: string;
+        courtNumber: number;
+        pair1A: { playerId: string; playerName: string };
+        pair1B: { playerId: string; playerName: string };
+        pair2A: { playerId: string; playerName: string };
+        pair2B: { playerId: string; playerName: string };
+        pair1GamesWon: number | null;
+        pair2GamesWon: number | null;
+        status: string;
+      }>;
+    }>;
+    mixerStandings?: Array<{
+      playerId: string;
+      playerName: string;
+      gender: string;
+      rating: string;
+      roundsPlayed: number;
+      totalGamesWon: number;
+      totalGamesLost: number;
+    }>;
   };
 }
 
@@ -487,5 +513,38 @@ export const tournamentService = {
     await apiFetch(`/tournaments/${tournamentId}/finance/income/${incomeId}`, {
       method: 'DELETE',
     });
+  },
+
+  // Mixer (Madalas) methods
+  async updateMixerRatings(
+    tournamentId: string,
+    categoryId: string,
+    ratings: Array<{ playerId: string; playerName: string; gender: string; rating: 'A' | 'B' }>
+  ): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/mixer/ratings`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ ratings }),
+      }
+    );
+    return response.data;
+  },
+
+  async updateMixerCourtResult(
+    tournamentId: string,
+    categoryId: string,
+    roundNumber: number,
+    courtNumber: number,
+    result: { pair1GamesWon: number; pair2GamesWon: number }
+  ): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/mixer/rounds/${roundNumber}/courts/${courtNumber}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(result),
+      }
+    );
+    return response.data;
   }
 };

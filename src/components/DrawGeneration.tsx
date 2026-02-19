@@ -5,13 +5,17 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Grid3x3, RefreshCw, Eye, AlertCircle, FileDown } from 'lucide-react'
 import { DrawBracket } from '@/components/DrawBracket'
+import { MixerRatingAssignment } from '@/components/MixerRatingAssignment'
+import { MixerDrawView } from '@/components/MixerDrawView'
 import { MatchResultDialog } from '@/components/MatchResultDialog'
 import {
   generateSingleEliminationDraw,
   generateRoundRobinDraw,
-  generateFeedInDraw
+  generateFeedInDraw,
+  generateMixerDraw
 } from '@/utils/drawGenerator'
-import type { TournamentCategory, Draw, Match } from '@/types/tournament'
+import { tournamentService } from '@/services/tournamentService'
+import type { TournamentCategory, Draw, Match, MixerRating } from '@/types/tournament'
 
 interface DrawGenerationProps {
   category: TournamentCategory
@@ -19,9 +23,10 @@ interface DrawGenerationProps {
   categoryId?: string
   onGenerateDraw: (draw: Draw) => Promise<void>
   onUpdateMatch?: (matchId: string, result: { winner: string; score: string }) => Promise<void>
+  onRefresh?: () => Promise<void>
 }
 
-export function DrawGeneration({ category, tournamentId, categoryId, onGenerateDraw, onUpdateMatch }: DrawGenerationProps) {
+export function DrawGeneration({ category, tournamentId, categoryId, onGenerateDraw, onUpdateMatch, onRefresh }: DrawGenerationProps) {
   const [previewDraw, setPreviewDraw] = useState<Draw | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -31,6 +36,23 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   const acceptedEntries = category.entries.filter(e => e.status === 'accepted')
   const seededEntries = acceptedEntries.filter(e => e.seed).length
   const canGenerateDraw = acceptedEntries.length >= 4
+
+  const mixerRatings = (category as any).mixerRatings as MixerRating[] | undefined
+  const hasMixerRatings = mixerRatings && mixerRatings.length > 0
+  const isMixer = category.drawType === 'mixer'
+  const canGenerateMixer = isMixer && hasMixerRatings
+
+  const handleSaveMixerRatings = async (ratings: MixerRating[]) => {
+    if (!tournamentId || !categoryId) return
+    await tournamentService.updateMixerRatings(tournamentId, categoryId, ratings)
+    if (onRefresh) await onRefresh()
+  }
+
+  const handleMixerCourtResult = async (roundNumber: number, courtNumber: number, pair1GamesWon: number, pair2GamesWon: number) => {
+    if (!tournamentId || !categoryId) return
+    await tournamentService.updateMixerCourtResult(tournamentId, categoryId, roundNumber, courtNumber, { pair1GamesWon, pair2GamesWon })
+    if (onRefresh) await onRefresh()
+  }
 
   const handleGeneratePreview = () => {
     let draw: Draw
@@ -44,6 +66,10 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
         break
       case 'feed_in':
         draw = generateFeedInDraw(acceptedEntries)
+        break
+      case 'mixer':
+        if (!mixerRatings) return
+        draw = generateMixerDraw(acceptedEntries, mixerRatings)
         break
       default:
         return
@@ -90,6 +116,38 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   }
 
   if (category.draw && !showPreview) {
+    // Mixer draw has its own view
+    if (category.draw.type === 'mixer') {
+      return (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Mixer Draw Generated</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Generated on {new Date(category.draw.generatedAt).toLocaleString()}
+                    {' '}&bull; {category.draw.mixerRounds?.length || 0} rounds
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleRegenerateDraw}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Regenerate Draw
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+          <MixerDrawView
+            rounds={(category.draw as any).mixerRounds || []}
+            standings={(category.draw as any).mixerStandings || []}
+            finalized={category.draw.finalized}
+            finalStandings={category.draw.standings as any}
+            onCourtResult={handleMixerCourtResult}
+          />
+        </div>
+      )
+    }
+
     return (
       <div className="space-y-6">
         <Card>
@@ -169,7 +227,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
         <Card className="border-primary">
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle>Draw Preview</CardTitle>
+              <CardTitle>{previewDraw.type === 'mixer' ? 'Mixer Draw Preview' : 'Draw Preview'}</CardTitle>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowPreview(false)}>
                   Cancel
@@ -187,7 +245,14 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                 Review the draw carefully before saving. Once saved, the draw will be published to players.
               </AlertDescription>
             </Alert>
-            <DrawBracket draw={previewDraw} />
+            {previewDraw.type === 'mixer' ? (
+              <MixerDrawView
+                rounds={previewDraw.mixerRounds || []}
+                standings={previewDraw.mixerStandings || []}
+              />
+            ) : (
+              <DrawBracket draw={previewDraw} />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -219,6 +284,15 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
               <div className="text-sm text-muted-foreground">Max Entries</div>
             </div>
           </div>
+
+          {/* Mixer Rating Assignment */}
+          {isMixer && canGenerateDraw && (
+            <MixerRatingAssignment
+              entries={category.entries}
+              existingRatings={mixerRatings}
+              onSave={handleSaveMixerRatings}
+            />
+          )}
 
           {!canGenerateDraw ? (
             <Alert variant="destructive">
@@ -265,21 +339,29 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
           <div className="flex gap-4 pt-4">
             <Button
               onClick={handleGeneratePreview}
-              disabled={!canGenerateDraw || loading}
+              disabled={!canGenerateDraw || loading || (isMixer && !canGenerateMixer)}
               size="lg"
             >
               <Grid3x3 className="h-5 w-5 mr-2" />
-              Generate Draw
+              {isMixer ? 'Generate Mixer Draw' : 'Generate Draw'}
             </Button>
             <Button
               variant="outline"
               onClick={handleGeneratePreview}
-              disabled={!canGenerateDraw}
+              disabled={!canGenerateDraw || (isMixer && !canGenerateMixer)}
             >
               <Eye className="h-4 w-4 mr-2" />
               Preview Draw
             </Button>
           </div>
+          {isMixer && !hasMixerRatings && canGenerateDraw && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Assign A/B ratings to all players above before generating the mixer draw.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
     </div>

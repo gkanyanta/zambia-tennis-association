@@ -1,4 +1,4 @@
-export type DrawType = 'single_elimination' | 'round_robin' | 'feed_in'
+export type DrawType = 'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'
 export type CategoryType = 'junior' | 'senior' | 'madalas'
 export type Gender = 'boys' | 'girls' | 'mens' | 'womens' | 'mixed'
 export type AgeGroup = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'Open' | '35+' | '45+' | '55+' | '65+'
@@ -18,6 +18,7 @@ export interface TournamentCategory {
   entries: TournamentEntry[]
   draw?: Draw
   specialRules?: string[] // e.g., "Outside top 20 in rankings"
+  mixerRatings?: MixerRating[]
 }
 
 export interface TournamentEntry {
@@ -81,7 +82,11 @@ export interface Draw {
     champion?: { id: string; name: string }
     runnerUp?: { id: string; name: string }
     semiFinalists?: Array<{ id: string; name: string }>
+    overallWinner?: { id: string; name: string; gamesWon: number }
+    ladiesWinner?: { id: string; name: string; gamesWon: number }
   }
+  mixerRounds?: MixerRound[]
+  mixerStandings?: MixerStanding[]
 }
 
 export interface RoundRobinGroup {
@@ -89,6 +94,39 @@ export interface RoundRobinGroup {
   players: MatchPlayer[]
   matches: Match[]
   standings?: RoundRobinStanding[]
+}
+
+export interface MixerCourt {
+  courtNumber: number
+  pair1A: { playerId: string; playerName: string }
+  pair1B: { playerId: string; playerName: string }
+  pair2A: { playerId: string; playerName: string }
+  pair2B: { playerId: string; playerName: string }
+  pair1GamesWon: number | null
+  pair2GamesWon: number | null
+  status: 'scheduled' | 'completed'
+}
+
+export interface MixerRound {
+  roundNumber: number
+  courts: MixerCourt[]
+}
+
+export interface MixerStanding {
+  playerId: string
+  playerName: string
+  gender: 'male' | 'female'
+  rating: 'A' | 'B'
+  roundsPlayed: number
+  totalGamesWon: number
+  totalGamesLost: number
+}
+
+export interface MixerRating {
+  playerId: string
+  playerName: string
+  gender: string
+  rating: 'A' | 'B'
 }
 
 export interface RoundRobinStanding {

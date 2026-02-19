@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
 import { RefreshCw, Plus, Trash2, Upload } from 'lucide-react';
 
-type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u';
+type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u' | 'madalas_overall' | 'madalas_ladies';
 
 const categories = [
   { id: 'men_senior' as const, label: "Men's Senior" },
@@ -24,6 +24,8 @@ const categories = [
   { id: 'girls_14u' as const, label: 'Girls 14 & Under' },
   { id: 'girls_12u' as const, label: 'Girls 12 & Under' },
   { id: 'girls_10u' as const, label: 'Girls 10 & Under' },
+  { id: 'madalas_overall' as const, label: 'Madalas Overall' },
+  { id: 'madalas_ladies' as const, label: 'Madalas Ladies' },
 ];
 
 export function Rankings() {

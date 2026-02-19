@@ -20,6 +20,8 @@ import {
   publicRegister,
   verifyPayLaterToken,
   downloadDrawPDF,
+  updateMixerRatings,
+  updateMixerCourtResult,
   getTournamentFinanceSummary,
   addBudgetLine,
   updateBudgetLine,
@@ -68,6 +70,10 @@ router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('ad
 // Match result routes
 router.put('/:tournamentId/categories/:categoryId/matches/:matchId', protect, authorize('admin', 'staff'), updateMatchResult);
 router.post('/:tournamentId/categories/:categoryId/results/finalize', protect, authorize('admin', 'staff'), finalizeResults);
+
+// Mixer (madalas) routes
+router.put('/:tournamentId/categories/:categoryId/mixer/ratings', protect, authorize('admin', 'staff'), updateMixerRatings);
+router.put('/:tournamentId/categories/:categoryId/mixer/rounds/:roundNumber/courts/:courtNumber', protect, authorize('admin', 'staff'), updateMixerCourtResult);
 
 // Finance routes
 router.get('/:tournamentId/finance', protect, authorize('admin', 'staff'), getTournamentFinanceSummary);

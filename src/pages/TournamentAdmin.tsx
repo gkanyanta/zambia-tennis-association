@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
 import { TournamentFinance } from '@/components/TournamentFinance'
+import { MixerDrawView } from '@/components/MixerDrawView'
 import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
@@ -70,7 +71,7 @@ export function TournamentAdmin() {
             <Button variant="outline" onClick={() => navigate('/admin/tournaments')}>
               ← Back to Tournaments
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => navigate(`/admin/tournaments/${selectedTournament._id}/edit`)}>
               <Settings className="h-4 w-4 mr-2" />
               Edit Tournament
             </Button>
@@ -483,6 +484,7 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
         categoryId={(selectedCategory as any)?._id}
         onGenerateDraw={handleGenerateDraw}
         onUpdateMatch={handleUpdateMatch}
+        onRefresh={onRefresh}
       />
     </div>
   )
@@ -652,8 +654,29 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
         </Card>
       )}
 
-      {/* Matches by Round */}
-      {Object.entries(matchesByRound)
+      {/* Mixer Draw View */}
+      {draw?.type === 'mixer' && (
+        <MixerDrawView
+          rounds={draw.mixerRounds || []}
+          standings={draw.mixerStandings || []}
+          finalized={isFinalized}
+          finalStandings={draw.standings as any}
+          onCourtResult={async (roundNumber, courtNumber, pair1GamesWon, pair2GamesWon) => {
+            if (!selectedCategory) return
+            await tournamentService.updateMixerCourtResult(
+              tournament._id,
+              selectedCategory._id,
+              roundNumber,
+              courtNumber,
+              { pair1GamesWon, pair2GamesWon }
+            )
+            await onRefresh()
+          }}
+        />
+      )}
+
+      {/* Matches by Round (non-mixer) */}
+      {draw?.type !== 'mixer' && Object.entries(matchesByRound)
         .sort(([a], [b]) => Number(b) - Number(a))
         .map(([round, matches]) => (
           <Card key={round}>

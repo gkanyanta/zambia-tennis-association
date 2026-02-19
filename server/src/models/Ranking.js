@@ -42,7 +42,9 @@ const rankingSchema = new mongoose.Schema({
       'girls_18u',
       'men_doubles',
       'women_doubles',
-      'mixed_doubles'
+      'mixed_doubles',
+      'madalas_overall',
+      'madalas_ladies'
     ]
   },
   rank: {

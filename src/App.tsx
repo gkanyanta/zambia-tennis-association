@@ -88,6 +88,7 @@ function App() {
               <Route path="/admin/tournaments" element={<TournamentAdmin />} />
               <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
               <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
+              <Route path="/admin/tournaments/:tournamentId/edit" element={<TournamentCreate />} />
               <Route path="/admin/rankings/import" element={<RankingsImport />} />
 
               <Route path="/admin/executive-members" element={<ExecutiveMembersManagement />} />

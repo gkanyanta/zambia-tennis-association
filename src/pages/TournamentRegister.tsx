@@ -341,15 +341,17 @@ export function TournamentRegister() {
         }
       }
 
-      // Check gender
+      // Check gender (mixed categories accept any gender)
       const catGender = (category as any).gender
-      if ((catGender === 'boys' || catGender === 'mens') && player.gender !== 'male') {
-        errors.push(`${player.firstName} ${player.lastName}: gender mismatch`)
-        continue
-      }
-      if ((catGender === 'girls' || catGender === 'womens') && player.gender !== 'female') {
-        errors.push(`${player.firstName} ${player.lastName}: gender mismatch`)
-        continue
+      if (catGender !== 'mixed') {
+        if ((catGender === 'boys' || catGender === 'mens') && player.gender !== 'male') {
+          errors.push(`${player.firstName} ${player.lastName}: gender mismatch`)
+          continue
+        }
+        if ((catGender === 'girls' || catGender === 'womens') && player.gender !== 'female') {
+          errors.push(`${player.firstName} ${player.lastName}: gender mismatch`)
+          continue
+        }
       }
 
       const zpinPaidUp = !!player.hasActiveSubscription
@@ -399,13 +401,15 @@ export function TournamentRegister() {
     const tournamentYear = new Date(tournament.startDate).getFullYear()
     const tennisAge = calculateTennisAge(player.dateOfBirth, tournamentYear)
 
-    // Gender check
+    // Gender check (mixed categories accept any gender)
     const catGender = (category as any).gender
-    if ((catGender === 'boys' || catGender === 'mens') && player.gender !== 'male') {
-      return { tennisAge, eligible: false, reason: 'Gender mismatch' }
-    }
-    if ((catGender === 'girls' || catGender === 'womens') && player.gender !== 'female') {
-      return { tennisAge, eligible: false, reason: 'Gender mismatch' }
+    if (catGender !== 'mixed') {
+      if ((catGender === 'boys' || catGender === 'mens') && player.gender !== 'male') {
+        return { tennisAge, eligible: false, reason: 'Gender mismatch' }
+      }
+      if ((catGender === 'girls' || catGender === 'womens') && player.gender !== 'female') {
+        return { tennisAge, eligible: false, reason: 'Gender mismatch' }
+      }
     }
 
     // Age check for junior
@@ -525,10 +529,13 @@ export function TournamentRegister() {
       const playerGender = selectedPlayer.gender
       const catGender = category.gender
 
-      if (catGender === 'boys' && playerGender !== 'male') return false
-      if (catGender === 'girls' && playerGender !== 'female') return false
-      if (catGender === 'mens' && playerGender !== 'male') return false
-      if (catGender === 'womens' && playerGender !== 'female') return false
+      // Mixed categories accept any gender
+      if (catGender !== 'mixed') {
+        if (catGender === 'boys' && playerGender !== 'male') return false
+        if (catGender === 'girls' && playerGender !== 'female') return false
+        if (catGender === 'mens' && playerGender !== 'male') return false
+        if (catGender === 'womens' && playerGender !== 'female') return false
+      }
 
       // Check age for junior categories using tennis age (year subtraction)
       if (category.type === 'junior' && category.maxAge && selectedPlayer.dateOfBirth) {
@@ -1011,8 +1018,9 @@ export function TournamentRegister() {
                         <SelectContent>
                           {tournament?.categories
                             .filter(cat => {
-                              // Filter by gender
+                              // Filter by gender (mixed categories accept any gender)
                               if (!newPlayer.gender) return true
+                              if (cat.gender === 'mixed') return true
                               if (cat.gender === 'boys' && newPlayer.gender !== 'male') return false
                               if (cat.gender === 'girls' && newPlayer.gender !== 'female') return false
                               if (cat.gender === 'mens' && newPlayer.gender !== 'male') return false

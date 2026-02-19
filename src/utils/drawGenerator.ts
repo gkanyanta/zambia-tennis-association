@@ -3,7 +3,11 @@ import type {
   Match,
   MatchPlayer,
   RoundRobinGroup,
-  TournamentEntry
+  TournamentEntry,
+  MixerRound,
+  MixerStanding,
+  MixerRating,
+  MixerCourt
 } from '@/types/tournament'
 import { getNextPowerOfTwo, getRoundName } from '@/types/tournament'
 
@@ -297,6 +301,178 @@ function generateSeedingPositions128(): number[] {
     positions.push(i)
   }
   return positions
+}
+
+// Generate Mixer Draw (for madalas social doubles)
+// Circle-method rotation: A players stay, B players rotate
+export function generateMixerDraw(
+  entries: TournamentEntry[],
+  mixerRatings: MixerRating[]
+): Draw {
+  // Build rated player lists
+  const ratingMap = new Map(mixerRatings.map(r => [r.playerId, r]))
+  const acceptedEntries = entries.filter(e => e.status === 'accepted')
+
+  const aPlayers: { playerId: string; playerName: string; gender: 'male' | 'female' }[] = []
+  const bPlayers: { playerId: string; playerName: string; gender: 'male' | 'female' }[] = []
+
+  for (const entry of acceptedEntries) {
+    const rating = ratingMap.get(entry.playerId)
+    if (!rating) continue
+    const player = { playerId: entry.playerId, playerName: entry.playerName, gender: entry.gender }
+    if (rating.rating === 'A') aPlayers.push(player)
+    else bPlayers.push(player)
+  }
+
+  // Shuffle both lists
+  const shuffle = <T>(arr: T[]): T[] => {
+    const a = [...arr]
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+  }
+
+  const shuffledA = shuffle(aPlayers)
+  const shuffledB = shuffle(bPlayers)
+
+  const numPairs = Math.min(shuffledA.length, shuffledB.length)
+  if (numPairs < 2) {
+    // Not enough pairs — return minimal draw
+    return {
+      type: 'mixer',
+      matches: [],
+      mixerRounds: [],
+      mixerStandings: [],
+      generatedAt: new Date().toISOString()
+    }
+  }
+
+  // Generate rounds using circle method
+  // numPairs - 1 rounds (or numPairs if odd, but we handle bye separately)
+  const numRounds = numPairs - 1
+  const rounds: MixerRound[] = []
+
+  for (let r = 0; r < numRounds; r++) {
+    // In round r, A[i] pairs with B[(i + r) % numPairs]
+    const pairs: { a: typeof shuffledA[0]; b: typeof shuffledB[0] }[] = []
+    for (let i = 0; i < numPairs; i++) {
+      pairs.push({
+        a: shuffledA[i],
+        b: shuffledB[(i + r) % numPairs]
+      })
+    }
+
+    // Group consecutive pairs onto courts (2 pairs per court)
+    const courts: MixerCourt[] = []
+    let courtNum = 1
+    for (let i = 0; i < pairs.length - 1; i += 2) {
+      courts.push({
+        courtNumber: courtNum++,
+        pair1A: { playerId: pairs[i].a.playerId, playerName: pairs[i].a.playerName },
+        pair1B: { playerId: pairs[i].b.playerId, playerName: pairs[i].b.playerName },
+        pair2A: { playerId: pairs[i + 1].a.playerId, playerName: pairs[i + 1].a.playerName },
+        pair2B: { playerId: pairs[i + 1].b.playerId, playerName: pairs[i + 1].b.playerName },
+        pair1GamesWon: null,
+        pair2GamesWon: null,
+        status: 'scheduled'
+      })
+    }
+
+    rounds.push({
+      roundNumber: r + 1,
+      courts
+    })
+  }
+
+  // Initialize standings for all paired players
+  const standings: MixerStanding[] = []
+  const addedPlayers = new Set<string>()
+
+  for (let i = 0; i < numPairs; i++) {
+    const a = shuffledA[i]
+    const b = shuffledB[i]
+    if (!addedPlayers.has(a.playerId)) {
+      standings.push({
+        playerId: a.playerId,
+        playerName: a.playerName,
+        gender: a.gender,
+        rating: 'A',
+        roundsPlayed: 0,
+        totalGamesWon: 0,
+        totalGamesLost: 0
+      })
+      addedPlayers.add(a.playerId)
+    }
+    if (!addedPlayers.has(b.playerId)) {
+      standings.push({
+        playerId: b.playerId,
+        playerName: b.playerName,
+        gender: b.gender,
+        rating: 'B',
+        roundsPlayed: 0,
+        totalGamesWon: 0,
+        totalGamesLost: 0
+      })
+      addedPlayers.add(b.playerId)
+    }
+  }
+
+  return {
+    type: 'mixer',
+    matches: [],
+    mixerRounds: rounds,
+    mixerStandings: standings,
+    generatedAt: new Date().toISOString()
+  }
+}
+
+// Compute mixer standings from completed courts
+export function computeMixerStandings(draw: Draw): MixerStanding[] {
+  if (!draw.mixerRounds || !draw.mixerStandings) return []
+
+  // Reset standings
+  const standingsMap = new Map<string, MixerStanding>()
+  for (const s of draw.mixerStandings) {
+    standingsMap.set(s.playerId, {
+      ...s,
+      roundsPlayed: 0,
+      totalGamesWon: 0,
+      totalGamesLost: 0
+    })
+  }
+
+  for (const round of draw.mixerRounds) {
+    for (const court of round.courts) {
+      if (court.status !== 'completed' || court.pair1GamesWon === null || court.pair2GamesWon === null) continue
+
+      const p1Games = court.pair1GamesWon
+      const p2Games = court.pair2GamesWon
+
+      // Pair 1 players (A and B) each get pair1's games won
+      for (const player of [court.pair1A, court.pair1B]) {
+        const s = standingsMap.get(player.playerId)
+        if (s) {
+          s.roundsPlayed++
+          s.totalGamesWon += p1Games
+          s.totalGamesLost += p2Games
+        }
+      }
+
+      // Pair 2 players
+      for (const player of [court.pair2A, court.pair2B]) {
+        const s = standingsMap.get(player.playerId)
+        if (s) {
+          s.roundsPlayed++
+          s.totalGamesWon += p2Games
+          s.totalGamesLost += p1Games
+        }
+      }
+    }
+  }
+
+  return Array.from(standingsMap.values()).sort((a, b) => b.totalGamesWon - a.totalGamesWon)
 }
 
 // Update match result and advance winner

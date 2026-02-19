@@ -28,7 +28,7 @@ export interface Ranking {
 export interface RankingCategory {
   value: string;
   label: string;
-  type: 'senior' | 'junior' | 'doubles';
+  type: 'senior' | 'junior' | 'doubles' | 'madalas';
 }
 
 export const rankingCategories: RankingCategory[] = [
@@ -46,7 +46,9 @@ export const rankingCategories: RankingCategory[] = [
   { value: 'girls_18u', label: 'Girls 18 & Under', type: 'junior' },
   { value: 'men_doubles', label: 'Men Senior Doubles', type: 'doubles' },
   { value: 'women_doubles', label: 'Women Senior Doubles', type: 'doubles' },
-  { value: 'mixed_doubles', label: 'Mixed Doubles', type: 'doubles' }
+  { value: 'mixed_doubles', label: 'Mixed Doubles', type: 'doubles' },
+  { value: 'madalas_overall', label: 'Madalas Overall', type: 'madalas' },
+  { value: 'madalas_ladies', label: 'Madalas Ladies', type: 'madalas' }
 ];
 
 export const rankingService = {

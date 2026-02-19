@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,20 +30,15 @@ const SENIOR_CATEGORIES = [
   { code: 'XD', name: "Mixed Doubles", gender: 'mixed' as const, type: 'senior' as const },
 ]
 
-// Madalas categories (Veterans 35+)
+// Madalas categories (Veterans 35+) — all mixed gender
 const MADALAS_CATEGORIES = [
-  { code: 'M35S', name: "Men's 35+ Singles", gender: 'mens' as const, minAge: 35, type: 'madalas' as const },
-  { code: 'M45S', name: "Men's 45+ Singles", gender: 'mens' as const, minAge: 45, type: 'madalas' as const },
-  { code: 'M55S', name: "Men's 55+ Singles", gender: 'mens' as const, minAge: 55, type: 'madalas' as const },
-  { code: 'M65S', name: "Men's 65+ Singles", gender: 'mens' as const, minAge: 65, type: 'madalas' as const },
-  { code: 'W35S', name: "Women's 35+ Singles", gender: 'womens' as const, minAge: 35, type: 'madalas' as const },
-  { code: 'W45S', name: "Women's 45+ Singles", gender: 'womens' as const, minAge: 45, type: 'madalas' as const },
-  { code: 'W55S', name: "Women's 55+ Singles", gender: 'womens' as const, minAge: 55, type: 'madalas' as const },
-  { code: 'M35D', name: "Men's 35+ Doubles", gender: 'mens' as const, minAge: 35, type: 'madalas' as const },
-  { code: 'M45D', name: "Men's 45+ Doubles", gender: 'mens' as const, minAge: 45, type: 'madalas' as const },
-  { code: 'M55D', name: "Men's 55+ Doubles", gender: 'mens' as const, minAge: 55, type: 'madalas' as const },
-  { code: 'W35D', name: "Women's 35+ Doubles", gender: 'womens' as const, minAge: 35, type: 'madalas' as const },
-  { code: 'W45D', name: "Women's 45+ Doubles", gender: 'womens' as const, minAge: 45, type: 'madalas' as const },
+  { code: '35S', name: "35+ Singles", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
+  { code: '45S', name: "45+ Singles", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
+  { code: '55S', name: "55+ Singles", gender: 'mixed' as const, minAge: 55, type: 'madalas' as const },
+  { code: '65S', name: "65+ Singles", gender: 'mixed' as const, minAge: 65, type: 'madalas' as const },
+  { code: '35D', name: "35+ Doubles", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
+  { code: '45D', name: "45+ Doubles", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
+  { code: '55D', name: "55+ Doubles", gender: 'mixed' as const, minAge: 55, type: 'madalas' as const },
   { code: 'XD35', name: "Mixed Doubles 35+", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
   { code: 'XD45', name: "Mixed Doubles 45+", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
 ]
@@ -52,7 +47,10 @@ type TournamentType = 'junior' | 'senior' | 'madalas' | 'mixed'
 
 export function TournamentCreate() {
   const navigate = useNavigate()
+  const { tournamentId } = useParams<{ tournamentId: string }>()
+  const isEditMode = !!tournamentId
   const [loading, setLoading] = useState(false)
+  const [loadingTournament, setLoadingTournament] = useState(false)
 
   // Form data
   const [name, setName] = useState('')
@@ -73,7 +71,7 @@ export function TournamentCreate() {
   // Tournament type and categories
   const [tournamentType, setTournamentType] = useState<TournamentType>('junior')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
-  const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in'>('single_elimination')
+  const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
 
   // Registration settings
@@ -81,6 +79,66 @@ export function TournamentCreate() {
   const [allowPublicRegistration, setAllowPublicRegistration] = useState(true)
   const [allowMultipleCategories, setAllowMultipleCategories] = useState(false)
   const [requirePaymentUpfront, setRequirePaymentUpfront] = useState(false)
+
+  // Fetch tournament data for edit mode
+  useEffect(() => {
+    if (!tournamentId) return
+    const fetchTournament = async () => {
+      setLoadingTournament(true)
+      try {
+        const t = await tournamentService.getTournament(tournamentId)
+        setName(t.name)
+        setDescription(t.description || '')
+        setStartDate(t.startDate ? t.startDate.slice(0, 10) : '')
+        setEndDate(t.endDate ? t.endDate.slice(0, 10) : '')
+        setVenue(t.venue)
+        setCity(t.city || '')
+        setProvince(t.province || '')
+        setEntryDeadline(t.entryDeadline ? t.entryDeadline.slice(0, 10) : '')
+        setEntryFee(t.entryFee || 0)
+        setOrganizer(t.organizer || 'Zambia Tennis Association')
+        setContactEmail(t.contactEmail || '')
+        setContactPhone(t.contactPhone || '')
+        setRules((t as any).rules || '')
+        setPrizes((t as any).prizes || '')
+        setTournamentLevel((t as any).tournamentLevel || 'regional')
+        setAllowPublicRegistration((t as any).allowPublicRegistration ?? true)
+        setAllowMultipleCategories((t as any).allowMultipleCategories ?? false)
+        setRequirePaymentUpfront((t as any).requirePaymentUpfront ?? false)
+
+        // Determine tournament type from categories
+        if (t.categories?.length > 0) {
+          const types = new Set(t.categories.map((c: any) => c.type))
+          if (types.size > 1) {
+            setTournamentType('mixed')
+          } else {
+            const type = t.categories[0].type as TournamentType
+            setTournamentType(type || 'junior')
+          }
+
+          // Pre-select categories by matching codes
+          const allCats = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+          const codes = new Set<string>()
+          t.categories.forEach((c: any) => {
+            const match = allCats.find(ac => ac.code === c.categoryCode)
+            if (match) codes.add(match.code)
+          })
+          setSelectedCategories(codes)
+
+          // Use draw settings from first category
+          if (t.categories[0].drawType) setDrawType(t.categories[0].drawType as any)
+          if (t.categories[0].maxEntries) setMaxEntries(t.categories[0].maxEntries)
+        }
+      } catch (error: any) {
+        console.error('Error fetching tournament:', error)
+        alert('Failed to load tournament for editing')
+        navigate('/admin/tournaments')
+      } finally {
+        setLoadingTournament(false)
+      }
+    }
+    fetchTournament()
+  }, [tournamentId])
 
   const toggleCategory = (code: string) => {
     const newSelected = new Set(selectedCategories)
@@ -116,15 +174,13 @@ export function TournamentCreate() {
 
   const selectAllMens = () => {
     const newSelected = new Set(selectedCategories)
-    const cats = tournamentType === 'senior' ? SENIOR_CATEGORIES : MADALAS_CATEGORIES
-    cats.filter(c => c.gender === 'mens').forEach(c => newSelected.add(c.code))
+    SENIOR_CATEGORIES.filter(c => c.gender === 'mens').forEach(c => newSelected.add(c.code))
     setSelectedCategories(newSelected)
   }
 
   const selectAllWomens = () => {
     const newSelected = new Set(selectedCategories)
-    const cats = tournamentType === 'senior' ? SENIOR_CATEGORIES : MADALAS_CATEGORIES
-    cats.filter(c => c.gender === 'womens').forEach(c => newSelected.add(c.code))
+    SENIOR_CATEGORIES.filter(c => c.gender === 'womens').forEach(c => newSelected.add(c.code))
     setSelectedCategories(newSelected)
   }
 
@@ -193,7 +249,7 @@ export function TournamentCreate() {
         return categoryData
       })
 
-      await tournamentService.createTournament({
+      const tournamentData = {
         name,
         description,
         startDate,
@@ -214,9 +270,15 @@ export function TournamentCreate() {
         allowPublicRegistration,
         allowMultipleCategories,
         requirePaymentUpfront
-      } as any)
+      } as any
 
-      alert('Tournament created successfully!')
+      if (isEditMode) {
+        await tournamentService.updateTournament(tournamentId!, tournamentData)
+        alert('Tournament updated successfully!')
+      } else {
+        await tournamentService.createTournament(tournamentData)
+        alert('Tournament created successfully!')
+      }
       navigate('/admin/tournaments')
     } catch (error: any) {
       console.error('Error creating tournament:', error)
@@ -229,20 +291,26 @@ export function TournamentCreate() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Hero
-        title="Create New Tournament"
-        description="Set up a new tennis tournament with categories and entry details"
+        title={isEditMode ? 'Edit Tournament' : 'Create New Tournament'}
+        description={isEditMode ? 'Update tournament details and categories' : 'Set up a new tennis tournament with categories and entry details'}
         gradient
       />
 
       <div className="container-custom max-w-5xl py-8">
         <Button
           variant="outline"
-          onClick={() => navigate('/admin/tournaments')}
+          onClick={() => navigate(isEditMode ? `/admin/tournaments/${tournamentId}` : '/admin/tournaments')}
           className="mb-6"
         >
-          ← Back to Tournaments
+          {isEditMode ? '← Back to Tournament' : '← Back to Tournaments'}
         </Button>
 
+        {loadingTournament ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span className="ml-3 text-muted-foreground">Loading tournament...</span>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
           <Card className="border-t-4 border-t-primary">
@@ -489,7 +557,7 @@ export function TournamentCreate() {
                     </Button>
                   </>
                 )}
-                {(tournamentType === 'senior' || tournamentType === 'madalas') && (
+                {tournamentType === 'senior' && (
                   <>
                     <Button type="button" onClick={selectAllMens} size="sm" variant="outline">
                       All Men's
@@ -614,77 +682,41 @@ export function TournamentCreate() {
                 </div>
               )}
 
-              {/* Madalas Categories */}
+              {/* Madalas Categories (Veterans) */}
               {(tournamentType === 'madalas' || tournamentType === 'mixed') && (
-                <>
-                  <div>
-                    <h4 className="font-semibold mb-3 text-purple-600 dark:text-purple-400">Men's Madalas (Veterans)</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {MADALAS_CATEGORIES.filter(c => c.gender === 'mens').map(cat => (
-                        <label
-                          key={cat.code}
-                          className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                            selectedCategories.has(cat.code)
-                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.has(cat.code)}
-                            onChange={() => toggleCategory(cat.code)}
-                            className="sr-only"
-                          />
-                          <div className="text-center">
-                            <div className="text-lg font-bold mb-1">{cat.code}</div>
-                            <div className="text-xs text-muted-foreground">{cat.name}</div>
+                <div>
+                  <h4 className="font-semibold mb-3 text-purple-600 dark:text-purple-400">Madalas Categories (Veterans)</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {MADALAS_CATEGORIES.map(cat => (
+                      <label
+                        key={cat.code}
+                        className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          selectedCategories.has(cat.code)
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.has(cat.code)}
+                          onChange={() => toggleCategory(cat.code)}
+                          className="sr-only"
+                        />
+                        <div className="text-center">
+                          <div className="text-lg font-bold mb-1">{cat.code}</div>
+                          <div className="text-xs text-muted-foreground">{cat.name}</div>
+                        </div>
+                        {selectedCategories.has(cat.code) && (
+                          <div className="absolute top-2 right-2 h-5 w-5 bg-purple-500 rounded-full flex items-center justify-center">
+                            <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                              <path d="M5 13l4 4L19 7"></path>
+                            </svg>
                           </div>
-                          {selectedCategories.has(cat.code) && (
-                            <div className="absolute top-2 right-2 h-5 w-5 bg-purple-500 rounded-full flex items-center justify-center">
-                              <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                                <path d="M5 13l4 4L19 7"></path>
-                              </svg>
-                            </div>
-                          )}
-                        </label>
-                      ))}
-                    </div>
+                        )}
+                      </label>
+                    ))}
                   </div>
-
-                  <div>
-                    <h4 className="font-semibold mb-3 text-pink-600 dark:text-pink-400">Women's & Mixed Madalas</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {MADALAS_CATEGORIES.filter(c => c.gender === 'womens' || c.gender === 'mixed').map(cat => (
-                        <label
-                          key={cat.code}
-                          className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                            selectedCategories.has(cat.code)
-                              ? 'border-pink-500 bg-pink-50 dark:bg-pink-950'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.has(cat.code)}
-                            onChange={() => toggleCategory(cat.code)}
-                            className="sr-only"
-                          />
-                          <div className="text-center">
-                            <div className="text-lg font-bold mb-1">{cat.code}</div>
-                            <div className="text-xs text-muted-foreground">{cat.name}</div>
-                          </div>
-                          {selectedCategories.has(cat.code) && (
-                            <div className="absolute top-2 right-2 h-5 w-5 bg-pink-500 rounded-full flex items-center justify-center">
-                              <svg className="h-3 w-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
-                                <path d="M5 13l4 4L19 7"></path>
-                              </svg>
-                            </div>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                </div>
               )}
 
               {/* Selected Count */}
@@ -713,6 +745,9 @@ export function TournamentCreate() {
                       <option value="single_elimination">Single Elimination (Knockout)</option>
                       <option value="round_robin">Round Robin (Everyone plays everyone)</option>
                       <option value="feed_in">Feed-in (Compass Draw)</option>
+                      {(tournamentType === 'madalas' || tournamentType === 'mixed') && (
+                        <option value="mixer">Mixer (Social Doubles with A/B Pairs)</option>
+                      )}
                     </select>
                   </div>
                   <div>
@@ -873,10 +908,13 @@ export function TournamentCreate() {
               className="min-w-[200px]"
             >
               <Save className="h-4 w-4 mr-2" />
-              {loading ? 'Creating Tournament...' : 'Create Tournament'}
+              {loading
+                ? (isEditMode ? 'Saving Changes...' : 'Creating Tournament...')
+                : (isEditMode ? 'Save Changes' : 'Create Tournament')}
             </Button>
           </div>
         </form>
+        )}
       </div>
     </div>
   )

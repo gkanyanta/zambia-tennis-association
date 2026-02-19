@@ -137,11 +137,38 @@ const roundRobinGroupSchema = new mongoose.Schema({
   }]
 });
 
+// Mixer court schema (for madalas social doubles)
+const mixerCourtSchema = new mongoose.Schema({
+  courtNumber: Number,
+  pair1A: { playerId: String, playerName: String },
+  pair1B: { playerId: String, playerName: String },
+  pair2A: { playerId: String, playerName: String },
+  pair2B: { playerId: String, playerName: String },
+  pair1GamesWon: { type: Number, min: 0, max: 4, default: null },
+  pair2GamesWon: { type: Number, min: 0, max: 4, default: null },
+  status: { type: String, enum: ['scheduled', 'completed'], default: 'scheduled' }
+});
+
+const mixerRoundSchema = new mongoose.Schema({
+  roundNumber: Number,
+  courts: [mixerCourtSchema]
+});
+
+const mixerStandingSchema = new mongoose.Schema({
+  playerId: String,
+  playerName: String,
+  gender: { type: String, enum: ['male', 'female'] },
+  rating: { type: String, enum: ['A', 'B'] },
+  roundsPlayed: { type: Number, default: 0 },
+  totalGamesWon: { type: Number, default: 0 },
+  totalGamesLost: { type: Number, default: 0 }
+});
+
 // Draw schema
 const drawSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['single_elimination', 'round_robin', 'feed_in'],
+    enum: ['single_elimination', 'round_robin', 'feed_in', 'mixer'],
     required: true
   },
   matches: [matchSchema],
@@ -159,7 +186,9 @@ const drawSchema = new mongoose.Schema({
   finalizedAt: Date,
   standings: {
     type: mongoose.Schema.Types.Mixed
-  }
+  },
+  mixerRounds: [mixerRoundSchema],
+  mixerStandings: [mixerStandingSchema]
 });
 
 // Tournament category schema
@@ -196,7 +225,7 @@ const categorySchema = new mongoose.Schema({
   },
   drawType: {
     type: String,
-    enum: ['single_elimination', 'round_robin', 'feed_in'],
+    enum: ['single_elimination', 'round_robin', 'feed_in', 'mixer'],
     required: true
   },
   maxEntries: {
@@ -209,7 +238,13 @@ const categorySchema = new mongoose.Schema({
   entryCount: {
     type: Number,
     default: 0
-  }
+  },
+  mixerRatings: [{
+    playerId: String,
+    playerName: String,
+    gender: String,
+    rating: { type: String, enum: ['A', 'B'] }
+  }]
 });
 
 // Budget line schema for pre-tournament budget planning

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import Tournament from '../models/Tournament.js';
+import Ranking from '../models/Ranking.js';
 import User from '../models/User.js';
 import sendEmail from '../utils/sendEmail.js';
 import {
@@ -878,6 +879,112 @@ export const finalizeResults = async (req, res) => {
       };
     }
 
+    // For mixer (madalas), verify all courts completed and compute winners
+    if (category.draw.type === 'mixer') {
+      for (const round of category.draw.mixerRounds) {
+        for (const court of round.courts) {
+          if (court.status !== 'completed') {
+            return res.status(400).json({
+              success: false,
+              message: `Round ${round.roundNumber}, Court ${court.courtNumber} is not completed`
+            });
+          }
+        }
+      }
+
+      // Standings are already computed from court results, just find winners
+      const sortedStandings = [...category.draw.mixerStandings].sort((a, b) => b.totalGamesWon - a.totalGamesWon);
+      const overallWinner = sortedStandings[0];
+
+      const ladiesStandings = sortedStandings.filter(s => s.gender === 'female');
+      const ladiesWinner = ladiesStandings[0] || null;
+
+      category.draw.standings = {
+        overallWinner: overallWinner ? { id: overallWinner.playerId, name: overallWinner.playerName, gamesWon: overallWinner.totalGamesWon } : null,
+        ladiesWinner: ladiesWinner ? { id: ladiesWinner.playerId, name: ladiesWinner.playerName, gamesWon: ladiesWinner.totalGamesWon } : null
+      };
+
+      // Auto-update madalas rankings
+      const tournamentYear = new Date(tournament.startDate).getFullYear();
+      const rankingPeriod = String(tournamentYear);
+
+      for (const standing of category.draw.mixerStandings) {
+        if (standing.roundsPlayed === 0) continue;
+
+        // Update madalas_overall
+        let overallRanking = await Ranking.findOne({
+          playerName: standing.playerName,
+          category: 'madalas_overall',
+          rankingPeriod
+        });
+
+        const tournamentResult = {
+          tournamentName: tournament.name,
+          tournamentDate: tournament.startDate,
+          points: standing.totalGamesWon,
+          position: standing.playerId === overallWinner?.playerId ? 'Winner' : null,
+          year: tournamentYear
+        };
+
+        if (!overallRanking) {
+          overallRanking = await Ranking.create({
+            playerName: standing.playerName,
+            category: 'madalas_overall',
+            rank: 999,
+            totalPoints: standing.totalGamesWon,
+            rankingPeriod,
+            tournamentResults: [tournamentResult],
+            isActive: true
+          });
+        } else {
+          overallRanking.tournamentResults.push(tournamentResult);
+          overallRanking.totalPoints = overallRanking.tournamentResults.reduce((sum, r) => sum + r.points, 0);
+          await overallRanking.save();
+        }
+
+        // Update madalas_ladies for female players
+        if (standing.gender === 'female') {
+          let ladiesRanking = await Ranking.findOne({
+            playerName: standing.playerName,
+            category: 'madalas_ladies',
+            rankingPeriod
+          });
+
+          const ladiesResult = {
+            ...tournamentResult,
+            position: standing.playerId === ladiesWinner?.playerId ? 'Winner' : null
+          };
+
+          if (!ladiesRanking) {
+            ladiesRanking = await Ranking.create({
+              playerName: standing.playerName,
+              category: 'madalas_ladies',
+              rank: 999,
+              totalPoints: standing.totalGamesWon,
+              rankingPeriod,
+              tournamentResults: [ladiesResult],
+              isActive: true
+            });
+          } else {
+            ladiesRanking.tournamentResults.push(ladiesResult);
+            ladiesRanking.totalPoints = ladiesRanking.tournamentResults.reduce((sum, r) => sum + r.points, 0);
+            await ladiesRanking.save();
+          }
+        }
+      }
+
+      // Recalculate ranks for both categories
+      for (const cat of ['madalas_overall', 'madalas_ladies']) {
+        const rankings = await Ranking.find({ category: cat, rankingPeriod, isActive: true })
+          .sort({ totalPoints: -1 });
+        for (let i = 0; i < rankings.length; i++) {
+          rankings[i].previousRank = rankings[i].rank;
+          rankings[i].rank = i + 1;
+          await rankings[i].save();
+        }
+      }
+    }
+
     // For round robin, compute from group standings
     if (category.draw.type === 'round_robin' && category.draw.roundRobinGroups) {
       for (const group of category.draw.roundRobinGroups) {
@@ -1414,6 +1521,151 @@ export const publicRegister = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// =============================================
+// MIXER (MADALAS) MODULE
+// =============================================
+
+// @desc    Update mixer A/B ratings for a category
+// @route   PUT /api/tournaments/:tournamentId/categories/:categoryId/mixer/ratings
+// @access  Private (Admin/Staff)
+export const updateMixerRatings = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const { ratings } = req.body;
+
+    if (!ratings || !Array.isArray(ratings)) {
+      return res.status(400).json({ success: false, message: 'ratings array is required' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    // Validate roughly equal A/B count
+    const aCount = ratings.filter(r => r.rating === 'A').length;
+    const bCount = ratings.filter(r => r.rating === 'B').length;
+    if (Math.abs(aCount - bCount) > 1) {
+      return res.status(400).json({
+        success: false,
+        message: `A/B ratings are unbalanced: ${aCount} A-rated, ${bCount} B-rated. They should be roughly equal.`
+      });
+    }
+
+    category.mixerRatings = ratings;
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Saved ${ratings.length} ratings (${aCount} A, ${bCount} B)`,
+      data: category.mixerRatings
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update mixer court result
+// @route   PUT /api/tournaments/:tournamentId/categories/:categoryId/mixer/rounds/:roundNumber/courts/:courtNumber
+// @access  Private (Admin/Staff)
+export const updateMixerCourtResult = async (req, res) => {
+  try {
+    const { tournamentId, categoryId, roundNumber, courtNumber } = req.params;
+    const { pair1GamesWon, pair2GamesWon } = req.body;
+
+    // Validate scores
+    if (pair1GamesWon < 0 || pair2GamesWon < 0) {
+      return res.status(400).json({ success: false, message: 'Games won cannot be negative' });
+    }
+    if (pair1GamesWon + pair2GamesWon !== 4) {
+      return res.status(400).json({ success: false, message: 'Total games must equal 4' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category || !category.draw) {
+      return res.status(404).json({ success: false, message: 'Category or draw not found' });
+    }
+
+    // Find the round and court
+    const round = category.draw.mixerRounds.find(r => r.roundNumber === Number(roundNumber));
+    if (!round) {
+      return res.status(404).json({ success: false, message: 'Round not found' });
+    }
+
+    const court = round.courts.find(c => c.courtNumber === Number(courtNumber));
+    if (!court) {
+      return res.status(404).json({ success: false, message: 'Court not found' });
+    }
+
+    court.pair1GamesWon = pair1GamesWon;
+    court.pair2GamesWon = pair2GamesWon;
+    court.status = 'completed';
+
+    // Recompute standings
+    const standingsMap = {};
+    for (const s of category.draw.mixerStandings) {
+      standingsMap[s.playerId] = {
+        playerId: s.playerId,
+        playerName: s.playerName,
+        gender: s.gender,
+        rating: s.rating,
+        roundsPlayed: 0,
+        totalGamesWon: 0,
+        totalGamesLost: 0
+      };
+    }
+
+    for (const r of category.draw.mixerRounds) {
+      for (const c of r.courts) {
+        if (c.status !== 'completed' || c.pair1GamesWon === null || c.pair2GamesWon === null) continue;
+
+        const p1g = c.pair1GamesWon;
+        const p2g = c.pair2GamesWon;
+
+        for (const player of [c.pair1A, c.pair1B]) {
+          if (standingsMap[player.playerId]) {
+            standingsMap[player.playerId].roundsPlayed++;
+            standingsMap[player.playerId].totalGamesWon += p1g;
+            standingsMap[player.playerId].totalGamesLost += p2g;
+          }
+        }
+        for (const player of [c.pair2A, c.pair2B]) {
+          if (standingsMap[player.playerId]) {
+            standingsMap[player.playerId].roundsPlayed++;
+            standingsMap[player.playerId].totalGamesWon += p2g;
+            standingsMap[player.playerId].totalGamesLost += p1g;
+          }
+        }
+      }
+    }
+
+    category.draw.mixerStandings = Object.values(standingsMap)
+      .sort((a, b) => b.totalGamesWon - a.totalGamesWon);
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        court,
+        standings: category.draw.mixerStandings
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
