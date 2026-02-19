@@ -31,6 +31,14 @@ const calendarEventSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  league: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'League'
+  },
+  tournament: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tournament'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

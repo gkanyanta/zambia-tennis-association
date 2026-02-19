@@ -3,6 +3,7 @@ import {
   getCalendarEvents,
   getAdminCalendarEvents,
   getCalendarEventById,
+  getCalendarEventFixtures,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent
@@ -17,6 +18,7 @@ router.get('/admin/all', protect, authorize('admin', 'staff'), getAdminCalendarE
 // Public routes
 router.get('/', getCalendarEvents);
 router.get('/:id', getCalendarEventById);
+router.get('/:id/fixtures', getCalendarEventFixtures);
 router.post('/', protect, authorize('admin', 'staff'), createCalendarEvent);
 router.put('/:id', protect, authorize('admin', 'staff'), updateCalendarEvent);
 router.delete('/:id', protect, authorize('admin', 'staff'), deleteCalendarEvent);

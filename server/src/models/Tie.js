@@ -150,7 +150,11 @@ const tieSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Club'
   },
-  walkoverReason: String
+  walkoverReason: String,
+  calendarEvent: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CalendarEvent'
+  }
 }, {
   timestamps: true
 });
@@ -259,5 +263,6 @@ tieSchema.index({ league: 1, round: 1 });
 tieSchema.index({ league: 1, status: 1 });
 tieSchema.index({ homeTeam: 1, awayTeam: 1 });
 tieSchema.index({ scheduledDate: 1 });
+tieSchema.index({ calendarEvent: 1 });
 
 export default mongoose.model('Tie', tieSchema);

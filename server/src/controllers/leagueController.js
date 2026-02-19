@@ -455,7 +455,8 @@ function generateRoundRobin(clubs, numberOfRounds, leagueDates, format) {
           venue: homeClub.name || 'TBD',
           venueAddress: homeClub.address || '',
           status: 'scheduled',
-          rubbers: emptyRubbers.map(r => ({ ...r }))
+          rubbers: emptyRubbers.map(r => ({ ...r })),
+          calendarEvent: leagueDates[actualMatchday]._id
         });
       }
     }
@@ -579,7 +580,8 @@ function generateMirroredTies(clubs, siblingTies, leagueDates, format) {
         venue: homeClub.name || 'TBD',
         venueAddress: homeClub.address || '',
         status: 'scheduled',
-        rubbers: emptyRubbers.map(r => ({ ...r }))
+        rubbers: emptyRubbers.map(r => ({ ...r })),
+        calendarEvent: (leagueDates && leagueDates[i]) ? leagueDates[i]._id : undefined
       });
     }
   }
@@ -1069,7 +1071,8 @@ export const generatePlayoffs = async (req, res) => {
         venueAddress: thisFirst.address || '',
         status: 'scheduled',
         rubbers: emptyRubbers.map(r => ({ ...r })),
-        notes: `${thisRegionLabel} 1st vs ${otherRegionLabel} 2nd`
+        notes: `${thisRegionLabel} 1st vs ${otherRegionLabel} 2nd`,
+        calendarEvent: playoffDates[0]?._id || undefined
       },
       {
         league: req.params.id,
@@ -1082,7 +1085,8 @@ export const generatePlayoffs = async (req, res) => {
         venueAddress: otherFirst.address || '',
         status: 'scheduled',
         rubbers: emptyRubbers.map(r => ({ ...r })),
-        notes: `${otherRegionLabel} 1st vs ${thisRegionLabel} 2nd`
+        notes: `${otherRegionLabel} 1st vs ${thisRegionLabel} 2nd`,
+        calendarEvent: playoffDates[0]?._id || undefined
       },
       {
         league: req.params.id,
@@ -1094,7 +1098,8 @@ export const generatePlayoffs = async (req, res) => {
         venue: 'TBD',
         status: 'scheduled',
         rubbers: emptyRubbers.map(r => ({ ...r })),
-        notes: 'Winner SF1 vs Winner SF2 — teams updated after semi-finals'
+        notes: 'Winner SF1 vs Winner SF2 — teams updated after semi-finals',
+        calendarEvent: playoffDates[1]?._id || undefined
       }
     ];
 

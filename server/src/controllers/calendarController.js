@@ -1,4 +1,6 @@
 import CalendarEvent from '../models/CalendarEvent.js';
+import Tie from '../models/Tie.js';
+import Tournament from '../models/Tournament.js';
 
 // @desc    Get all calendar events
 // @route   GET /api/calendar
@@ -68,7 +70,9 @@ export const getAdminCalendarEvents = async (req, res) => {
 // @access  Public
 export const getCalendarEventById = async (req, res) => {
   try {
-    const event = await CalendarEvent.findById(req.params.id);
+    const event = await CalendarEvent.findById(req.params.id)
+      .populate('league', 'name season year region gender status')
+      .populate('tournament', 'name startDate endDate status');
 
     if (!event) {
       return res.status(404).json({
@@ -154,6 +158,48 @@ export const updateCalendarEvent = async (req, res) => {
     res.status(200).json({
       success: true,
       data: event
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get fixtures/matches linked to a calendar event
+// @route   GET /api/calendar/:id/fixtures
+// @access  Public
+export const getCalendarEventFixtures = async (req, res) => {
+  try {
+    const event = await CalendarEvent.findById(req.params.id)
+      .populate('league', 'name season year region gender status')
+      .populate('tournament', 'name startDate endDate status');
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: 'Calendar event not found'
+      });
+    }
+
+    let fixtures = [];
+
+    if (event.type === 'league') {
+      fixtures = await Tie.find({ calendarEvent: event._id })
+        .populate('homeTeam awayTeam winner league')
+        .sort('round');
+    } else if (event.type === 'tournament' && event.tournament) {
+      const tournament = await Tournament.findById(event.tournament);
+      fixtures = tournament ? [tournament] : [];
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        event,
+        fixtures
+      }
     });
   } catch (error) {
     res.status(500).json({
