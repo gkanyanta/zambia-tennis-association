@@ -145,6 +145,78 @@ export interface EligibleCategoryInfo {
   isFull: boolean;
 }
 
+// Finance interfaces
+export interface BudgetLine {
+  _id: string;
+  category: string;
+  type: 'income' | 'expense';
+  description: string;
+  budgetedAmount: number;
+  notes?: string;
+}
+
+export interface ExpenseRecord {
+  _id: string;
+  category: string;
+  description: string;
+  amount: number;
+  date: string;
+  paidTo?: string;
+  paymentMethod?: 'cash' | 'bank_transfer' | 'mobile_money' | 'cheque' | 'other';
+  receiptReference?: string;
+  recordedBy?: string;
+  notes?: string;
+}
+
+export interface ManualIncomeRecord {
+  _id: string;
+  category: string;
+  description: string;
+  amount: number;
+  date: string;
+  receivedFrom?: string;
+  paymentMethod?: 'cash' | 'bank_transfer' | 'mobile_money' | 'cheque' | 'other';
+  receiptReference?: string;
+  recordedBy?: string;
+  notes?: string;
+}
+
+export interface EntryFeeIncomeSummary {
+  byCategory: Array<{
+    categoryId: string;
+    categoryName: string;
+    paid: { count: number; amount: number };
+    waived: { count: number; amount: number };
+    unpaid: { count: number; amount: number };
+    total: { count: number; amount: number };
+  }>;
+  totals: {
+    paid: number;
+    waived: number;
+    unpaid: number;
+    total: number;
+  };
+}
+
+export interface FinanceSummary {
+  budgetedIncome: number;
+  budgetedExpenses: number;
+  projectedProfit: number;
+  actualIncome: number;
+  actualExpenses: number;
+  actualProfit: number;
+  incomeVariance: number;
+  expenseVariance: number;
+}
+
+export interface TournamentFinanceData {
+  budget: BudgetLine[];
+  expenses: ExpenseRecord[];
+  manualIncome: ManualIncomeRecord[];
+  entryFeeIncome: EntryFeeIncomeSummary;
+  summary: FinanceSummary;
+}
+
 export const tournamentService = {
   async getTournaments(): Promise<Tournament[]> {
     const response = await apiFetch('/tournaments');
@@ -343,5 +415,77 @@ export const tournamentService = {
   async getJuniorCategories(): Promise<JuniorCategory[]> {
     const response = await apiFetch('/tournaments/junior-categories');
     return response.data;
+  },
+
+  // Finance methods
+  async getFinanceSummary(tournamentId: string): Promise<TournamentFinanceData> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance`);
+    return response.data;
+  },
+
+  async addBudgetLine(tournamentId: string, data: Omit<BudgetLine, '_id'>): Promise<BudgetLine> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance/budget`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  async updateBudgetLine(tournamentId: string, budgetLineId: string, data: Partial<BudgetLine>): Promise<BudgetLine> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance/budget/${budgetLineId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  async deleteBudgetLine(tournamentId: string, budgetLineId: string): Promise<void> {
+    await apiFetch(`/tournaments/${tournamentId}/finance/budget/${budgetLineId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async addExpense(tournamentId: string, data: Omit<ExpenseRecord, '_id'>): Promise<ExpenseRecord> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance/expenses`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  async updateExpense(tournamentId: string, expenseId: string, data: Partial<ExpenseRecord>): Promise<ExpenseRecord> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance/expenses/${expenseId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  async deleteExpense(tournamentId: string, expenseId: string): Promise<void> {
+    await apiFetch(`/tournaments/${tournamentId}/finance/expenses/${expenseId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async addManualIncome(tournamentId: string, data: Omit<ManualIncomeRecord, '_id'>): Promise<ManualIncomeRecord> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance/income`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  async updateManualIncome(tournamentId: string, incomeId: string, data: Partial<ManualIncomeRecord>): Promise<ManualIncomeRecord> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/finance/income/${incomeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  async deleteManualIncome(tournamentId: string, incomeId: string): Promise<void> {
+    await apiFetch(`/tournaments/${tournamentId}/finance/income/${incomeId}`, {
+      method: 'DELETE',
+    });
   }
 };

@@ -19,7 +19,17 @@ import {
   getJuniorCategories,
   publicRegister,
   verifyPayLaterToken,
-  downloadDrawPDF
+  downloadDrawPDF,
+  getTournamentFinanceSummary,
+  addBudgetLine,
+  updateBudgetLine,
+  deleteBudgetLine,
+  addExpense,
+  updateExpense,
+  deleteExpense,
+  addManualIncome,
+  updateManualIncome,
+  deleteManualIncome
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -58,5 +68,17 @@ router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('ad
 // Match result routes
 router.put('/:tournamentId/categories/:categoryId/matches/:matchId', protect, authorize('admin', 'staff'), updateMatchResult);
 router.post('/:tournamentId/categories/:categoryId/results/finalize', protect, authorize('admin', 'staff'), finalizeResults);
+
+// Finance routes
+router.get('/:tournamentId/finance', protect, authorize('admin', 'staff'), getTournamentFinanceSummary);
+router.post('/:tournamentId/finance/budget', protect, authorize('admin', 'staff'), addBudgetLine);
+router.put('/:tournamentId/finance/budget/:budgetLineId', protect, authorize('admin', 'staff'), updateBudgetLine);
+router.delete('/:tournamentId/finance/budget/:budgetLineId', protect, authorize('admin', 'staff'), deleteBudgetLine);
+router.post('/:tournamentId/finance/expenses', protect, authorize('admin', 'staff'), addExpense);
+router.put('/:tournamentId/finance/expenses/:expenseId', protect, authorize('admin', 'staff'), updateExpense);
+router.delete('/:tournamentId/finance/expenses/:expenseId', protect, authorize('admin', 'staff'), deleteExpense);
+router.post('/:tournamentId/finance/income', protect, authorize('admin', 'staff'), addManualIncome);
+router.put('/:tournamentId/finance/income/:incomeId', protect, authorize('admin', 'staff'), updateManualIncome);
+router.delete('/:tournamentId/finance/income/:incomeId', protect, authorize('admin', 'staff'), deleteManualIncome);
 
 export default router;

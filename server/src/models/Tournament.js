@@ -212,6 +212,86 @@ const categorySchema = new mongoose.Schema({
   }
 });
 
+// Budget line schema for pre-tournament budget planning
+const budgetLineSchema = new mongoose.Schema({
+  category: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    enum: ['income', 'expense'],
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  budgetedAmount: {
+    type: Number,
+    required: true
+  },
+  notes: String
+});
+
+// Expense record schema for tracking actual expenses
+const expenseRecordSchema = new mongoose.Schema({
+  category: {
+    type: String,
+    enum: ['venue', 'balls', 'trophies', 'umpires', 'transport', 'meals', 'accommodation', 'printing', 'medical', 'equipment', 'marketing', 'administration', 'other_expense'],
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  date: {
+    type: Date,
+    default: Date.now
+  },
+  paidTo: String,
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'other']
+  },
+  receiptReference: String,
+  recordedBy: String,
+  notes: String
+});
+
+// Manual income record schema for non-entry-fee income
+const manualIncomeSchema = new mongoose.Schema({
+  category: {
+    type: String,
+    enum: ['entry_fees', 'sponsorship', 'food_sales', 'merchandise', 'other_income'],
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  amount: {
+    type: Number,
+    required: true
+  },
+  date: {
+    type: Date,
+    default: Date.now
+  },
+  receivedFrom: String,
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'bank_transfer', 'mobile_money', 'cheque', 'other']
+  },
+  receiptReference: String,
+  recordedBy: String,
+  notes: String
+});
+
 const tournamentSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -287,7 +367,11 @@ const tournamentSchema = new mongoose.Schema({
   requirePaymentUpfront: {
     type: Boolean,
     default: false
-  }
+  },
+  // Finance module
+  budget: [budgetLineSchema],
+  expenses: [expenseRecordSchema],
+  manualIncome: [manualIncomeSchema]
 }, {
   timestamps: true
 });

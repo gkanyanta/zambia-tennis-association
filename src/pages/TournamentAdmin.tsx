@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
+import { TournamentFinance } from '@/components/TournamentFinance'
 import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
@@ -81,6 +82,7 @@ export function TournamentAdmin() {
               <TabsTrigger value="entries">Entries</TabsTrigger>
               <TabsTrigger value="draws">Draws</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
+              <TabsTrigger value="finance">Finance</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -97,6 +99,10 @@ export function TournamentAdmin() {
 
             <TabsContent value="results" className="space-y-6">
               <ResultsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
+            </TabsContent>
+
+            <TabsContent value="finance" className="space-y-6">
+              <TournamentFinance tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
           </Tabs>
         </div>

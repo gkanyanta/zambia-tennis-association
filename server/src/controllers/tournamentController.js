@@ -19,7 +19,9 @@ import MembershipSubscription from '../models/MembershipSubscription.js';
 // @access  Public
 export const getTournaments = async (req, res) => {
   try {
-    const tournaments = await Tournament.find().sort({ createdAt: -1 });
+    const tournaments = await Tournament.find()
+      .select('-budget -expenses -manualIncome')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -1412,6 +1414,313 @@ export const publicRegister = async (req, res) => {
       success: false,
       message: error.message
     });
+  }
+};
+
+// =============================================
+// FINANCE MODULE
+// =============================================
+
+// @desc    Get tournament finance summary
+// @route   GET /api/tournaments/:tournamentId/finance
+// @access  Private (Admin/Staff)
+export const getTournamentFinanceSummary = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Auto-calculate entry fee income from category entries
+    const entryFeeBreakdown = [];
+    let totalEntryFeePaid = 0;
+    let totalEntryFeeWaived = 0;
+    let totalEntryFeeUnpaid = 0;
+
+    for (const category of tournament.categories) {
+      const paid = { count: 0, amount: 0 };
+      const waived = { count: 0, amount: 0 };
+      const unpaid = { count: 0, amount: 0 };
+
+      for (const entry of category.entries) {
+        const fee = entry.entryFee || tournament.entryFee || 0;
+        if (entry.paymentStatus === 'paid') {
+          paid.count++;
+          paid.amount += fee;
+        } else if (entry.paymentStatus === 'waived') {
+          waived.count++;
+          waived.amount += fee;
+        } else {
+          unpaid.count++;
+          unpaid.amount += fee;
+        }
+      }
+
+      entryFeeBreakdown.push({
+        categoryId: category._id,
+        categoryName: category.name,
+        paid,
+        waived,
+        unpaid,
+        total: { count: category.entries.length, amount: paid.amount + waived.amount + unpaid.amount }
+      });
+
+      totalEntryFeePaid += paid.amount;
+      totalEntryFeeWaived += waived.amount;
+      totalEntryFeeUnpaid += unpaid.amount;
+    }
+
+    // Compute summary
+    const budgetedIncome = tournament.budget
+      .filter(b => b.type === 'income')
+      .reduce((sum, b) => sum + b.budgetedAmount, 0);
+    const budgetedExpenses = tournament.budget
+      .filter(b => b.type === 'expense')
+      .reduce((sum, b) => sum + b.budgetedAmount, 0);
+
+    const actualIncome = totalEntryFeePaid +
+      tournament.manualIncome.reduce((sum, i) => sum + i.amount, 0);
+    const actualExpenses = tournament.expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        budget: tournament.budget,
+        expenses: tournament.expenses,
+        manualIncome: tournament.manualIncome,
+        entryFeeIncome: {
+          byCategory: entryFeeBreakdown,
+          totals: {
+            paid: totalEntryFeePaid,
+            waived: totalEntryFeeWaived,
+            unpaid: totalEntryFeeUnpaid,
+            total: totalEntryFeePaid + totalEntryFeeWaived + totalEntryFeeUnpaid
+          }
+        },
+        summary: {
+          budgetedIncome,
+          budgetedExpenses,
+          projectedProfit: budgetedIncome - budgetedExpenses,
+          actualIncome,
+          actualExpenses,
+          actualProfit: actualIncome - actualExpenses,
+          incomeVariance: actualIncome - budgetedIncome,
+          expenseVariance: actualExpenses - budgetedExpenses
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Add budget line
+// @route   POST /api/tournaments/:tournamentId/finance/budget
+// @access  Private (Admin/Staff)
+export const addBudgetLine = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    tournament.budget.push(req.body);
+    await tournament.save();
+
+    res.status(201).json({
+      success: true,
+      data: tournament.budget[tournament.budget.length - 1]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update budget line
+// @route   PUT /api/tournaments/:tournamentId/finance/budget/:budgetLineId
+// @access  Private (Admin/Staff)
+export const updateBudgetLine = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const line = tournament.budget.id(req.params.budgetLineId);
+    if (!line) {
+      return res.status(404).json({ success: false, message: 'Budget line not found' });
+    }
+
+    Object.assign(line, req.body);
+    await tournament.save();
+
+    res.status(200).json({ success: true, data: line });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete budget line
+// @route   DELETE /api/tournaments/:tournamentId/finance/budget/:budgetLineId
+// @access  Private (Admin/Staff)
+export const deleteBudgetLine = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const line = tournament.budget.id(req.params.budgetLineId);
+    if (!line) {
+      return res.status(404).json({ success: false, message: 'Budget line not found' });
+    }
+
+    line.deleteOne();
+    await tournament.save();
+
+    res.status(200).json({ success: true, message: 'Budget line deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Add expense
+// @route   POST /api/tournaments/:tournamentId/finance/expenses
+// @access  Private (Admin/Staff)
+export const addExpense = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    tournament.expenses.push(req.body);
+    await tournament.save();
+
+    res.status(201).json({
+      success: true,
+      data: tournament.expenses[tournament.expenses.length - 1]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update expense
+// @route   PUT /api/tournaments/:tournamentId/finance/expenses/:expenseId
+// @access  Private (Admin/Staff)
+export const updateExpense = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const expense = tournament.expenses.id(req.params.expenseId);
+    if (!expense) {
+      return res.status(404).json({ success: false, message: 'Expense not found' });
+    }
+
+    Object.assign(expense, req.body);
+    await tournament.save();
+
+    res.status(200).json({ success: true, data: expense });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete expense
+// @route   DELETE /api/tournaments/:tournamentId/finance/expenses/:expenseId
+// @access  Private (Admin/Staff)
+export const deleteExpense = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const expense = tournament.expenses.id(req.params.expenseId);
+    if (!expense) {
+      return res.status(404).json({ success: false, message: 'Expense not found' });
+    }
+
+    expense.deleteOne();
+    await tournament.save();
+
+    res.status(200).json({ success: true, message: 'Expense deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Add manual income
+// @route   POST /api/tournaments/:tournamentId/finance/income
+// @access  Private (Admin/Staff)
+export const addManualIncome = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    tournament.manualIncome.push(req.body);
+    await tournament.save();
+
+    res.status(201).json({
+      success: true,
+      data: tournament.manualIncome[tournament.manualIncome.length - 1]
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update manual income
+// @route   PUT /api/tournaments/:tournamentId/finance/income/:incomeId
+// @access  Private (Admin/Staff)
+export const updateManualIncome = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const income = tournament.manualIncome.id(req.params.incomeId);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found' });
+    }
+
+    Object.assign(income, req.body);
+    await tournament.save();
+
+    res.status(200).json({ success: true, data: income });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete manual income
+// @route   DELETE /api/tournaments/:tournamentId/finance/income/:incomeId
+// @access  Private (Admin/Staff)
+export const deleteManualIncome = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const income = tournament.manualIncome.id(req.params.incomeId);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found' });
+    }
+
+    income.deleteOne();
+    await tournament.save();
+
+    res.status(200).json({ success: true, message: 'Income record deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
