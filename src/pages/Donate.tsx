@@ -417,7 +417,7 @@ export function Donate() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-3">
-                    Please email your deposit slip to finance@zambiatennisassociation.com for acknowledgment
+                    Please email your deposit slip to info@zambiatennis.com for acknowledgment
                   </p>
                 </div>
 
@@ -440,7 +440,7 @@ export function Donate() {
                 </div>
 
                 <div className="text-center pt-4">
-                  <Button size="lg" onClick={() => window.location.href = 'mailto:info@zambiatennisassociation.com?subject=Donation Inquiry'}>
+                  <Button size="lg" onClick={() => window.location.href = 'mailto:info@zambiatennis.com?subject=Donation Inquiry'}>
                     <Heart className="h-4 w-4 mr-2" />
                     Contact Us About Donating
                   </Button>

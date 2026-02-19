@@ -401,12 +401,12 @@ export function Sponsors() {
           <div className="mt-8 text-center text-sm text-muted-foreground">
             <p>
               Or contact us directly at{' '}
-              <a href="mailto:partnerships@zambiatennisassociation.com" className="text-primary hover:underline">
-                partnerships@zambiatennisassociation.com
+              <a href="mailto:info@zambiatennis.com" className="text-primary hover:underline">
+                info@zambiatennis.com
               </a>
               {' '}or call{' '}
-              <a href="tel:+260123456789" className="text-primary hover:underline">
-                +260 123 456 789
+              <a href="tel:+260979326778" className="text-primary hover:underline">
+                +260 979 326 778
               </a>
             </p>
           </div>

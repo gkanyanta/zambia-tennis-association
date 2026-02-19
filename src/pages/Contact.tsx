@@ -245,9 +245,6 @@ export function Contact() {
                           info@zambiatennis.com
                         </a>
                         <br />
-                        <a href="mailto:admin@zambiatennis.com" className="hover:text-primary">
-                          admin@zambiatennis.com
-                        </a>
                       </p>
                     </div>
                   </div>
@@ -271,13 +268,13 @@ export function Contact() {
               <Card className="card-elevated bg-muted/50">
                 <CardContent className="pt-6">
                   <p className="text-sm text-muted-foreground">
-                    For general inquiries, contact us at{' '}
+                    For all inquiries, contact us at{' '}
                     <a href="mailto:info@zambiatennis.com" className="text-primary hover:underline">
                       info@zambiatennis.com
                     </a>
-                    . For administrative matters, reach us at{' '}
-                    <a href="mailto:admin@zambiatennis.com" className="text-primary hover:underline">
-                      admin@zambiatennis.com
+                    {' '}or call{' '}
+                    <a href="tel:+260979326778" className="text-primary hover:underline">
+                      +260 979 326 778
                     </a>
                   </p>
                 </CardContent>

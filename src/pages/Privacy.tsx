@@ -82,8 +82,8 @@ export function Privacy() {
                 If you have questions about this Privacy Policy, please contact us:
               </p>
               <p className="text-muted-foreground">
-                Email: privacy@zambiatennis.org<br />
-                Phone: +260 211 123 456<br />
+                Email: info@zambiatennis.com<br />
+                Phone: +260 979 326 778<br />
                 Address: Olympic Youth Development Centre, Lusaka, Zambia
               </p>
             </CardContent>

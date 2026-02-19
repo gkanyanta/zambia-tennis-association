@@ -100,8 +100,8 @@ export function Terms() {
                 For questions about these Terms of Service, please contact:
               </p>
               <p className="text-muted-foreground">
-                Email: legal@zambiatennis.org<br />
-                Phone: +260 211 123 456<br />
+                Email: info@zambiatennis.com<br />
+                Phone: +260 979 326 778<br />
                 Address: Olympic Youth Development Centre, Lusaka, Zambia
               </p>
             </CardContent>
