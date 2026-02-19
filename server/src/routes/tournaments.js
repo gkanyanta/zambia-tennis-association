@@ -31,7 +31,9 @@ import {
   deleteExpense,
   addManualIncome,
   updateManualIncome,
-  deleteManualIncome
+  deleteManualIncome,
+  exportBudgetPDF,
+  exportFinanceReportPDF
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -86,5 +88,9 @@ router.delete('/:tournamentId/finance/expenses/:expenseId', protect, authorize('
 router.post('/:tournamentId/finance/income', protect, authorize('admin', 'staff'), addManualIncome);
 router.put('/:tournamentId/finance/income/:incomeId', protect, authorize('admin', 'staff'), updateManualIncome);
 router.delete('/:tournamentId/finance/income/:incomeId', protect, authorize('admin', 'staff'), deleteManualIncome);
+
+// Finance PDF export routes
+router.get('/:tournamentId/finance/export/budget-pdf', protect, authorize('admin', 'staff'), exportBudgetPDF);
+router.get('/:tournamentId/finance/export/report-pdf', protect, authorize('admin', 'staff'), exportFinanceReportPDF);
 
 export default router;

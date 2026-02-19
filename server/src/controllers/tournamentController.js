@@ -13,6 +13,7 @@ import {
   getAllJuniorCategories
 } from '../utils/tournamentEligibility.js';
 import { generateDrawPDF } from '../utils/generateDrawPDF.js';
+import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
 
 // @desc    Get all tournaments
@@ -1972,6 +1973,154 @@ export const deleteManualIncome = async (req, res) => {
 
     res.status(200).json({ success: true, message: 'Income record deleted' });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Export budget as PDF
+// @route   GET /api/tournaments/:tournamentId/finance/export/budget-pdf
+// @access  Private (Admin/Staff)
+export const exportBudgetPDF = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Gather finance data (same logic as getTournamentFinanceSummary)
+    const budgetedIncome = tournament.budget
+      .filter(b => b.type === 'income')
+      .reduce((sum, b) => sum + b.budgetedAmount, 0);
+    const budgetedExpenses = tournament.budget
+      .filter(b => b.type === 'expense')
+      .reduce((sum, b) => sum + b.budgetedAmount, 0);
+
+    const financeData = {
+      budget: tournament.budget,
+      summary: {
+        budgetedIncome,
+        budgetedExpenses,
+        projectedProfit: budgetedIncome - budgetedExpenses,
+      },
+    };
+
+    const pdfBuffer = await generateBudgetPDF(tournament, financeData);
+
+    const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `Budget-${safeName(tournament.name)}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Budget PDF generation error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Export finance report as PDF
+// @route   GET /api/tournaments/:tournamentId/finance/export/report-pdf
+// @access  Private (Admin/Staff)
+export const exportFinanceReportPDF = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Gather full finance data (same logic as getTournamentFinanceSummary)
+    const entryFeeBreakdown = [];
+    let totalEntryFeePaid = 0;
+    let totalEntryFeeWaived = 0;
+    let totalEntryFeeUnpaid = 0;
+
+    for (const category of tournament.categories) {
+      const paid = { count: 0, amount: 0 };
+      const waived = { count: 0, amount: 0 };
+      const unpaid = { count: 0, amount: 0 };
+
+      for (const entry of category.entries) {
+        const fee = entry.entryFee || tournament.entryFee || 0;
+        if (entry.paymentStatus === 'paid') {
+          paid.count++;
+          paid.amount += fee;
+        } else if (entry.paymentStatus === 'waived') {
+          waived.count++;
+          waived.amount += fee;
+        } else {
+          unpaid.count++;
+          unpaid.amount += fee;
+        }
+      }
+
+      entryFeeBreakdown.push({
+        categoryId: category._id,
+        categoryName: category.name,
+        paid,
+        waived,
+        unpaid,
+        total: { count: category.entries.length, amount: paid.amount + waived.amount + unpaid.amount },
+      });
+
+      totalEntryFeePaid += paid.amount;
+      totalEntryFeeWaived += waived.amount;
+      totalEntryFeeUnpaid += unpaid.amount;
+    }
+
+    const budgetedIncome = tournament.budget
+      .filter(b => b.type === 'income')
+      .reduce((sum, b) => sum + b.budgetedAmount, 0);
+    const budgetedExpenses = tournament.budget
+      .filter(b => b.type === 'expense')
+      .reduce((sum, b) => sum + b.budgetedAmount, 0);
+
+    const actualIncome = totalEntryFeePaid +
+      tournament.manualIncome.reduce((sum, i) => sum + i.amount, 0);
+    const actualExpenses = tournament.expenses.reduce((sum, e) => sum + e.amount, 0);
+
+    const financeData = {
+      budget: tournament.budget,
+      expenses: tournament.expenses,
+      manualIncome: tournament.manualIncome,
+      entryFeeIncome: {
+        byCategory: entryFeeBreakdown,
+        totals: {
+          paid: totalEntryFeePaid,
+          waived: totalEntryFeeWaived,
+          unpaid: totalEntryFeeUnpaid,
+          total: totalEntryFeePaid + totalEntryFeeWaived + totalEntryFeeUnpaid,
+        },
+      },
+      summary: {
+        budgetedIncome,
+        budgetedExpenses,
+        projectedProfit: budgetedIncome - budgetedExpenses,
+        actualIncome,
+        actualExpenses,
+        actualProfit: actualIncome - actualExpenses,
+        incomeVariance: actualIncome - budgetedIncome,
+        expenseVariance: actualExpenses - budgetedExpenses,
+      },
+    };
+
+    const pdfBuffer = await generateFinanceReportPDF(tournament, financeData);
+
+    const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `Finance-Report-${safeName(tournament.name)}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Finance report PDF generation error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

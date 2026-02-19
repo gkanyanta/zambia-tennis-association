@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, DollarSign, TrendingUp, TrendingDown, Calculator } from 'lucide-react'
+import { Plus, Pencil, Trash2, DollarSign, TrendingUp, TrendingDown, Calculator, FileDown } from 'lucide-react'
 import {
   tournamentService,
   Tournament,
@@ -121,6 +121,16 @@ export function TournamentFinance({ tournament }: TournamentFinanceProps) {
 
   return (
     <div className="space-y-6">
+      {/* Finance Report Export */}
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => {
+          const apiUrl = import.meta.env.VITE_API_URL || '';
+          window.open(`${apiUrl}/api/tournaments/${tournament._id}/finance/export/report-pdf`, '_blank');
+        }}>
+          <FileDown className="h-4 w-4 mr-2" /> Download Finance Report
+        </Button>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -232,9 +242,17 @@ export function TournamentFinance({ tournament }: TournamentFinanceProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Budget</CardTitle>
-          <Button size="sm" onClick={() => setBudgetDialog({ open: true })}>
-            <Plus className="h-4 w-4 mr-1" /> Add Line
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              const apiUrl = import.meta.env.VITE_API_URL || '';
+              window.open(`${apiUrl}/api/tournaments/${tournament._id}/finance/export/budget-pdf`, '_blank');
+            }}>
+              <FileDown className="h-4 w-4 mr-1" /> Export PDF
+            </Button>
+            <Button size="sm" onClick={() => setBudgetDialog({ open: true })}>
+              <Plus className="h-4 w-4 mr-1" /> Add Line
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {budget.length === 0 ? (
@@ -262,7 +280,9 @@ export function TournamentFinance({ tournament }: TournamentFinanceProps) {
                     <TableCell>{categoryLabel(line.category)}</TableCell>
                     <TableCell>{line.description}</TableCell>
                     <TableCell className="text-right">{formatCurrency(line.budgetedAmount)}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{line.notes || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm max-w-[300px]">
+                      <span className="whitespace-pre-wrap">{line.notes || '-'}</span>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setBudgetDialog({ open: true, editing: line })}>
@@ -569,7 +589,7 @@ function BudgetLineDialog({ open, editing, onClose, onSave }: {
           </div>
           <div>
             <label className="text-sm font-medium block mb-1">Notes</label>
-            <input className="w-full p-2 border rounded-md" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+            <textarea className="w-full p-2 border rounded-md min-h-[100px] resize-y" placeholder="Detailed breakdown, itemized list, etc." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
@@ -684,7 +704,7 @@ function ExpenseDialog({ open, editing, onClose, onSave }: {
           </div>
           <div>
             <label className="text-sm font-medium block mb-1">Notes</label>
-            <input className="w-full p-2 border rounded-md" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+            <textarea className="w-full p-2 border rounded-md min-h-[100px] resize-y" placeholder="Detailed breakdown, itemized list, etc." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
@@ -799,7 +819,7 @@ function IncomeDialog({ open, editing, onClose, onSave }: {
           </div>
           <div>
             <label className="text-sm font-medium block mb-1">Notes</label>
-            <input className="w-full p-2 border rounded-md" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+            <textarea className="w-full p-2 border rounded-md min-h-[100px] resize-y" placeholder="Detailed breakdown, itemized list, etc." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
