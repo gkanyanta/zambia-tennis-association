@@ -294,13 +294,27 @@ export const submitEntry = async (req, res) => {
       });
     }
 
-    // Check if player already entered
+    // Check if player already entered in this category
     const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
     if (existingEntry) {
       return res.status(400).json({
         success: false,
         message: 'Player already entered in this category'
       });
+    }
+
+    // Check if player is already entered in another category (when multiple categories not allowed)
+    if (!tournament.allowMultipleCategories) {
+      const otherCategory = tournament.categories.find(cat =>
+        cat._id.toString() !== categoryId &&
+        cat.entries.some(e => e.playerZpin === player.zpin)
+      );
+      if (otherCategory) {
+        return res.status(400).json({
+          success: false,
+          message: `Player is already entered in category '${otherCategory.name}'. This tournament does not allow multiple category entries.`
+        });
+      }
     }
 
     // Validate tournament entry eligibility for junior categories
@@ -1003,6 +1017,20 @@ export const getPlayerEligibleCategories = async (req, res) => {
       });
     }
 
+    // If multiple categories not allowed, check if player is already entered in any category
+    if (!tournament.allowMultipleCategories) {
+      const enteredCategory = tournament.categories.find(cat =>
+        cat.entries.some(e => e.playerZpin === player.zpin)
+      );
+      if (enteredCategory) {
+        return res.status(200).json({
+          success: true,
+          data: [],
+          message: `Player is already entered in category '${enteredCategory.name}'. This tournament does not allow multiple category entries.`
+        });
+      }
+    }
+
     // Get available category codes
     const availableCategoryCodes = tournament.categories
       .filter(cat => cat.type === 'junior')
@@ -1183,11 +1211,27 @@ export const publicRegister = async (req, res) => {
           continue;
         }
 
-        // Check if player already entered
+        // Check if player already entered in this category
         const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
         if (existingEntry) {
           errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player already entered in this category' });
           continue;
+        }
+
+        // Check if player is already entered in another category (when multiple categories not allowed)
+        if (!tournament.allowMultipleCategories) {
+          const otherCategory = tournament.categories.find(cat =>
+            cat._id.toString() !== categoryId &&
+            cat.entries.some(e => e.playerZpin === player.zpin)
+          );
+          if (otherCategory) {
+            errors.push({
+              playerId,
+              playerName: `${player.firstName} ${player.lastName}`,
+              error: `Player is already entered in category '${otherCategory.name}'. This tournament does not allow multiple category entries.`
+            });
+            continue;
+          }
         }
 
         playerData = {
