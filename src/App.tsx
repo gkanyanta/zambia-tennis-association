@@ -62,7 +62,7 @@ import { CalendarManagement } from '@/pages/CalendarManagement'
 import { MembershipAdmin } from '@/pages/MembershipAdmin'
 import { IncomeAdmin } from '@/pages/IncomeAdmin'
 import { TrafficStats } from '@/pages/TrafficStats'
-import { MissingPlayers } from '@/pages/MissingPlayers'
+
 import { RegisterPlayer } from '@/pages/RegisterPlayer'
 import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
 import { PayLaterComplete } from '@/pages/PayLaterComplete'
@@ -89,7 +89,7 @@ function App() {
               <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
               <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
               <Route path="/admin/rankings/import" element={<RankingsImport />} />
-              <Route path="/admin/rankings/missing-players" element={<MissingPlayers />} />
+
               <Route path="/admin/executive-members" element={<ExecutiveMembersManagement />} />
               <Route path="/admin/affiliations" element={<AffiliationsManagement />} />
               <Route path="/admin/about-content" element={<AboutContentEditor />} />
