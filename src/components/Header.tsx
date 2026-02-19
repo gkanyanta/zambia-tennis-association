@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown, Heart } from 'lucide-react'
+import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown, Heart, Handshake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -229,6 +229,18 @@ export function Header() {
           {/* About Dropdown */}
           <DropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
+          {/* Sponsorship */}
+          <Link
+            to="/sponsors"
+            className={cn(
+              "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1 whitespace-nowrap",
+              location.pathname === "/sponsors" ? "text-primary" : "text-muted-foreground"
+            )}
+          >
+            <Handshake className="h-4 w-4" />
+            Sponsorship
+          </Link>
+
           {/* Donate Button */}
           <Button
             variant="default"
@@ -317,6 +329,23 @@ export function Header() {
 
             {/* About Menu */}
             <MobileDropdownMenu label="About" menuKey="about" items={aboutMenu} />
+
+            {/* Sponsorship */}
+            <Link
+              to="/sponsors"
+              className={cn(
+                "block rounded-md px-3 py-2 text-base font-medium transition-colors",
+                location.pathname === "/sponsors"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-foreground hover:bg-muted"
+              )}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <span className="flex items-center gap-2">
+                <Handshake className="h-4 w-4" />
+                Sponsorship
+              </span>
+            </Link>
 
             {/* Mobile Donate Button */}
             <Button
