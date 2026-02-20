@@ -9,9 +9,9 @@ import type { TournamentCategory } from '@/types/tournament'
 interface EntryManagementProps {
   category: TournamentCategory
   tournamentId: string
-  onUpdateEntry: (entryId: string, data: { status: string; seed?: number; rejectionReason?: string; paymentStatus?: string; paymentReference?: string }) => Promise<void>
+  onUpdateEntry: (entryId: string, data: { status: string; seed?: number; rejectionReason?: string; paymentStatus?: string; paymentReference?: string; waiveSurcharge?: boolean }) => Promise<void>
   onAutoSeed: () => Promise<void>
-  onBulkAction?: (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT') => Promise<{ succeeded: number; failed: number; results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }> }>
+  onBulkAction?: (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE') => Promise<{ succeeded: number; failed: number; results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }> }>
   onBulkUpdateSeeds?: (seeds: Array<{ entryId: string; seedNumber: number }>) => Promise<void>
 }
 
@@ -83,13 +83,27 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
     }
   }
 
-  const handleBulkAction = async (action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT') => {
+  const handleWaiveSurcharge = async (entryId: string) => {
+    if (!confirm('Are you sure you want to waive the surcharge for this player? They will still need to pay the base entry fee.')) return
+
+    try {
+      await onUpdateEntry(entryId, {
+        status: 'pending_payment',
+        waiveSurcharge: true
+      })
+    } catch (error) {
+      console.error('Error waiving surcharge:', error)
+    }
+  }
+
+  const handleBulkAction = async (action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE') => {
     if (selectedEntries.length === 0) return
 
     const actionLabels: Record<string, string> = {
       APPROVE: 'approve',
       CONFIRM_PAYMENT: 'confirm payment for',
-      WAIVE_PAYMENT: 'waive payment for'
+      WAIVE_PAYMENT: 'waive payment for',
+      WAIVE_SURCHARGE: 'waive surcharge for'
     }
 
     if (!confirm(`Are you sure you want to ${actionLabels[action]} ${selectedEntries.length} entries?`)) return
@@ -123,6 +137,8 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
             await onUpdateEntry(entryId, { status: 'pending', paymentStatus: 'paid' })
           } else if (action === 'WAIVE_PAYMENT') {
             await onUpdateEntry(entryId, { status: 'pending', paymentStatus: 'waived' })
+          } else if (action === 'WAIVE_SURCHARGE') {
+            await onUpdateEntry(entryId, { status: 'pending_payment', waiveSurcharge: true })
           }
         }
         setBulkResult({
@@ -212,6 +228,10 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
   const canApprove = selectedStatuses.has('pending') && selectedStatuses.size === 1
   const canConfirmPayment = selectedStatuses.has('pending_payment') && selectedStatuses.size === 1
   const canWaivePayment = selectedStatuses.has('pending_payment') && selectedStatuses.size === 1
+  const canWaiveSurcharge = selectedEntries.length > 0 && selectedEntries.every(id => {
+    const entry = category.entries.find(e => (e as any)._id === id)
+    return entry?.status === 'pending_payment' && (entry as any).zpinPaidUp === false && (entry as any).surchargeWaived !== true
+  })
 
   return (
     <div className="space-y-6">
@@ -313,6 +333,17 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                       variant="outline"
                     >
                       Waive Payment ({selectedEntries.length})
+                    </Button>
+                  )}
+                  {canWaiveSurcharge && (
+                    <Button
+                      onClick={() => handleBulkAction('WAIVE_SURCHARGE')}
+                      disabled={loading}
+                      size="sm"
+                      variant="outline"
+                      className="text-amber-600 border-amber-600"
+                    >
+                      Waive Surcharge ({selectedEntries.length})
                     </Button>
                   )}
                 </>
@@ -501,6 +532,11 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                               <Clock className="h-3 w-3" /> Unpaid
                             </Badge>
                           )}
+                          {(entry as any).surchargeWaived && (entry as any).paymentStatus !== 'waived' && (
+                            <div className="text-xs text-amber-600 mt-1">
+                              Surcharge waived
+                            </div>
+                          )}
                           {(entry as any).payer && (
                             <div className="text-xs text-muted-foreground mt-1" title={`Payer: ${(entry as any).payer.name} (${(entry as any).payer.email})`}>
                               <User className="h-3 w-3 inline mr-1" />
@@ -555,6 +591,17 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                                 >
                                   Waive
                                 </Button>
+                                {(entry as any).zpinPaidUp === false && (entry as any).surchargeWaived !== true && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-amber-600 border-amber-600 hover:bg-amber-50"
+                                    onClick={() => handleWaiveSurcharge((entry as any)._id)}
+                                    title="Waive Surcharge Only"
+                                  >
+                                    Waive Surcharge
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="outline"

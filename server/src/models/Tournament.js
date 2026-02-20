@@ -82,7 +82,9 @@ const entrySchema = new mongoose.Schema({
   // Per-entry fee (may include surcharge for non-ZPIN players)
   entryFee: { type: Number },
   // Whether player had a paid-up ZPIN at time of entry
-  zpinPaidUp: { type: Boolean, default: false }
+  zpinPaidUp: { type: Boolean, default: false },
+  // Whether the 50% surcharge for non-ZPIN players was waived by admin
+  surchargeWaived: { type: Boolean, default: false }
 });
 
 // Match schema

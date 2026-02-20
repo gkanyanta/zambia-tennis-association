@@ -45,6 +45,9 @@ export interface TournamentEntry {
   }
   rejectionReason?: string
   entryDate: string
+  entryFee?: number
+  zpinPaidUp?: boolean
+  surchargeWaived?: boolean
 }
 
 export interface Match {

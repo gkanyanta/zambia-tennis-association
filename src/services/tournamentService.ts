@@ -136,6 +136,9 @@ export interface TournamentEntry {
   };
   rejectionReason?: string;
   entryDate: string;
+  entryFee?: number;
+  zpinPaidUp?: boolean;
+  surchargeWaived?: boolean;
 }
 
 export interface JuniorCategory {
@@ -221,6 +224,7 @@ export interface EntryFeeIncomeSummary {
     waived: number;
     unpaid: number;
     total: number;
+    surchargeWaived?: number;
   };
 }
 
@@ -308,6 +312,7 @@ export const tournamentService = {
       status: string;
       seed?: number;
       rejectionReason?: string;
+      waiveSurcharge?: boolean;
     }
   ): Promise<any> {
     const response = await apiFetch(
@@ -338,7 +343,7 @@ export const tournamentService = {
     tournamentId: string,
     categoryId: string,
     entryIds: string[],
-    action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT'
+    action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE'
   ): Promise<{ results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }>; succeeded: number; failed: number }> {
     const response = await apiFetch(
       `/tournaments/${tournamentId}/entries/bulk`,

@@ -312,7 +312,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
     tournament.categories[0] || null
   )
 
-  const handleUpdateEntry = async (entryId: string, data: { status: string; seed?: number; rejectionReason?: string }) => {
+  const handleUpdateEntry = async (entryId: string, data: { status: string; seed?: number; rejectionReason?: string; waiveSurcharge?: boolean }) => {
     try {
       if (!selectedCategory) return
       await tournamentService.updateEntryStatus(
@@ -341,7 +341,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
     }
   }
 
-  const handleBulkAction = async (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT') => {
+  const handleBulkAction = async (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE') => {
     if (!selectedCategory) throw new Error('No category selected')
     const result = await tournamentService.bulkEntryAction(
       tournament._id,

@@ -397,7 +397,7 @@ export const bulkEntryAction = async (req, res) => {
       return res.status(400).json({ success: false, message: 'entryIds array is required' });
     }
 
-    const validActions = ['APPROVE', 'CONFIRM_PAYMENT', 'WAIVE_PAYMENT'];
+    const validActions = ['APPROVE', 'CONFIRM_PAYMENT', 'WAIVE_PAYMENT', 'WAIVE_SURCHARGE'];
     if (!validActions.includes(action)) {
       return res.status(400).json({ success: false, message: `action must be one of: ${validActions.join(', ')}` });
     }
@@ -452,6 +452,23 @@ export const bulkEntryAction = async (req, res) => {
             entry.paymentMethod = 'waived';
             entry.status = 'pending';
             break;
+
+          case 'WAIVE_SURCHARGE':
+            if (entry.status !== 'pending_payment') {
+              results.push({ entryId, success: false, error: `Cannot waive surcharge for entry with status "${entry.status}"` });
+              continue;
+            }
+            if (entry.zpinPaidUp !== false) {
+              results.push({ entryId, success: false, error: 'Entry does not have a surcharge (player ZPIN is paid up)' });
+              continue;
+            }
+            if (entry.surchargeWaived === true) {
+              results.push({ entryId, success: false, error: 'Surcharge already waived for this entry' });
+              continue;
+            }
+            entry.entryFee = tournament.entryFee;
+            entry.surchargeWaived = true;
+            break;
         }
 
         results.push({ entryId, success: true, playerName: entry.playerName });
@@ -481,7 +498,7 @@ export const bulkEntryAction = async (req, res) => {
 export const updateEntryStatus = async (req, res) => {
   try {
     const { tournamentId, categoryId, entryId } = req.params;
-    const { status, rejectionReason, seed, paymentStatus, paymentReference } = req.body;
+    const { status, rejectionReason, seed, paymentStatus, paymentReference, waiveSurcharge } = req.body;
 
     const tournament = await Tournament.findById(tournamentId);
 
@@ -508,6 +525,14 @@ export const updateEntryStatus = async (req, res) => {
         success: false,
         message: 'Entry not found'
       });
+    }
+
+    // Handle waive surcharge
+    if (waiveSurcharge) {
+      if (entry.status === 'pending_payment' && entry.zpinPaidUp === false && entry.surchargeWaived !== true) {
+        entry.entryFee = tournament.entryFee;
+        entry.surchargeWaived = true;
+      }
     }
 
     // Update entry
@@ -1689,6 +1714,10 @@ export const getTournamentFinanceSummary = async (req, res) => {
     let totalEntryFeePaid = 0;
     let totalEntryFeeWaived = 0;
     let totalEntryFeeUnpaid = 0;
+    let totalSurchargeWaived = 0;
+
+    const baseFee = tournament.entryFee || 0;
+    const surchargeAmount = Math.ceil(baseFee * 1.5) - baseFee;
 
     for (const category of tournament.categories) {
       const paid = { count: 0, amount: 0 };
@@ -1706,6 +1735,10 @@ export const getTournamentFinanceSummary = async (req, res) => {
         } else {
           unpaid.count++;
           unpaid.amount += fee;
+        }
+
+        if (entry.surchargeWaived) {
+          totalSurchargeWaived += surchargeAmount;
         }
       }
 
@@ -1747,7 +1780,8 @@ export const getTournamentFinanceSummary = async (req, res) => {
             paid: totalEntryFeePaid,
             waived: totalEntryFeeWaived,
             unpaid: totalEntryFeeUnpaid,
-            total: totalEntryFeePaid + totalEntryFeeWaived + totalEntryFeeUnpaid
+            total: totalEntryFeePaid + totalEntryFeeWaived + totalEntryFeeUnpaid,
+            surchargeWaived: totalSurchargeWaived
           }
         },
         summary: {
