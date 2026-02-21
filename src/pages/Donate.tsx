@@ -456,11 +456,11 @@ export function Donate() {
                 Interested in a Major Contribution?
               </h3>
               <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                For corporate partnerships, sponsorships, or large donations, we'd love to discuss how
+                For corporate partnerships or large donations, we'd love to discuss how
                 your support can create lasting impact in Zambian tennis.
               </p>
-              <Button size="lg" variant="default" onClick={() => window.location.href = '/sponsors'}>
-                Explore Sponsorship Opportunities
+              <Button size="lg" variant="default" onClick={() => window.location.href = '/partnerships'}>
+                Explore Partnership Opportunities
               </Button>
             </CardContent>
           </Card>

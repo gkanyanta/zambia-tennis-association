@@ -26,7 +26,7 @@ const footerLinks = {
     { name: 'Membership', href: '/membership' },
     { name: 'Register ZPIN', href: '/register-zpin' },
     { name: 'Club Affiliation', href: '/club-affiliation' },
-    { name: 'Sponsors', href: '/sponsors' },
+    { name: 'Partnership', href: '/partnerships' },
   ],
   legal: [
     { name: 'Privacy Policy', href: '/privacy' },

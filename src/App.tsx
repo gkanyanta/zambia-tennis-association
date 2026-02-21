@@ -136,8 +136,8 @@ function App() {
               <Route path="/donate/verify" element={<DonateVerify />} />
               <Route path="/pay/complete" element={<PayLaterComplete />} />
               <Route path="/payment/verify" element={<PaymentVerify />} />
-              <Route path="/sponsors" element={<Sponsors />} />
               <Route path="/partnerships" element={<Sponsors />} />
+              <Route path="/sponsors" element={<Sponsors />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="*" element={<NotFound />} />

@@ -230,16 +230,16 @@ export function Header() {
           {/* About Dropdown */}
           <DropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
-          {/* Sponsorship */}
+          {/* Partnership */}
           <Link
-            to="/sponsors"
+            to="/partnerships"
             className={cn(
               "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1 whitespace-nowrap",
-              location.pathname === "/sponsors" ? "text-primary" : "text-muted-foreground"
+              location.pathname === "/partnerships" ? "text-primary" : "text-muted-foreground"
             )}
           >
             <Handshake className="h-4 w-4" />
-            Sponsorship
+            Partnership
           </Link>
 
           {/* Donate Button */}
@@ -331,12 +331,12 @@ export function Header() {
             {/* About Menu */}
             <MobileDropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
-            {/* Sponsorship */}
+            {/* Partnership */}
             <Link
-              to="/sponsors"
+              to="/partnerships"
               className={cn(
                 "block rounded-md px-3 py-2 text-base font-medium transition-colors",
-                location.pathname === "/sponsors"
+                location.pathname === "/partnerships"
                   ? "bg-primary text-primary-foreground"
                   : "text-foreground hover:bg-muted"
               )}
@@ -344,7 +344,7 @@ export function Header() {
             >
               <span className="flex items-center gap-2">
                 <Handshake className="h-4 w-4" />
-                Sponsorship
+                Partnership
               </span>
             </Link>
 

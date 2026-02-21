@@ -19,7 +19,7 @@ import {
   Handshake
 } from 'lucide-react'
 
-const sponsorshipTiers = [
+const partnershipTiers = [
   {
     name: 'Platinum',
     amount: 'K50,000+',
@@ -28,7 +28,7 @@ const sponsorshipTiers = [
     icon: Star,
     featured: true,
     benefits: [
-      'Title sponsorship of major tournaments',
+      'Title partnership of major tournaments',
       'Logo on all marketing materials',
       'VIP hospitality at all events (10 passes)',
       'Naming rights for tournaments',
@@ -47,7 +47,7 @@ const sponsorshipTiers = [
     color: 'from-yellow-400 to-yellow-600',
     icon: Award,
     benefits: [
-      'Co-sponsorship of tournaments/programs',
+      'Co-partnership of tournaments/programs',
       'Logo on event materials',
       'Event hospitality passes (5 passes)',
       'Premium website recognition',
@@ -64,9 +64,9 @@ const sponsorshipTiers = [
     color: 'from-gray-300 to-gray-500',
     icon: Trophy,
     benefits: [
-      'Program-specific sponsorship',
+      'Program-specific partnership',
       'Logo on program materials',
-      'Website sponsor listing',
+      'Website partner listing',
       'Social media recognition',
       'Annual impact report',
       'Event hospitality (2 passes)',
@@ -80,7 +80,7 @@ const sponsorshipTiers = [
     color: 'from-amber-600 to-amber-800',
     icon: Handshake,
     benefits: [
-      'Supporting sponsor status',
+      'Supporting partner status',
       'Website listing',
       'Social media thank you post',
       'Annual report',
@@ -89,10 +89,10 @@ const sponsorshipTiers = [
   }
 ]
 
-const sponsorshipCategories = [
+const partnershipCategories = [
   {
     icon: Trophy,
-    title: 'Tournament Sponsorship',
+    title: 'Tournament Partnership',
     description: 'Support competitive tennis events across Zambia',
     examples: ['National Championships', 'Regional Tournaments', 'Junior Events', 'Club Leagues'],
     color: 'text-yellow-500'
@@ -115,7 +115,7 @@ const sponsorshipCategories = [
     icon: GraduationCap,
     title: 'Player Support',
     description: 'Help talented players reach their potential',
-    examples: ['Scholarships', 'Travel Grants', 'Training Camps', 'Equipment Sponsorships'],
+    examples: ['Scholarships', 'Travel Grants', 'Training Camps', 'Equipment Support'],
     color: 'text-purple-500'
   }
 ]
@@ -173,7 +173,7 @@ export function Sponsors() {
               Why Partner with ZTA?
             </h2>
             <p className="text-muted-foreground text-lg mb-8">
-              Sponsoring the Zambia Tennis Association means investing in youth development,
+              Partnering with the Zambia Tennis Association means investing in youth development,
               community health, and national sporting excellence. Your partnership creates
               lasting impact while enhancing your brand's visibility and reputation.
             </p>
@@ -195,7 +195,7 @@ export function Sponsors() {
           {/* Sponsorship Tiers */}
           <div className="mb-20">
             <h2 className="text-3xl font-bold text-foreground mb-4 text-center">
-              Sponsorship Packages
+              Partnership Packages
             </h2>
             <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
               Choose a partnership level that aligns with your goals and budget.
@@ -203,7 +203,7 @@ export function Sponsors() {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {sponsorshipTiers.map((tier, index) => (
+              {partnershipTiers.map((tier, index) => (
                 <Card
                   key={index}
                   className={`card-elevated-hover relative overflow-hidden ${tier.featured ? 'border-primary border-2' : ''}`}
@@ -241,7 +241,7 @@ export function Sponsors() {
           {/* Sponsorship Categories */}
           <div className="mb-20">
             <h2 className="text-3xl font-bold text-foreground mb-4 text-center">
-              Sponsorship Opportunities
+              Partnership Opportunities
             </h2>
             <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
               Choose what matters most to you. Support specific programs that align with your
@@ -249,7 +249,7 @@ export function Sponsors() {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {sponsorshipCategories.map((category, index) => (
+              {partnershipCategories.map((category, index) => (
                 <Card key={index} className="card-elevated-hover">
                   <CardHeader>
                     <div className="flex items-start gap-4">
@@ -277,7 +277,7 @@ export function Sponsors() {
           {/* Benefits Section */}
           <div className="mb-20 bg-muted/50 rounded-lg p-8 md:p-12">
             <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-              What You Get as a Sponsor
+              What You Get as a Partner
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="text-center">
@@ -381,7 +381,7 @@ export function Sponsors() {
                   <Label htmlFor="message">Message</Label>
                   <Textarea
                     id="message"
-                    placeholder="Tell us about your sponsorship goals and how you'd like to partner with ZTA..."
+                    placeholder="Tell us about your partnership goals and how you'd like to partner with ZTA..."
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     rows={4}
