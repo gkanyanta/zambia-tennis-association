@@ -229,13 +229,14 @@ function handleGameWon(state, playerIndex) {
   const g = currentSet.games;
   let setWon = false;
 
+  const gamesForSet = settings.tiebreakAt || 6;
   if (currentGame.isTiebreak || currentGame.isMatchTiebreak) {
     // Tiebreak game won means set is won
     setWon = true;
-  } else if (g[playerIndex] >= 6 && g[playerIndex] - g[opponent] >= 2) {
-    // Regular set win: 6+ games with 2+ lead
+  } else if (g[playerIndex] >= gamesForSet && g[playerIndex] - g[opponent] >= 2) {
+    // Regular set win: gamesForSet+ games with 2+ lead
     setWon = true;
-  } else if (g[playerIndex] === 6 && g[opponent] === 6) {
+  } else if (g[playerIndex] === gamesForSet && g[opponent] === gamesForSet) {
     // 6-6: start tiebreak
     const finalSet = isFinalSet(state);
     if (finalSet && settings.finalSetTiebreak) {

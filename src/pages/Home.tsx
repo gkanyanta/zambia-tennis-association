@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Slideshow } from '@/components/Slideshow'
 import { NewsCard } from '@/components/NewsCard'
+import { LiveScoreCard } from '@/components/live/LiveScoreCard'
 import { Button } from '@/components/ui/button'
-import { Trophy, Users, Calendar, TrendingUp } from 'lucide-react'
+import { Trophy, Users, Calendar, TrendingUp, Radio } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { galleryService } from '@/services/galleryService'
 import { newsService, NewsArticle } from '@/services/newsService'
 import { statsService, Stats } from '@/services/statsService'
+import { useLiveScoreboard } from '@/hooks/useLiveScoreboard'
 import { PageSEO } from '@/components/SEO'
 
 export function Home() {
@@ -17,6 +19,7 @@ export function Home() {
   const [loadingNews, setLoadingNews] = useState(true)
   const [stats, setStats] = useState<Stats | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
+  const { matches: liveMatches } = useLiveScoreboard()
 
   useEffect(() => {
     fetchSlides()
@@ -115,6 +118,40 @@ export function Home() {
           )}
         </div>
       </section>
+
+      {/* Live Matches Section — only shown when there are active matches */}
+      {liveMatches.length > 0 && (
+        <section className="py-10 bg-red-50/60 dark:bg-red-950/20 border-y border-red-200/50 dark:border-red-900/30">
+          <div className="container-custom">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Radio className="h-5 w-5 text-red-500 animate-pulse" />
+                <h2 className="text-2xl font-bold text-foreground">
+                  Live Scores
+                </h2>
+                <span className="text-sm text-muted-foreground">
+                  {liveMatches.length} {liveMatches.length === 1 ? 'match' : 'matches'} in progress
+                </span>
+              </div>
+              <Link to="/live-scores">
+                <Button variant="outline" size="sm">View All</Button>
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {liveMatches.slice(0, 3).map(match => (
+                <LiveScoreCard key={match._id} match={match} />
+              ))}
+            </div>
+            {liveMatches.length > 3 && (
+              <div className="text-center mt-4">
+                <Link to="/live-scores" className="text-sm text-primary hover:underline">
+                  + {liveMatches.length - 3} more {liveMatches.length - 3 === 1 ? 'match' : 'matches'}
+                </Link>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Stats Section */}
       <section className="py-16 bg-muted/50">

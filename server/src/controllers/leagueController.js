@@ -767,8 +767,23 @@ export const updateRubberScore = async (req, res) => {
         const { homeGames, awayGames } = set;
 
         if (homeGames < 0 || awayGames < 0) {
-          return res.status(400).json({ success: false, error: 'Games cannot be negative' });
+          return res.status(400).json({ success: false, error: 'Games/points cannot be negative' });
         }
+
+        // Match tiebreak set: validate as tiebreak points (first to 10, win by 2)
+        if (set.isMatchTiebreak) {
+          if (homeGames === 0 && awayGames === 0) continue;
+          const high = Math.max(homeGames, awayGames);
+          const diff = Math.abs(homeGames - awayGames);
+          if (high < 10) {
+            return res.status(400).json({ success: false, error: 'Match tiebreak winner must reach at least 10 points' });
+          }
+          if (diff < 2) {
+            return res.status(400).json({ success: false, error: 'Match tiebreak must be won by 2 points' });
+          }
+          continue;
+        }
+
         if (homeGames > 7 || awayGames > 7) {
           return res.status(400).json({ success: false, error: 'Maximum 7 games per set' });
         }

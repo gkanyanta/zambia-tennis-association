@@ -53,6 +53,7 @@ const TieScoreEntry: React.FC = () => {
   const [tie, setTie] = useState<Tie | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [matchFormat, setMatchFormat] = useState('2s1d');
+  const [leagueMatchTiebreak, setLeagueMatchTiebreak] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -80,6 +81,7 @@ const TieScoreEntry: React.FC = () => {
 
       const format = leagueRes.data?.settings?.matchFormat || '2s1d';
       setMatchFormat(format);
+      setLeagueMatchTiebreak(leagueRes.data?.settings?.matchTiebreak ?? false);
 
       // Pre-fill player selections from existing rubber data
       const sel: typeof selections = {};
@@ -338,6 +340,7 @@ const TieScoreEntry: React.FC = () => {
                 winner={rubber.winner}
                 onSave={(sets, status) => handleSaveRubberScore(idx, sets, status)}
                 saving={saving}
+                matchTiebreak={leagueMatchTiebreak}
               />
             );
           })}

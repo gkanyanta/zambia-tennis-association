@@ -173,11 +173,12 @@ function handleGameWon(state: MatchState, playerIndex: 0 | 1): MatchState {
   const g = currentSet.games
   let setWon = false
 
+  const gamesForSet = settings.tiebreakAt || 6
   if (currentGame.isTiebreak || currentGame.isMatchTiebreak) {
     setWon = true
-  } else if (g[playerIndex] >= 6 && g[playerIndex] - g[opponent] >= 2) {
+  } else if (g[playerIndex] >= gamesForSet && g[playerIndex] - g[opponent] >= 2) {
     setWon = true
-  } else if (g[playerIndex] === 6 && g[opponent] === 6) {
+  } else if (g[playerIndex] === gamesForSet && g[opponent] === gamesForSet) {
     const finalSet = isFinalSet(state)
     if (finalSet && settings.finalSetTiebreak) {
       state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: true }

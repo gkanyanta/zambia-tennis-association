@@ -12,6 +12,7 @@ interface RubberScoreEntryProps {
   winner: 'home' | 'away' | null;
   onSave: (sets: TieSet[], status: string) => Promise<void>;
   saving: boolean;
+  matchTiebreak?: boolean;
 }
 
 const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
@@ -22,7 +23,8 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
   existingStatus,
   winner,
   onSave,
-  saving
+  saving,
+  matchTiebreak = false
 }) => {
   const [sets, setSets] = useState<TieSet[]>(
     existingSets && existingSets.length > 0
@@ -33,7 +35,18 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
 
   const validateSet = (set: TieSet): string | null => {
     const { homeGames, awayGames } = set;
-    if (homeGames < 0 || awayGames < 0) return 'Games cannot be negative';
+    if (homeGames < 0 || awayGames < 0) return 'Games/points cannot be negative';
+
+    // Match tiebreak set: validate as tiebreak points (first to 10, win by 2)
+    if (set.isMatchTiebreak) {
+      if (homeGames === 0 && awayGames === 0) return null;
+      const high = Math.max(homeGames, awayGames);
+      const diff = Math.abs(homeGames - awayGames);
+      if (high < 10) return 'Winner must reach at least 10 points';
+      if (diff < 2) return 'Must win by 2 points';
+      return null;
+    }
+
     if (homeGames > 7 || awayGames > 7) return 'Maximum 7 games per set';
     if (homeGames === 0 && awayGames === 0) return null;
 
@@ -64,13 +77,16 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
 
   const updateSetScore = (idx: number, field: 'homeGames' | 'awayGames', value: number) => {
     const newSets = [...sets];
-    newSets[idx] = { ...newSets[idx], [field]: Math.max(0, Math.min(7, value)) };
+    const isMatchTB = newSets[idx].isMatchTiebreak;
+    newSets[idx] = { ...newSets[idx], [field]: isMatchTB ? Math.max(0, value) : Math.max(0, Math.min(7, value)) };
 
-    const s = newSets[idx];
-    if ((s.homeGames === 7 && s.awayGames === 6) || (s.awayGames === 7 && s.homeGames === 6)) {
-      if (!s.tiebreak) newSets[idx].tiebreak = { played: true, homePoints: 0, awayPoints: 0 };
-    } else {
-      if (newSets[idx].tiebreak) delete newSets[idx].tiebreak;
+    if (!isMatchTB) {
+      const s = newSets[idx];
+      if ((s.homeGames === 7 && s.awayGames === 6) || (s.awayGames === 7 && s.homeGames === 6)) {
+        if (!s.tiebreak) newSets[idx].tiebreak = { played: true, homePoints: 0, awayPoints: 0 };
+      } else {
+        if (newSets[idx].tiebreak) delete newSets[idx].tiebreak;
+      }
     }
 
     setSets(newSets);
@@ -88,7 +104,15 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
     const { home, away } = calculateSetsWon();
     if (home >= 2 || away >= 2) { setError('Rubber already decided (best of 3)'); return; }
     if (sets.length >= 3) { setError('Maximum 3 sets for best of 3'); return; }
-    setSets([...sets, { setNumber: sets.length + 1, homeGames: 0, awayGames: 0 }]);
+    const newSetNumber = sets.length + 1;
+    // 3rd set as match tiebreak when league has matchTiebreak enabled and it's 1-1
+    const isDecidingTiebreak = matchTiebreak && newSetNumber === 3 && home === 1 && away === 1;
+    setSets([...sets, {
+      setNumber: newSetNumber,
+      homeGames: 0,
+      awayGames: 0,
+      ...(isDecidingTiebreak ? { isMatchTiebreak: true } : {})
+    }]);
   };
 
   const removeSet = (idx: number) => {
@@ -165,9 +189,11 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
       {/* Sets */}
       <div className="space-y-3 mb-4">
         {sets.map((set, idx) => (
-          <div key={idx} className="border rounded-lg p-3">
+          <div key={idx} className={`border rounded-lg p-3 ${set.isMatchTiebreak ? 'border-amber-300 bg-amber-50' : ''}`}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold">Set {set.setNumber}</span>
+              <span className="text-sm font-semibold">
+                {set.isMatchTiebreak ? 'Match Tiebreak (first to 10)' : `Set ${set.setNumber}`}
+              </span>
               {sets.length > 1 && (
                 <button onClick={() => removeSet(idx)} className="text-red-400 hover:text-red-600 p-1">
                   <Trash2 className="h-3 w-3" />
@@ -176,18 +202,20 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <input
-                type="number" min="0" max="7" value={set.homeGames}
+                type="number" min="0" max={set.isMatchTiebreak ? undefined : 7} value={set.homeGames}
                 onChange={e => updateSetScore(idx, 'homeGames', parseInt(e.target.value) || 0)}
                 className="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold"
+                placeholder={set.isMatchTiebreak ? 'Pts' : undefined}
               />
               <input
-                type="number" min="0" max="7" value={set.awayGames}
+                type="number" min="0" max={set.isMatchTiebreak ? undefined : 7} value={set.awayGames}
                 onChange={e => updateSetScore(idx, 'awayGames', parseInt(e.target.value) || 0)}
                 className="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold"
+                placeholder={set.isMatchTiebreak ? 'Pts' : undefined}
               />
             </div>
 
-            {set.tiebreak?.played && (
+            {set.tiebreak?.played && !set.isMatchTiebreak && (
               <div className="mt-2 pt-2 border-t">
                 <p className="text-xs font-semibold text-gray-600 mb-1">Tiebreak</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -208,9 +236,9 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
             {(set.homeGames > 0 || set.awayGames > 0) && (
               <div className="mt-2 text-center text-xs">
                 {set.homeGames > set.awayGames
-                  ? <span className="text-green-600 font-medium">Home wins set</span>
+                  ? <span className="text-green-600 font-medium">{set.isMatchTiebreak ? 'Home wins tiebreak' : 'Home wins set'}</span>
                   : set.awayGames > set.homeGames
-                  ? <span className="text-green-600 font-medium">Away wins set</span>
+                  ? <span className="text-green-600 font-medium">{set.isMatchTiebreak ? 'Away wins tiebreak' : 'Away wins set'}</span>
                   : <span className="text-gray-500">In progress</span>}
               </div>
             )}

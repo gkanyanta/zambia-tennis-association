@@ -9,6 +9,9 @@ import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
 import { TournamentFinance } from '@/components/TournamentFinance'
 import { MixerDrawView } from '@/components/MixerDrawView'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock, Radio } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
@@ -506,6 +509,16 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
   const [finalizing, setFinalizing] = useState(false)
   const [liveMatches, setLiveMatches] = useState<Record<string, string>>({}) // matchId -> liveMatchId
   const [startingLive, setStartingLive] = useState<string | null>(null)
+  const [liveScoreDialogOpen, setLiveScoreDialogOpen] = useState(false)
+  const [liveScoreMatch, setLiveScoreMatch] = useState<any>(null)
+  const [liveSettings, setLiveSettings] = useState({
+    bestOf: 3 as 3 | 5,
+    shortSets: false,
+    superTiebreak: true,
+    noAd: false,
+    firstServer: 0 as 0 | 1,
+    court: ''
+  })
 
   // Fetch active live matches for this tournament
   useEffect(() => {
@@ -522,15 +535,39 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     fetchLiveMatches()
   }, [tournament._id])
 
-  const handleStartLiveScoring = async (match: any) => {
-    if (!selectedCategory) return
+  const openLiveScoreDialog = (match: any) => {
+    const isU10 = selectedCategory?.ageGroup === 'U10'
+    setLiveScoreMatch(match)
+    setLiveSettings({
+      bestOf: 3,
+      shortSets: isU10,
+      superTiebreak: true,
+      noAd: false,
+      firstServer: 0,
+      court: match.court || ''
+    })
+    setLiveScoreDialogOpen(true)
+  }
+
+  const handleConfirmLiveScoring = async () => {
+    if (!selectedCategory || !liveScoreMatch) return
+    const match = liveScoreMatch
+    setLiveScoreDialogOpen(false)
     setStartingLive(match._id || match.id)
     try {
       const data = await liveMatchService.startLiveMatch({
         tournamentId: tournament._id,
         categoryId: selectedCategory._id,
         matchId: match._id || match.id,
-        court: match.court
+        settings: {
+          bestOf: liveSettings.bestOf,
+          tiebreakAt: liveSettings.shortSets ? 4 : 6,
+          finalSetTiebreak: liveSettings.superTiebreak,
+          finalSetTiebreakTo: 10,
+          noAd: liveSettings.noAd
+        },
+        court: liveSettings.court || undefined,
+        firstServer: liveSettings.firstServer
       })
       navigate(`/admin/tournaments/${tournament._id}/live-scoring/${data.data._id}`)
     } catch (error: any) {
@@ -801,7 +838,7 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                                   <Button
                                     size="sm"
                                     variant="default"
-                                    onClick={() => handleStartLiveScoring(match)}
+                                    onClick={() => openLiveScoreDialog(match)}
                                     disabled={startingLive === (match._id || match.id)}
                                   >
                                     <Radio className="h-3 w-3 mr-1" />
@@ -885,6 +922,95 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
           </CardContent>
         </Card>
       ))}
+
+      {/* Live Scoring Settings Dialog */}
+      <Dialog open={liveScoreDialogOpen} onOpenChange={setLiveScoreDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Match Settings</DialogTitle>
+          </DialogHeader>
+          {liveScoreMatch && (
+            <div className="space-y-5 py-2">
+              <div className="text-sm text-center text-muted-foreground">
+                {liveScoreMatch.player1?.name} vs {liveScoreMatch.player2?.name}
+              </div>
+
+              <div className="space-y-1">
+                <Label>Best of</Label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={liveSettings.bestOf}
+                  onChange={(e) => setLiveSettings({ ...liveSettings, bestOf: Number(e.target.value) as 3 | 5 })}
+                >
+                  <option value={3}>3 sets</option>
+                  <option value={5}>5 sets</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Short sets (first to 4)</Label>
+                  <p className="text-xs text-muted-foreground">For U10 categories</p>
+                </div>
+                <Switch
+                  checked={liveSettings.shortSets}
+                  onCheckedChange={(checked) => setLiveSettings({ ...liveSettings, shortSets: checked })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Deciding set format</Label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={liveSettings.superTiebreak ? 'super' : 'full'}
+                  onChange={(e) => setLiveSettings({ ...liveSettings, superTiebreak: e.target.value === 'super' })}
+                >
+                  <option value="super">Super Tiebreak (first to 10)</option>
+                  <option value="full">Full Set</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>No-Ad scoring</Label>
+                  <p className="text-xs text-muted-foreground">Sudden death at deuce</p>
+                </div>
+                <Switch
+                  checked={liveSettings.noAd}
+                  onCheckedChange={(checked) => setLiveSettings({ ...liveSettings, noAd: checked })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>First Server</Label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={liveSettings.firstServer}
+                  onChange={(e) => setLiveSettings({ ...liveSettings, firstServer: Number(e.target.value) as 0 | 1 })}
+                >
+                  <option value={0}>{liveScoreMatch.player1?.name || 'Player 1'}</option>
+                  <option value={1}>{liveScoreMatch.player2?.name || 'Player 2'}</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Court</Label>
+                <input
+                  type="text"
+                  className="w-full p-2 border rounded-md"
+                  placeholder="e.g. Court 1"
+                  value={liveSettings.court}
+                  onChange={(e) => setLiveSettings({ ...liveSettings, court: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLiveScoreDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmLiveScoring}>Start Match</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

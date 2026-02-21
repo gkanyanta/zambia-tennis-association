@@ -1,6 +1,6 @@
 export interface MatchSettings {
   bestOf: 3 | 5
-  tiebreakAt: number // Usually 6
+  tiebreakAt: number // Games needed to win a set (6 for normal, 4 for short sets)
   finalSetTiebreak: boolean // Match tiebreak in deciding set
   finalSetTiebreakTo: number // Usually 10
   noAd: boolean // Sudden death at deuce
