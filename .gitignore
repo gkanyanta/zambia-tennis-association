@@ -57,6 +57,7 @@ coverage/
 dist/
 
 # Bubblewrap / TWA
-app-release-signed.apk
 app-release-bundle.aab
 .build/
+.twa-build/
+keystore.jks

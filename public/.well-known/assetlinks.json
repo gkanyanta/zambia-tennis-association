@@ -4,7 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.zambiatennis.livescores",
-      "sha256_cert_fingerprints": ["<SHA256_FROM_SIGNING_KEY>"]
+      "sha256_cert_fingerprints": ["08:DF:F5:08:07:09:F7:74:CB:B8:8E:B3:82:EA:0A:03:F3:C9:B9:53:9C:E7:6D:8E:C9:E4:CE:BE:CD:E4:EF:F8"]
     }
   }
 ]
