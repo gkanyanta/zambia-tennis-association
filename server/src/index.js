@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -7,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import { connectDatabase } from './config/database.js';
+import { initializeSocket } from './config/socket.js';
 
 // Load env vars
 dotenv.config();
@@ -48,6 +50,7 @@ import calendarRoutes from './routes/calendar.js';
 import membershipRoutes from './routes/membership.js';
 import playerRegistrationRoutes from './routes/playerRegistration.js';
 import documentUploadRoutes from './routes/documentUpload.js';
+import liveMatchRoutes from './routes/liveMatches.js';
 
 
 // Initialize app
@@ -77,6 +80,13 @@ const limiter = rateLimit({
   max: 100 // limit each IP to 100 requests per windowMs
 });
 app.use('/api/', limiter);
+
+// Higher rate limit for live scoring (rapid point-by-point updates)
+const liveMatchLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 300 // 300 requests per minute for scoring
+});
+app.use('/api/live-matches', liveMatchLimiter);
 
 // CORS
 const allowedOrigins = [
@@ -142,6 +152,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/player-registration', playerRegistrationRoutes);
 app.use('/api/upload/document', documentUploadRoutes);
+app.use('/api/live-matches', liveMatchRoutes);
 
 
 // Health check route
@@ -172,7 +183,12 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, async () => {
+// Create HTTP server and initialize Socket.io
+const httpServer = createServer(app);
+const io = initializeSocket(httpServer, allowedOrigins);
+app.locals.io = io;
+
+const server = httpServer.listen(PORT, async () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 
   // Initialize automated membership status update job

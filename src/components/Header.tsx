@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 // Dropdown menu configurations
 const tennisMenu = [
   { name: 'Tournaments', href: '/tournaments' },
+  { name: 'Live Scores', href: '/live-scores' },
   { name: 'Leagues', href: '/leagues' },
   { name: 'Rankings', href: '/rankings' },
   { name: 'News', href: '/news' },

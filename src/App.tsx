@@ -62,6 +62,8 @@ import { CalendarManagement } from '@/pages/CalendarManagement'
 import { MembershipAdmin } from '@/pages/MembershipAdmin'
 import { IncomeAdmin } from '@/pages/IncomeAdmin'
 import { TrafficStats } from '@/pages/TrafficStats'
+import { LiveScoring } from '@/pages/LiveScoring'
+import { Scoreboard } from '@/pages/Scoreboard'
 
 import { RegisterPlayer } from '@/pages/RegisterPlayer'
 import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
@@ -99,6 +101,9 @@ function App() {
               <Route path="/admin/membership" element={<MembershipAdmin />} />
               <Route path="/admin/income" element={<IncomeAdmin />} />
               <Route path="/admin/traffic" element={<TrafficStats />} />
+              <Route path="/admin/tournaments/:tournamentId/live-scoring/:liveMatchId" element={<LiveScoring />} />
+              <Route path="/live-scores" element={<Scoreboard />} />
+              <Route path="/live-scores/:matchId" element={<Scoreboard />} />
               <Route path="/news/:id" element={<NewsDetail />} />
               <Route path="/news" element={<News />} />
               <Route path="/leagues" element={<Leagues />} />

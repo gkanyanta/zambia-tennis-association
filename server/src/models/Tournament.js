@@ -108,7 +108,7 @@ const matchSchema = new mongoose.Schema({
   score: String,
   status: {
     type: String,
-    enum: ['scheduled', 'in_progress', 'completed', 'walkover'],
+    enum: ['scheduled', 'in_progress', 'completed', 'walkover', 'live'],
     default: 'scheduled'
   },
   court: String,

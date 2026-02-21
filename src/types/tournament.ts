@@ -59,7 +59,7 @@ export interface Match {
   player2?: MatchPlayer
   winner?: string // player ID
   score?: string
-  status: 'scheduled' | 'in_progress' | 'completed' | 'walkover'
+  status: 'scheduled' | 'in_progress' | 'completed' | 'walkover' | 'live'
   court?: string
   scheduledTime?: string
   completedTime?: string

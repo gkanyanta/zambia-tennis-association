@@ -9,9 +9,10 @@ import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
 import { TournamentFinance } from '@/components/TournamentFinance'
 import { MixerDrawView } from '@/components/MixerDrawView'
-import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock } from 'lucide-react'
+import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock, Radio } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
+import { liveMatchService } from '@/services/liveMatchService'
 
 export function TournamentAdmin() {
   const navigate = useNavigate()
@@ -491,6 +492,7 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
 }
 
 function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; onRefresh: () => Promise<void> }) {
+  const navigate = useNavigate()
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     () => {
       const first = tournament.categories.find((c: any) => c.draw)
@@ -502,6 +504,50 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
   const [winnerInput, setWinnerInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
+  const [liveMatches, setLiveMatches] = useState<Record<string, string>>({}) // matchId -> liveMatchId
+  const [startingLive, setStartingLive] = useState<string | null>(null)
+
+  // Fetch active live matches for this tournament
+  useEffect(() => {
+    const fetchLiveMatches = async () => {
+      try {
+        const data = await liveMatchService.getLiveMatchesByTournament(tournament._id)
+        const mapping: Record<string, string> = {}
+        data.data.forEach((lm: any) => {
+          mapping[lm.matchId] = lm._id
+        })
+        setLiveMatches(mapping)
+      } catch {}
+    }
+    fetchLiveMatches()
+  }, [tournament._id])
+
+  const handleStartLiveScoring = async (match: any) => {
+    if (!selectedCategory) return
+    setStartingLive(match._id || match.id)
+    try {
+      const data = await liveMatchService.startLiveMatch({
+        tournamentId: tournament._id,
+        categoryId: selectedCategory._id,
+        matchId: match._id || match.id,
+        court: match.court
+      })
+      navigate(`/admin/tournaments/${tournament._id}/live-scoring/${data.data._id}`)
+    } catch (error: any) {
+      // If live match already exists, navigate to it
+      if (error.message?.includes('already exists')) {
+        const existing = await liveMatchService.getLiveMatchesByTournament(tournament._id)
+        const lm = existing.data.find((l: any) => l.matchId === (match._id || match.id))
+        if (lm) {
+          navigate(`/admin/tournaments/${tournament._id}/live-scoring/${lm._id}`)
+          return
+        }
+      }
+      alert(error.message || 'Failed to start live scoring')
+    } finally {
+      setStartingLive(null)
+    }
+  }
 
   // Always derive selectedCategory from tournament data (so it refreshes)
   const selectedCategory = selectedCategoryId
@@ -750,17 +796,41 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                                 </Button>
                               </div>
                             ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingMatch(match._id || match.id)
-                                  setWinnerInput(match.winner || '')
-                                  setScoreInput(match.score || '')
-                                }}
-                              >
-                                {match.status === 'completed' ? 'Edit' : 'Enter Score'}
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                {match.status !== 'completed' && match.status !== 'live' && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => handleStartLiveScoring(match)}
+                                    disabled={startingLive === (match._id || match.id)}
+                                  >
+                                    <Radio className="h-3 w-3 mr-1" />
+                                    {startingLive === (match._id || match.id) ? 'Starting...' : 'Live Score'}
+                                  </Button>
+                                )}
+                                {(match.status === 'live' || liveMatches[match._id || match.id]) && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    className="bg-red-600 hover:bg-red-700"
+                                    onClick={() => navigate(`/admin/tournaments/${tournament._id}/live-scoring/${liveMatches[match._id || match.id]}`)}
+                                  >
+                                    <Radio className="h-3 w-3 mr-1 animate-pulse" />
+                                    Continue
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingMatch(match._id || match.id)
+                                    setWinnerInput(match.winner || '')
+                                    setScoreInput(match.score || '')
+                                  }}
+                                >
+                                  {match.status === 'completed' ? 'Edit' : 'Enter Score'}
+                                </Button>
+                              </div>
                             )}
                           </div>
                         )}
