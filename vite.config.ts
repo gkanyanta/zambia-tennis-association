@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Zambia Tennis Association',
+        name: 'ZTA Live Scores',
         short_name: 'ZTA',
         description: 'Official website of the Zambia Tennis Association',
         theme_color: '#16a34a',
