@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Undo2, MoreVertical, Pause, Play, XCircle, Trophy } from 'lucide-react'
+import { ArrowLeft, Undo2, MoreVertical, Pause, Play, XCircle, Trophy, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +26,30 @@ export function LiveScoring() {
   const [endReason, setEndReason] = useState<string>('retirement')
   const [endWinner, setEndWinner] = useState<string>('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+
+  // Match duration timer
+  useEffect(() => {
+    if (!match) return
+    const startTime = match.startedAt || match.createdAt
+    if (!startTime) return
+    const isRunning = match.status === 'live' || match.status === 'warmup'
+
+    const calcElapsed = () => Math.max(0, Math.floor((Date.now() - new Date(startTime).getTime()) / 1000))
+    setElapsed(calcElapsed())
+
+    if (!isRunning) return
+    const interval = setInterval(() => setElapsed(calcElapsed()), 1000)
+    return () => clearInterval(interval)
+  }, [match?.startedAt, match?.createdAt, match?.status])
+
+  const formatElapsed = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = seconds % 60
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    return `${m}:${String(s).padStart(2, '0')}`
+  }
 
   const handleAwardPoint = async (playerIndex: 0 | 1) => {
     if (actionLoading) return
@@ -116,11 +140,15 @@ export function LiveScoring() {
             {match.status === 'live' ? 'LIVE' : match.status.toUpperCase()}
           </Badge>
         </div>
-        {match.court && (
-          <div className="text-center text-xs text-muted-foreground mt-1">
-            Court {match.court}
-          </div>
-        )}
+        <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground mt-1">
+          {match.court && <span>Court {match.court}</span>}
+          {(match.startedAt || match.createdAt) && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span className="font-mono font-medium text-foreground">{formatElapsed(elapsed)}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Score Display */}
