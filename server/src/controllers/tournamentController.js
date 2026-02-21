@@ -2267,3 +2267,63 @@ export const downloadDrawPDF = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Bulk-schedule matches (assign court + time)
+// @route   PUT /api/tournaments/:tournamentId/schedule
+// @access  Private (Admin/Staff)
+export const scheduleMatches = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const { schedules } = req.body;
+
+    if (!schedules || !Array.isArray(schedules) || schedules.length === 0) {
+      return res.status(400).json({ success: false, message: 'schedules array is required' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    let updated = 0;
+    for (const { categoryId, matchId, court, scheduledTime } of schedules) {
+      const category = tournament.categories.id(categoryId);
+      if (!category || !category.draw) continue;
+
+      // Validate court against tournament courts list (if defined)
+      if (court && tournament.courts.length > 0 && !tournament.courts.includes(court)) {
+        return res.status(400).json({
+          success: false,
+          message: `Court "${court}" is not in the tournament courts list`
+        });
+      }
+
+      // Search in draw.matches
+      let match = category.draw.matches.id(matchId);
+
+      // If not found, search in roundRobinGroups
+      if (!match && category.draw.roundRobinGroups) {
+        for (const group of category.draw.roundRobinGroups) {
+          match = group.matches.id(matchId);
+          if (match) break;
+        }
+      }
+
+      if (!match) continue;
+
+      if (court !== undefined) match.court = court;
+      if (scheduledTime !== undefined) match.scheduledTime = scheduledTime ? new Date(scheduledTime) : null;
+      updated++;
+    }
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Updated ${updated} match schedule(s)`,
+      data: { updated }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

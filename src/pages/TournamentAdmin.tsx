@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
 import { TournamentFinance } from '@/components/TournamentFinance'
+import { OrderOfPlayAdmin } from '@/components/OrderOfPlayAdmin'
 import { MixerDrawView } from '@/components/MixerDrawView'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -87,6 +88,7 @@ export function TournamentAdmin() {
               <TabsTrigger value="entries">Entries</TabsTrigger>
               <TabsTrigger value="draws">Draws</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
+              <TabsTrigger value="order-of-play">Order of Play</TabsTrigger>
               <TabsTrigger value="finance">Finance</TabsTrigger>
             </TabsList>
 
@@ -104,6 +106,10 @@ export function TournamentAdmin() {
 
             <TabsContent value="results" className="space-y-6">
               <ResultsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
+            </TabsContent>
+
+            <TabsContent value="order-of-play" className="space-y-6">
+              <OrderOfPlayAdmin tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
             <TabsContent value="finance" className="space-y-6">

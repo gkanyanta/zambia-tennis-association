@@ -366,6 +366,7 @@ const tournamentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  courts: { type: [String], default: [] },
   categories: [categorySchema],
   status: {
     type: String,

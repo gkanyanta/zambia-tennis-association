@@ -28,6 +28,7 @@ export interface Tournament {
   allowPublicRegistration?: boolean;
   allowMultipleCategories?: boolean;
   requirePaymentUpfront?: boolean;
+  courts?: string[];
 }
 
 export interface TournamentCategory {
@@ -518,6 +519,18 @@ export const tournamentService = {
     await apiFetch(`/tournaments/${tournamentId}/finance/income/${incomeId}`, {
       method: 'DELETE',
     });
+  },
+
+  // Match Scheduling
+  async scheduleMatches(
+    tournamentId: string,
+    schedules: Array<{ categoryId: string; matchId: string; court: string; scheduledTime: string | null }>
+  ): Promise<{ updated: number }> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/schedule`, {
+      method: 'PUT',
+      body: JSON.stringify({ schedules }),
+    });
+    return response.data;
   },
 
   // Mixer (Madalas) methods

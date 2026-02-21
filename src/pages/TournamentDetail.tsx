@@ -22,6 +22,7 @@ import {
   FileDown
 } from 'lucide-react'
 import { tournamentService, Tournament } from '@/services/tournamentService'
+import { PublicOrderOfPlay } from '@/components/PublicOrderOfPlay'
 import { lencoPaymentService } from '@/services/lencoPaymentService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
 import { useToast } from '@/hooks/use-toast'
@@ -246,6 +247,7 @@ export function TournamentDetail() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="order-of-play">Order of Play</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
             </TabsList>
 
@@ -525,6 +527,10 @@ export function TournamentDetail() {
 
             <TabsContent value="draws">
               <PublicDrawsView tournament={tournament} />
+            </TabsContent>
+
+            <TabsContent value="order-of-play">
+              <PublicOrderOfPlay tournament={tournament} />
             </TabsContent>
 
             <TabsContent value="results">

@@ -168,6 +168,7 @@ export interface Tournament {
   allowPublicRegistration?: boolean
   allowMultipleCategories?: boolean
   requirePaymentUpfront?: boolean
+  courts?: string[]
   createdAt: string
   updatedAt: string
 }

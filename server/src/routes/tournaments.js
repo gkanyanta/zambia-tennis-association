@@ -33,7 +33,8 @@ import {
   updateManualIncome,
   deleteManualIncome,
   exportBudgetPDF,
-  exportFinanceReportPDF
+  exportFinanceReportPDF,
+  scheduleMatches
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -68,6 +69,9 @@ router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authoriz
 // Draw management routes
 router.get('/:tournamentId/categories/:categoryId/draw/pdf', downloadDrawPDF);
 router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('admin', 'staff'), generateDraw);
+
+// Match scheduling
+router.put('/:tournamentId/schedule', protect, authorize('admin', 'staff'), scheduleMatches);
 
 // Match result routes
 router.put('/:tournamentId/categories/:categoryId/matches/:matchId', protect, authorize('admin', 'staff'), updateMatchResult);
