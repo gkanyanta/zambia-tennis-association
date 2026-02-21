@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown, Heart, Handshake, Download } from 'lucide-react'
+import { Menu, X, LogOut, User, LayoutDashboard, ChevronDown, Heart, Handshake } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
@@ -242,18 +242,6 @@ export function Header() {
             Sponsorship
           </Link>
 
-          {/* Get App */}
-          <Link
-            to="/download"
-            className={cn(
-              "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1 whitespace-nowrap",
-              location.pathname === "/download" ? "text-primary" : "text-muted-foreground"
-            )}
-          >
-            <Download className="h-4 w-4" />
-            Get App
-          </Link>
-
           {/* Donate Button */}
           <Button
             variant="default"
@@ -357,23 +345,6 @@ export function Header() {
               <span className="flex items-center gap-2">
                 <Handshake className="h-4 w-4" />
                 Sponsorship
-              </span>
-            </Link>
-
-            {/* Get App */}
-            <Link
-              to="/download"
-              className={cn(
-                "block rounded-md px-3 py-2 text-base font-medium transition-colors",
-                location.pathname === "/download"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-muted"
-              )}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <span className="flex items-center gap-2">
-                <Download className="h-4 w-4" />
-                Get App
               </span>
             </Link>
 

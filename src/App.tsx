@@ -41,7 +41,6 @@ import { ZPINPayment } from '@/pages/ZPINPayment'
 import { ClubAffiliationPayment } from '@/pages/ClubAffiliationPayment'
 import { PaymentVerify } from '@/pages/PaymentVerify'
 import { Sponsors } from '@/pages/Sponsors'
-import { Download } from '@/pages/Download'
 import { Privacy } from '@/pages/Privacy'
 import { Terms } from '@/pages/Terms'
 import { NotFound } from '@/pages/NotFound'
@@ -137,7 +136,6 @@ function App() {
               <Route path="/donate/verify" element={<DonateVerify />} />
               <Route path="/pay/complete" element={<PayLaterComplete />} />
               <Route path="/payment/verify" element={<PaymentVerify />} />
-              <Route path="/download" element={<Download />} />
               <Route path="/sponsors" element={<Sponsors />} />
               <Route path="/partnerships" element={<Sponsors />} />
               <Route path="/privacy" element={<Privacy />} />
