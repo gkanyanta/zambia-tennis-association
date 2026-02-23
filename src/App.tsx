@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import { Header } from '@/components/Header'
+import { InstallBanner } from '@/components/InstallBanner'
 import { Footer } from '@/components/Footer'
 import { usePageTracking } from '@/hooks/usePageTracking'
 
@@ -68,6 +69,7 @@ import { Scoreboard } from '@/pages/Scoreboard'
 import { RegisterPlayer } from '@/pages/RegisterPlayer'
 import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
 import { PayLaterComplete } from '@/pages/PayLaterComplete'
+import { Download } from '@/pages/Download'
 
 function App() {
   return (
@@ -75,6 +77,7 @@ function App() {
       <AuthProvider>
         <PageTracker />
         <div className="flex flex-col min-h-screen">
+          <InstallBanner />
           <Header />
           <main className="flex-1">
             <Routes>
@@ -138,6 +141,8 @@ function App() {
               <Route path="/payment/verify" element={<PaymentVerify />} />
               <Route path="/partnerships" element={<Sponsors />} />
               <Route path="/sponsors" element={<Sponsors />} />
+              <Route path="/install" element={<Download />} />
+              <Route path="/download" element={<Download />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="*" element={<NotFound />} />

@@ -31,6 +31,7 @@ const aboutMenu = [
   { name: 'Membership', href: '/membership' },
   { name: 'Register ZPIN', href: '/register-zpin' },
   { name: 'Club Affiliation', href: '/club-affiliation' },
+  { name: 'Get App', href: '/install' },
 ]
 
 type DropdownKey = 'tennis' | 'connect' | 'about'

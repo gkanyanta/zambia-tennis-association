@@ -57,6 +57,7 @@ coverage/
 dist/
 
 # Bubblewrap / TWA
+*.apk
 app-release-bundle.aab
 .build/
 .twa-build/
