@@ -589,6 +589,61 @@ function generateMirroredTies(clubs, siblingTies, leagueDates, format) {
   return ties;
 }
 
+// POST /api/leagues/:id/ties
+export const createTie = async (req, res) => {
+  try {
+    const { homeTeam, awayTeam, round, roundName, scheduledDate, scheduledTime, venue, venueAddress } = req.body;
+
+    const league = await League.findById(req.params.id).populate('teams');
+    if (!league) {
+      return res.status(404).json({ success: false, error: 'League not found' });
+    }
+
+    if (!homeTeam || !awayTeam) {
+      return res.status(400).json({ success: false, error: 'Both home and away teams are required' });
+    }
+    if (homeTeam === awayTeam) {
+      return res.status(400).json({ success: false, error: 'Home and away teams must be different' });
+    }
+
+    const teamIds = league.teams.map(t => t._id.toString());
+    if (!teamIds.includes(homeTeam)) {
+      return res.status(400).json({ success: false, error: 'Home team does not belong to this league' });
+    }
+    if (!teamIds.includes(awayTeam)) {
+      return res.status(400).json({ success: false, error: 'Away team does not belong to this league' });
+    }
+
+    const format = MATCH_FORMATS[league.settings.matchFormat] || MATCH_FORMATS['2s1d'];
+    const emptyRubbers = format.map(f => ({
+      rubberNumber: f.rubberNumber,
+      type: f.type,
+      sets: [],
+      score: { homeSetsWon: 0, awaySetsWon: 0 },
+      status: 'not_started'
+    }));
+
+    const tie = await Tie.create({
+      league: req.params.id,
+      homeTeam,
+      awayTeam,
+      round: round || 1,
+      roundName: roundName || `Round ${round || 1}`,
+      scheduledDate: scheduledDate || new Date(),
+      scheduledTime: scheduledTime || undefined,
+      venue: venue || 'TBD',
+      venueAddress: venueAddress || '',
+      status: 'scheduled',
+      rubbers: emptyRubbers
+    });
+
+    const populated = await Tie.findById(tie._id).populate('homeTeam awayTeam');
+    res.status(201).json({ success: true, data: populated });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
 // PUT /api/leagues/:leagueId/ties/:tieId
 export const updateTie = async (req, res) => {
   try {

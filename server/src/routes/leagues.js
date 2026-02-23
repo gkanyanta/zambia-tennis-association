@@ -9,6 +9,7 @@ import {
   getLeagueTies,
   getTie,
   generateTies,
+  createTie,
   updateTie,
   getAvailablePlayers,
   updateTiePlayers,
@@ -43,6 +44,7 @@ router.put('/:id/registrations/:registrationId', protect, authorize('admin', 'st
 // Ties (fixtures)
 router.get('/:id/ties', getLeagueTies);
 router.post('/:id/ties/generate', protect, authorize('admin', 'staff'), generateTies);
+router.post('/:id/ties', protect, authorize('admin', 'staff'), createTie);
 router.get('/:leagueId/ties/:tieId', getTie);
 router.put('/:leagueId/ties/:tieId', protect, authorize('admin', 'staff'), updateTie);
 

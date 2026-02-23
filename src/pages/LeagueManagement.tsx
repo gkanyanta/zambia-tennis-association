@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2 } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2, List, Pencil, CalendarClock, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   fetchLeagues,
@@ -16,8 +16,13 @@ import {
   fetchLeagueRegistrations,
   reviewLeagueRegistration,
   generatePlayoffs,
+  fetchLeagueTies,
+  createTie as createTieApi,
+  updateTie as updateTieApi,
+  recordWalkover as recordWalkoverApi,
   League,
   LeagueRegistration,
+  Tie,
   FORMAT_LABELS
 } from '@/services/leagueService'
 import { clubService, Club } from '@/services/clubService'
@@ -204,6 +209,136 @@ export function LeagueManagement() {
     }
   }
 
+  // Fixtures
+  const [fixtures, setFixtures] = useState<Tie[]>([])
+  const [showFixtures, setShowFixtures] = useState<string | null>(null)
+  const [loadingFixtures, setLoadingFixtures] = useState(false)
+  const [fixtureRoundFilter, setFixtureRoundFilter] = useState<number | null>(null)
+
+  // Fixture modals
+  const [showCreateFixture, setShowCreateFixture] = useState<League | null>(null)
+  const [showEditFixture, setShowEditFixture] = useState<{ tie: Tie; league: League; mode: 'edit' | 'reschedule' } | null>(null)
+  const [showWalkoverModal, setShowWalkoverModal] = useState<{ tie: Tie; league: League } | null>(null)
+
+  const [createFixtureForm, setCreateFixtureForm] = useState({
+    homeTeam: '', awayTeam: '', round: 1, roundName: '', scheduledDate: '', scheduledTime: '', venue: '', venueAddress: ''
+  })
+  const [editFixtureForm, setEditFixtureForm] = useState({
+    scheduledDate: '', scheduledTime: '', venue: '', venueAddress: '', postponementReason: ''
+  })
+  const [walkoverForm, setWalkoverForm] = useState({ walkoverTeam: '', reason: '' })
+
+  const handleViewFixtures = async (leagueId: string) => {
+    if (showFixtures === leagueId) {
+      setShowFixtures(null)
+      return
+    }
+    setLoadingFixtures(true)
+    setFixtureRoundFilter(null)
+    try {
+      const response = await fetchLeagueTies(leagueId)
+      setFixtures(response.data)
+      setShowFixtures(leagueId)
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to load fixtures', variant: 'destructive' })
+    } finally {
+      setLoadingFixtures(false)
+    }
+  }
+
+  const handleCreateFixture = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!showCreateFixture) return
+    try {
+      await createTieApi(showCreateFixture._id, {
+        ...createFixtureForm,
+        roundName: createFixtureForm.roundName || `Round ${createFixtureForm.round}`
+      })
+      toast({ title: 'Success', description: 'Fixture created' })
+      setShowCreateFixture(null)
+      handleViewFixtures(showCreateFixture._id)
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to create fixture', variant: 'destructive' })
+    }
+  }
+
+  const handleEditFixture = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!showEditFixture) return
+    const { tie, league, mode } = showEditFixture
+    try {
+      const data: any = {
+        scheduledDate: editFixtureForm.scheduledDate,
+        scheduledTime: editFixtureForm.scheduledTime,
+        venue: editFixtureForm.venue,
+        venueAddress: editFixtureForm.venueAddress
+      }
+      if (mode === 'reschedule') {
+        data.status = 'postponed'
+        data.postponementReason = editFixtureForm.postponementReason
+      }
+      await updateTieApi(league._id, tie._id, data)
+      toast({ title: 'Success', description: mode === 'reschedule' ? 'Fixture rescheduled' : 'Fixture updated' })
+      setShowEditFixture(null)
+      handleViewFixtures(league._id)
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to update fixture', variant: 'destructive' })
+    }
+  }
+
+  const openEditFixture = (tie: Tie, league: League, mode: 'edit' | 'reschedule') => {
+    setEditFixtureForm({
+      scheduledDate: tie.scheduledDate?.split('T')[0] || '',
+      scheduledTime: tie.scheduledTime || '',
+      venue: tie.venue || '',
+      venueAddress: tie.venueAddress || '',
+      postponementReason: ''
+    })
+    setShowEditFixture({ tie, league, mode })
+  }
+
+  const handleWalkover = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!showWalkoverModal) return
+    const { tie, league } = showWalkoverModal
+    if (!walkoverForm.walkoverTeam) {
+      toast({ title: 'Validation', description: 'Select the team that forfeits', variant: 'destructive' })
+      return
+    }
+    try {
+      await recordWalkoverApi(league._id, tie._id, {
+        walkoverTeam: walkoverForm.walkoverTeam,
+        reason: walkoverForm.reason || undefined
+      })
+      toast({ title: 'Success', description: 'Walkover recorded' })
+      setShowWalkoverModal(null)
+      handleViewFixtures(league._id)
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.error || 'Failed to record walkover', variant: 'destructive' })
+    }
+  }
+
+  const getFixtureRounds = () => {
+    const rounds = [...new Set(fixtures.map(f => f.round))].sort((a, b) => a - b)
+    return rounds
+  }
+
+  const filteredFixtures = fixtureRoundFilter
+    ? fixtures.filter(f => f.round === fixtureRoundFilter)
+    : fixtures
+
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'scheduled': return 'secondary'
+      case 'in_progress': return 'default'
+      case 'completed': return 'default'
+      case 'postponed': return 'outline'
+      case 'walkover': return 'destructive'
+      case 'cancelled': return 'destructive'
+      default: return 'secondary'
+    }
+  }
+
   // Playoffs
   const handleGeneratePlayoffs = async (league: League) => {
     if (!confirm(`Generate playoff bracket for "${league.name}"? This picks the top 2 teams from each region.`)) return
@@ -265,6 +400,9 @@ export function LeagueManagement() {
                       <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEdit(league)}>
                         <Edit className="h-4 w-4 mr-1" />Edit
                       </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleViewFixtures(league._id)} title="View Fixtures">
+                        <List className="h-4 w-4" />
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => handleViewRegistrations(league._id)} title="View Registrations">
                         <ClipboardList className="h-4 w-4" />
                       </Button>
@@ -278,6 +416,83 @@ export function LeagueManagement() {
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
+
+                    {/* Fixtures Panel */}
+                    {showFixtures === league._id && (
+                      <div className="mt-4 border-t pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-sm">Fixtures ({fixtures.length})</h4>
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                            setCreateFixtureForm({ homeTeam: '', awayTeam: '', round: 1, roundName: '', scheduledDate: '', scheduledTime: '', venue: '', venueAddress: '' })
+                            setShowCreateFixture(league)
+                          }}>
+                            <Plus className="h-3 w-3 mr-1" />Add Fixture
+                          </Button>
+                        </div>
+                        {/* Round filters */}
+                        {getFixtureRounds().length > 1 && (
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            <Button size="sm" variant={fixtureRoundFilter === null ? 'default' : 'outline'} className="h-6 text-xs px-2"
+                              onClick={() => setFixtureRoundFilter(null)}>All</Button>
+                            {getFixtureRounds().map(r => (
+                              <Button key={r} size="sm" variant={fixtureRoundFilter === r ? 'default' : 'outline'} className="h-6 text-xs px-2"
+                                onClick={() => setFixtureRoundFilter(r)}>R{r}</Button>
+                            ))}
+                          </div>
+                        )}
+                        {loadingFixtures ? (
+                          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" /></div>
+                        ) : filteredFixtures.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No fixtures{fixtureRoundFilter ? ' for this round' : ''}</p>
+                        ) : (
+                          <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {filteredFixtures.map(tie => (
+                              <div key={tie._id} className="p-2 bg-muted/30 rounded text-sm space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs shrink-0">R{tie.round}</Badge>
+                                  <Badge variant={statusColor(tie.status) as any} className="text-xs shrink-0">{tie.status}</Badge>
+                                  <span className="font-medium truncate">{tie.homeTeam?.name || 'TBD'}</span>
+                                  <span className="text-muted-foreground">vs</span>
+                                  <span className="font-medium truncate">{tie.awayTeam?.name || 'TBD'}</span>
+                                  {tie.status === 'completed' && (
+                                    <span className="text-xs font-semibold ml-auto shrink-0">{tie.score?.home} - {tie.score?.away}</span>
+                                  )}
+                                  {tie.status === 'walkover' && (
+                                    <span className="text-xs font-semibold ml-auto shrink-0">W/O</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <div className="text-xs text-muted-foreground">
+                                    {tie.scheduledDate && new Date(tie.scheduledDate).toLocaleDateString()}
+                                    {tie.scheduledTime && ` ${tie.scheduledTime}`}
+                                    {tie.venue && ` · ${tie.venue}`}
+                                  </div>
+                                  {!['completed', 'walkover'].includes(tie.status) && (
+                                    <div className="flex gap-1">
+                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Edit"
+                                        onClick={() => openEditFixture(tie, league, 'edit')}>
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Reschedule"
+                                        onClick={() => openEditFixture(tie, league, 'reschedule')}>
+                                        <CalendarClock className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Walkover"
+                                        onClick={() => {
+                                          setWalkoverForm({ walkoverTeam: '', reason: '' })
+                                          setShowWalkoverModal({ tie, league })
+                                        }}>
+                                        <AlertTriangle className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Registration Review Panel */}
                     {showRegistrations === league._id && (
@@ -332,7 +547,7 @@ export function LeagueManagement() {
         </div>
       </section>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit League Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <Card className="max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -481,6 +696,179 @@ export function LeagueManagement() {
                 <div className="flex gap-2 justify-end pt-4">
                   <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
                   <Button type="submit">{editingLeague ? 'Update' : 'Create'} League</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Create Fixture Modal */}
+      {showCreateFixture && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowCreateFixture(null)}>
+          <Card className="max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle>Create Fixture</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateFixture} className="space-y-4">
+                <div>
+                  <Label>Home Team *</Label>
+                  <select value={createFixtureForm.homeTeam}
+                    onChange={e => setCreateFixtureForm({ ...createFixtureForm, homeTeam: e.target.value })} className={selectClass} required>
+                    <option value="">Select home team</option>
+                    {showCreateFixture.teams.map(team => (
+                      <option key={team._id} value={team._id}>{team.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Away Team *</Label>
+                  <select value={createFixtureForm.awayTeam}
+                    onChange={e => setCreateFixtureForm({ ...createFixtureForm, awayTeam: e.target.value })} className={selectClass} required>
+                    <option value="">Select away team</option>
+                    {showCreateFixture.teams
+                      .filter(t => t._id !== createFixtureForm.homeTeam)
+                      .map(team => (
+                        <option key={team._id} value={team._id}>{team.name}</option>
+                      ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Round Number</Label>
+                    <Input type="number" min={1} value={createFixtureForm.round}
+                      onChange={e => setCreateFixtureForm({ ...createFixtureForm, round: parseInt(e.target.value) || 1 })} />
+                  </div>
+                  <div>
+                    <Label>Round Name</Label>
+                    <Input value={createFixtureForm.roundName}
+                      onChange={e => setCreateFixtureForm({ ...createFixtureForm, roundName: e.target.value })}
+                      placeholder={`Round ${createFixtureForm.round}`} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Date</Label>
+                    <Input type="date" value={createFixtureForm.scheduledDate}
+                      onChange={e => setCreateFixtureForm({ ...createFixtureForm, scheduledDate: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Time</Label>
+                    <Input type="time" value={createFixtureForm.scheduledTime}
+                      onChange={e => setCreateFixtureForm({ ...createFixtureForm, scheduledTime: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Venue</Label>
+                  <Input value={createFixtureForm.venue}
+                    onChange={e => setCreateFixtureForm({ ...createFixtureForm, venue: e.target.value })} placeholder="Venue name" />
+                </div>
+                <div>
+                  <Label>Venue Address</Label>
+                  <Input value={createFixtureForm.venueAddress}
+                    onChange={e => setCreateFixtureForm({ ...createFixtureForm, venueAddress: e.target.value })} placeholder="Address" />
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button type="button" variant="outline" onClick={() => setShowCreateFixture(null)}>Cancel</Button>
+                  <Button type="submit">Create Fixture</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit / Reschedule Fixture Modal */}
+      {showEditFixture && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowEditFixture(null)}>
+          <Card className="max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle>
+                {showEditFixture.mode === 'reschedule' ? 'Reschedule Fixture' : 'Edit Fixture'}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {showEditFixture.tie.homeTeam?.name} vs {showEditFixture.tie.awayTeam?.name}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleEditFixture} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Date</Label>
+                    <Input type="date" value={editFixtureForm.scheduledDate}
+                      onChange={e => setEditFixtureForm({ ...editFixtureForm, scheduledDate: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Time</Label>
+                    <Input type="time" value={editFixtureForm.scheduledTime}
+                      onChange={e => setEditFixtureForm({ ...editFixtureForm, scheduledTime: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Venue</Label>
+                  <Input value={editFixtureForm.venue}
+                    onChange={e => setEditFixtureForm({ ...editFixtureForm, venue: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Venue Address</Label>
+                  <Input value={editFixtureForm.venueAddress}
+                    onChange={e => setEditFixtureForm({ ...editFixtureForm, venueAddress: e.target.value })} />
+                </div>
+                {showEditFixture.mode === 'reschedule' && (
+                  <div>
+                    <Label>Reason for Rescheduling</Label>
+                    <textarea value={editFixtureForm.postponementReason}
+                      onChange={e => setEditFixtureForm({ ...editFixtureForm, postponementReason: e.target.value })}
+                      className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="Enter reason for rescheduling..." />
+                  </div>
+                )}
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button type="button" variant="outline" onClick={() => setShowEditFixture(null)}>Cancel</Button>
+                  <Button type="submit">{showEditFixture.mode === 'reschedule' ? 'Reschedule' : 'Update'}</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Walkover Modal */}
+      {showWalkoverModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowWalkoverModal(null)}>
+          <Card className="max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <CardHeader>
+              <CardTitle>Record Walkover</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {showWalkoverModal.tie.homeTeam?.name} vs {showWalkoverModal.tie.awayTeam?.name}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleWalkover} className="space-y-4">
+                <div>
+                  <Label>Team that Forfeits *</Label>
+                  <select value={walkoverForm.walkoverTeam}
+                    onChange={e => setWalkoverForm({ ...walkoverForm, walkoverTeam: e.target.value })} className={selectClass} required>
+                    <option value="">Select team</option>
+                    <option value={showWalkoverModal.tie.homeTeam?._id}>
+                      {showWalkoverModal.tie.homeTeam?.name} (Home)
+                    </option>
+                    <option value={showWalkoverModal.tie.awayTeam?._id}>
+                      {showWalkoverModal.tie.awayTeam?.name} (Away)
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Reason (optional)</Label>
+                  <textarea value={walkoverForm.reason}
+                    onChange={e => setWalkoverForm({ ...walkoverForm, reason: e.target.value })}
+                    className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="Reason for walkover..." />
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button type="button" variant="outline" onClick={() => setShowWalkoverModal(null)}>Cancel</Button>
+                  <Button type="submit" variant="destructive">Record Walkover</Button>
                 </div>
               </form>
             </CardContent>

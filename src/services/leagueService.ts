@@ -221,10 +221,27 @@ export const generateLeagueTies = async (
   return response.data;
 };
 
+export const createTie = async (
+  leagueId: string,
+  data: {
+    homeTeam: string;
+    awayTeam: string;
+    round?: number;
+    roundName?: string;
+    scheduledDate?: string;
+    scheduledTime?: string;
+    venue?: string;
+    venueAddress?: string;
+  }
+): Promise<{ success: boolean; data: Tie }> => {
+  const response = await apiClient.post(`${API_URL}/${leagueId}/ties`, data);
+  return response.data;
+};
+
 export const updateTie = async (
   leagueId: string,
   tieId: string,
-  data: { status?: string; notes?: string; scheduledDate?: string; scheduledTime?: string; venue?: string }
+  data: { status?: string; notes?: string; scheduledDate?: string; scheduledTime?: string; venue?: string; venueAddress?: string; postponementReason?: string }
 ): Promise<{ success: boolean; data: Tie }> => {
   const response = await apiClient.put(`${API_URL}/${leagueId}/ties/${tieId}`, data);
   return response.data;
