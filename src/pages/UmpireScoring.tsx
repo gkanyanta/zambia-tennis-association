@@ -19,7 +19,7 @@ import { getScoreString } from '@/utils/tennisScoring'
 export function UmpireScoring() {
   const { liveMatchId } = useParams()
   const navigate = useNavigate()
-  const { match, loading, error, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch } = useLiveMatch(liveMatchId)
+  const { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch } = useLiveMatch(liveMatchId)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [endDialogOpen, setEndDialogOpen] = useState(false)
@@ -117,6 +117,8 @@ export function UmpireScoring() {
 
   const isCompleted = match.status === 'completed'
   const isSuspended = match.status === 'suspended'
+  const isWarmup = match.status === 'warmup'
+  const hasNoPoints = !match.matchState.pointHistory?.length
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -199,8 +201,45 @@ export function UmpireScoring() {
         </div>
       )}
 
+      {/* First Server Selection - warmup with no points scored */}
+      {isWarmup && hasNoPoints && (
+        <div className="flex-1 flex flex-col items-center justify-center p-4">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-bold mb-1">Who serves first?</h2>
+            <p className="text-sm text-muted-foreground">Select after the coin toss</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+            <button
+              onClick={async () => { await setFirstServer(0) }}
+              disabled={actionLoading}
+              className={`flex items-center justify-center rounded-xl border-2 p-6 transition-colors min-h-[100px] ${
+                match.matchState.server === 0
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary'
+                  : 'border-primary/20 bg-primary/5 hover:bg-primary/10'
+              }`}
+            >
+              <span className="text-lg font-bold text-center">{match.player1.name}</span>
+            </button>
+            <button
+              onClick={async () => { await setFirstServer(1) }}
+              disabled={actionLoading}
+              className={`flex items-center justify-center rounded-xl border-2 p-6 transition-colors min-h-[100px] ${
+                match.matchState.server === 1
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary'
+                  : 'border-primary/20 bg-primary/5 hover:bg-primary/10'
+              }`}
+            >
+              <span className="text-lg font-bold text-center">{match.player2.name}</span>
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Tap a player name to select, then award the first point to begin
+          </p>
+        </div>
+      )}
+
       {/* Point Buttons - only when live or warmup */}
-      {!isCompleted && !isSuspended && (
+      {!isCompleted && !isSuspended && !(isWarmup && hasNoPoints) && (
         <div className="flex-1 flex flex-col p-4 gap-4">
           <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
             {/* Player 1 Button */}

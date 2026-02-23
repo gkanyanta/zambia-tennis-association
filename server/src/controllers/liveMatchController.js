@@ -127,6 +127,41 @@ export const startLiveMatch = async (req, res) => {
   }
 };
 
+// @desc    Set first server (umpire picks who serves first before scoring begins)
+// @route   PUT /api/live-matches/:id/first-server
+// @access  Private (umpire or admin/staff)
+export const setFirstServer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firstServer } = req.body;
+
+    if (firstServer !== 0 && firstServer !== 1) {
+      return res.status(400).json({ success: false, message: 'firstServer must be 0 or 1' });
+    }
+
+    const liveMatch = await LiveMatch.findById(id);
+    if (!liveMatch) {
+      return res.status(404).json({ success: false, message: 'Live match not found' });
+    }
+
+    if (liveMatch.status !== 'warmup') {
+      return res.status(400).json({ success: false, message: 'First server can only be set during warmup' });
+    }
+
+    if (liveMatch.matchState.pointHistory && liveMatch.matchState.pointHistory.length > 0) {
+      return res.status(400).json({ success: false, message: 'Cannot change first server after points have been scored' });
+    }
+
+    liveMatch.matchState.server = firstServer;
+    liveMatch.markModified('matchState');
+    await liveMatch.save();
+
+    res.status(200).json({ success: true, data: liveMatch });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Award a point
 // @route   POST /api/live-matches/:id/point
 // @access  Private (Admin/Staff)

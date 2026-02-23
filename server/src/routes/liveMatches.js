@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   startLiveMatch,
+  setFirstServer,
   awardPointHandler,
   undoPointHandler,
   suspendMatch,
@@ -27,6 +28,7 @@ router.get('/:id', getLiveMatch);
 router.post('/', protect, authorize('admin', 'staff'), startLiveMatch);
 
 // Protected routes (admin/staff or assigned umpire for scoring actions)
+router.put('/:id/first-server', protect, authorizeUmpire, setFirstServer);
 router.post('/:id/point', protect, authorizeUmpire, awardPointHandler);
 router.post('/:id/undo', protect, authorizeUmpire, undoPointHandler);
 router.put('/:id/suspend', protect, authorizeUmpire, suspendMatch);

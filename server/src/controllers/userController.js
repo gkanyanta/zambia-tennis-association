@@ -15,6 +15,15 @@ export const getUsers = async (req, res) => {
       filter.role = req.query.role;
     }
 
+    // Search by name if provided
+    if (req.query.search) {
+      const term = req.query.search.trim();
+      filter.$or = [
+        { firstName: { $regex: term, $options: 'i' } },
+        { lastName: { $regex: term, $options: 'i' } }
+      ];
+    }
+
     const users = await User.find(filter).select('-password').sort({ createdAt: -1 });
 
     res.status(200).json({

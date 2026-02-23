@@ -7,6 +7,7 @@ interface UseLiveMatchReturn {
   match: LiveMatch | null
   loading: boolean
   error: string | null
+  setFirstServer: (playerIndex: 0 | 1) => Promise<void>
   awardPoint: (playerIndex: 0 | 1) => Promise<void>
   undoPoint: () => Promise<void>
   suspendMatch: () => Promise<void>
@@ -79,6 +80,19 @@ export function useLiveMatch(liveMatchId: string | undefined): UseLiveMatchRetur
     }
   }, [liveMatchId, socket])
 
+  const setFirstServer = useCallback(async (playerIndex: 0 | 1) => {
+    if (!liveMatchId) return
+    try {
+      const data = await apiFetch(`/live-matches/${liveMatchId}/first-server`, {
+        method: 'PUT',
+        body: JSON.stringify({ firstServer: playerIndex })
+      })
+      setMatch(data.data)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }, [liveMatchId])
+
   const awardPoint = useCallback(async (playerIndex: 0 | 1) => {
     if (!liveMatchId) return
     try {
@@ -141,5 +155,5 @@ export function useLiveMatch(liveMatchId: string | undefined): UseLiveMatchRetur
     }
   }, [liveMatchId])
 
-  return { match, loading, error, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch }
+  return { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch }
 }

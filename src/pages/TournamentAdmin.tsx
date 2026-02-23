@@ -529,7 +529,6 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     shortSets: false,
     superTiebreak: true,
     noAd: false,
-    firstServer: 0 as 0 | 1,
     court: '',
     umpireId: ''
   })
@@ -580,7 +579,6 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
       shortSets: isU10,
       superTiebreak: true,
       noAd: false,
-      firstServer: 0,
       court: match.court || '',
       umpireId: ''
     })
@@ -605,7 +603,6 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
           noAd: liveSettings.noAd
         },
         court: liveSettings.court || undefined,
-        firstServer: liveSettings.firstServer,
         umpireId: liveSettings.umpireId || undefined
       })
       navigate(`/admin/tournaments/${tournament._id}/live-scoring/${data.data._id}`)
@@ -1018,18 +1015,6 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                   checked={liveSettings.noAd}
                   onCheckedChange={(checked) => setLiveSettings({ ...liveSettings, noAd: checked })}
                 />
-              </div>
-
-              <div className="space-y-1">
-                <Label>First Server</Label>
-                <select
-                  className="w-full p-2 border rounded-md"
-                  value={liveSettings.firstServer}
-                  onChange={(e) => setLiveSettings({ ...liveSettings, firstServer: Number(e.target.value) as 0 | 1 })}
-                >
-                  <option value={0}>{liveScoreMatch.player1?.name || 'Player 1'}</option>
-                  <option value={1}>{liveScoreMatch.player2?.name || 'Player 2'}</option>
-                </select>
               </div>
 
               <div className="space-y-1">
