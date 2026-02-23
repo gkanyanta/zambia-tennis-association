@@ -544,12 +544,12 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     fetchLiveMatches()
   }, [tournament._id])
 
-  // Fetch umpires when dialog opens
+  // Fetch players for umpire selection when dialog opens
   useEffect(() => {
     if (!liveScoreDialogOpen) return
     const fetchUmpires = async () => {
       try {
-        const data = await apiFetch('/users?role=umpire')
+        const data = await apiFetch('/users?role=player')
         setUmpireList(data.data || [])
       } catch {
         setUmpireList([])

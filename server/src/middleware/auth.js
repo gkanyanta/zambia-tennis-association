@@ -37,8 +37,8 @@ export const protect = async (req, res, next) => {
   }
 };
 
-// Verify umpire is assigned to the match they're trying to score
-// Admin/staff bypass this check
+// Verify user is admin/staff or assigned as umpire to the match
+// Any user (including players) assigned as umpire can score their match
 export const authorizeUmpire = async (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ success: false, message: 'User not authenticated' });
@@ -49,25 +49,21 @@ export const authorizeUmpire = async (req, res, next) => {
     return next();
   }
 
-  // Umpires must be assigned to the match
-  if (req.user.role === 'umpire') {
-    try {
-      const liveMatch = await LiveMatch.findById(req.params.id);
-      if (!liveMatch) {
-        return res.status(404).json({ success: false, message: 'Live match not found' });
-      }
-
-      if (liveMatch.umpireId !== req.user._id.toString()) {
-        return res.status(403).json({ success: false, message: 'You are not assigned to this match' });
-      }
-
-      return next();
-    } catch (error) {
-      return res.status(500).json({ success: false, message: 'Server error' });
+  // Any user assigned as umpire to this specific match can score it
+  try {
+    const liveMatch = await LiveMatch.findById(req.params.id);
+    if (!liveMatch) {
+      return res.status(404).json({ success: false, message: 'Live match not found' });
     }
-  }
 
-  return res.status(403).json({ success: false, message: 'Not authorized' });
+    if (liveMatch.umpireId === req.user._id.toString()) {
+      return next();
+    }
+
+    return res.status(403).json({ success: false, message: 'You are not assigned to this match' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 // Grant access to specific roles

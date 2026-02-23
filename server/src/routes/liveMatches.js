@@ -26,11 +26,11 @@ router.get('/:id', getLiveMatch);
 // Protected routes (admin/staff only for match creation)
 router.post('/', protect, authorize('admin', 'staff'), startLiveMatch);
 
-// Protected routes (admin/staff/umpire for scoring actions)
-router.post('/:id/point', protect, authorize('admin', 'staff', 'umpire'), authorizeUmpire, awardPointHandler);
-router.post('/:id/undo', protect, authorize('admin', 'staff', 'umpire'), authorizeUmpire, undoPointHandler);
-router.put('/:id/suspend', protect, authorize('admin', 'staff', 'umpire'), authorizeUmpire, suspendMatch);
-router.put('/:id/resume', protect, authorize('admin', 'staff', 'umpire'), authorizeUmpire, resumeMatch);
-router.put('/:id/end', protect, authorize('admin', 'staff', 'umpire'), authorizeUmpire, endMatch);
+// Protected routes (admin/staff or assigned umpire for scoring actions)
+router.post('/:id/point', protect, authorizeUmpire, awardPointHandler);
+router.post('/:id/undo', protect, authorizeUmpire, undoPointHandler);
+router.put('/:id/suspend', protect, authorizeUmpire, suspendMatch);
+router.put('/:id/resume', protect, authorizeUmpire, resumeMatch);
+router.put('/:id/end', protect, authorizeUmpire, endMatch);
 
 export default router;
