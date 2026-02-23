@@ -17,6 +17,7 @@ import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCir
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
 import { liveMatchService } from '@/services/liveMatchService'
+import { apiFetch } from '@/services/api'
 
 export function TournamentAdmin() {
   const navigate = useNavigate()
@@ -523,8 +524,10 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     superTiebreak: true,
     noAd: false,
     firstServer: 0 as 0 | 1,
-    court: ''
+    court: '',
+    umpireId: ''
   })
+  const [umpireList, setUmpireList] = useState<{ _id: string; firstName: string; lastName: string }[]>([])
 
   // Fetch active live matches for this tournament
   useEffect(() => {
@@ -541,6 +544,20 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     fetchLiveMatches()
   }, [tournament._id])
 
+  // Fetch umpires when dialog opens
+  useEffect(() => {
+    if (!liveScoreDialogOpen) return
+    const fetchUmpires = async () => {
+      try {
+        const data = await apiFetch('/users?role=umpire')
+        setUmpireList(data.data || [])
+      } catch {
+        setUmpireList([])
+      }
+    }
+    fetchUmpires()
+  }, [liveScoreDialogOpen])
+
   const openLiveScoreDialog = (match: any) => {
     const isU10 = selectedCategory?.ageGroup === 'U10'
     setLiveScoreMatch(match)
@@ -550,7 +567,8 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
       superTiebreak: true,
       noAd: false,
       firstServer: 0,
-      court: match.court || ''
+      court: match.court || '',
+      umpireId: ''
     })
     setLiveScoreDialogOpen(true)
   }
@@ -573,7 +591,8 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
           noAd: liveSettings.noAd
         },
         court: liveSettings.court || undefined,
-        firstServer: liveSettings.firstServer
+        firstServer: liveSettings.firstServer,
+        umpireId: liveSettings.umpireId || undefined
       })
       navigate(`/admin/tournaments/${tournament._id}/live-scoring/${data.data._id}`)
     } catch (error: any) {
@@ -1008,6 +1027,23 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                   value={liveSettings.court}
                   onChange={(e) => setLiveSettings({ ...liveSettings, court: e.target.value })}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Chair Umpire</Label>
+                <select
+                  className="w-full p-2 border rounded-md"
+                  value={liveSettings.umpireId}
+                  onChange={(e) => setLiveSettings({ ...liveSettings, umpireId: e.target.value })}
+                >
+                  <option value="">None (self)</option>
+                  {umpireList.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.firstName} {u.lastName}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">Assign an umpire to score this match remotely</p>
               </div>
             </div>
           )}

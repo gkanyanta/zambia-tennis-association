@@ -65,91 +65,115 @@ import { IncomeAdmin } from '@/pages/IncomeAdmin'
 import { TrafficStats } from '@/pages/TrafficStats'
 import { LiveScoring } from '@/pages/LiveScoring'
 import { Scoreboard } from '@/pages/Scoreboard'
+import { UmpireDashboard } from '@/pages/UmpireDashboard'
+import { UmpireScoring } from '@/pages/UmpireScoring'
 
 import { RegisterPlayer } from '@/pages/RegisterPlayer'
 import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
 import { PayLaterComplete } from '@/pages/PayLaterComplete'
 import { Download } from '@/pages/Download'
 
+// Layout wrapper that includes Header/Footer
+function MainLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col min-h-screen">
+      <InstallBanner />
+      <Header />
+      <main className="flex-1">{children}</main>
+      <Footer />
+    </div>
+  )
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Umpire routes - standalone, no Header/Footer */}
+      <Route path="/umpire" element={<UmpireDashboard />} />
+      <Route path="/umpire/score/:liveMatchId" element={<UmpireScoring />} />
+
+      {/* All other routes with main layout */}
+      <Route path="*" element={
+        <MainLayout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/admin/players" element={<PlayerManagement />} />
+            <Route path="/admin/clubs" element={<ClubManagement />} />
+            <Route path="/admin/coaches" element={<CoachManagement />} />
+            <Route path="/admin/coach-settings" element={<CoachListingSettings />} />
+            <Route path="/admin/tournaments" element={<TournamentAdmin />} />
+            <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
+            <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
+            <Route path="/admin/tournaments/:tournamentId/edit" element={<TournamentCreate />} />
+            <Route path="/admin/rankings/import" element={<RankingsImport />} />
+
+            <Route path="/admin/executive-members" element={<ExecutiveMembersManagement />} />
+            <Route path="/admin/affiliations" element={<AffiliationsManagement />} />
+            <Route path="/admin/about-content" element={<AboutContentEditor />} />
+            <Route path="/admin/leagues" element={<LeagueManagement />} />
+            <Route path="/admin/calendar" element={<CalendarManagement />} />
+            <Route path="/admin/membership" element={<MembershipAdmin />} />
+            <Route path="/admin/income" element={<IncomeAdmin />} />
+            <Route path="/admin/traffic" element={<TrafficStats />} />
+            <Route path="/admin/tournaments/:tournamentId/live-scoring/:liveMatchId" element={<LiveScoring />} />
+            <Route path="/live-scores" element={<Scoreboard />} />
+            <Route path="/live-scores/:matchId" element={<Scoreboard />} />
+            <Route path="/news/:id" element={<NewsDetail />} />
+            <Route path="/news" element={<News />} />
+            <Route path="/leagues" element={<Leagues />} />
+            <Route path="/leagues/:leagueId/ties/:tieId/score" element={<TieScoreEntry />} />
+            <Route path="/players" element={<Players />} />
+            <Route path="/clubs" element={<Clubs />} />
+            <Route path="/membership" element={<Membership />} />
+            <Route path="/membership/pay" element={<MembershipPayment />} />
+            <Route path="/register-zpin" element={<ZPINPayment />} />
+            <Route path="/register-player" element={<RegisterPlayer />} />
+            <Route path="/register-player/pay" element={<RegisterPlayerPay />} />
+            <Route path="/club-affiliation" element={<ClubAffiliationPayment />} />
+            <Route path="/tournaments" element={<Tournaments />} />
+            <Route path="/tournaments/:id" element={<TournamentDetail />} />
+            <Route path="/tournaments/:id/register" element={<TournamentRegister />} />
+            <Route path="/rankings" element={<Rankings />} />
+            <Route path="/play" element={<Play />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/juniors" element={<Juniors />} />
+            <Route path="/madalas" element={<Madalas />} />
+            <Route path="/coaches" element={<Coaches />} />
+            <Route path="/coaches/:id" element={<CoachDetail />} />
+            <Route path="/gallery" element={<Gallery />} />
+            <Route path="/gallery/manage" element={<GalleryAdmin />} />
+            <Route path="/transformation" element={<Transformation />} />
+            <Route path="/rules" element={<Rules />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/donate" element={<Donate />} />
+            <Route path="/donate/verify" element={<DonateVerify />} />
+            <Route path="/pay/complete" element={<PayLaterComplete />} />
+            <Route path="/payment/verify" element={<PaymentVerify />} />
+            <Route path="/partnerships" element={<Sponsors />} />
+            <Route path="/sponsors" element={<Sponsors />} />
+            <Route path="/install" element={<Download />} />
+            <Route path="/download" element={<Download />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </MainLayout>
+      } />
+    </Routes>
+  )
+}
+
 function App() {
   return (
     <Router>
       <AuthProvider>
         <PageTracker />
-        <div className="flex flex-col min-h-screen">
-          <InstallBanner />
-          <Header />
-          <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/admin/users" element={<UserManagement />} />
-              <Route path="/admin/players" element={<PlayerManagement />} />
-              <Route path="/admin/clubs" element={<ClubManagement />} />
-              <Route path="/admin/coaches" element={<CoachManagement />} />
-              <Route path="/admin/coach-settings" element={<CoachListingSettings />} />
-              <Route path="/admin/tournaments" element={<TournamentAdmin />} />
-              <Route path="/admin/tournaments/create" element={<TournamentCreate />} />
-              <Route path="/admin/tournaments/:tournamentId" element={<TournamentAdmin />} />
-              <Route path="/admin/tournaments/:tournamentId/edit" element={<TournamentCreate />} />
-              <Route path="/admin/rankings/import" element={<RankingsImport />} />
-
-              <Route path="/admin/executive-members" element={<ExecutiveMembersManagement />} />
-              <Route path="/admin/affiliations" element={<AffiliationsManagement />} />
-              <Route path="/admin/about-content" element={<AboutContentEditor />} />
-              <Route path="/admin/leagues" element={<LeagueManagement />} />
-              <Route path="/admin/calendar" element={<CalendarManagement />} />
-              <Route path="/admin/membership" element={<MembershipAdmin />} />
-              <Route path="/admin/income" element={<IncomeAdmin />} />
-              <Route path="/admin/traffic" element={<TrafficStats />} />
-              <Route path="/admin/tournaments/:tournamentId/live-scoring/:liveMatchId" element={<LiveScoring />} />
-              <Route path="/live-scores" element={<Scoreboard />} />
-              <Route path="/live-scores/:matchId" element={<Scoreboard />} />
-              <Route path="/news/:id" element={<NewsDetail />} />
-              <Route path="/news" element={<News />} />
-              <Route path="/leagues" element={<Leagues />} />
-              <Route path="/leagues/:leagueId/ties/:tieId/score" element={<TieScoreEntry />} />
-              <Route path="/players" element={<Players />} />
-              <Route path="/clubs" element={<Clubs />} />
-              <Route path="/membership" element={<Membership />} />
-              <Route path="/membership/pay" element={<MembershipPayment />} />
-              <Route path="/register-zpin" element={<ZPINPayment />} />
-              <Route path="/register-player" element={<RegisterPlayer />} />
-              <Route path="/register-player/pay" element={<RegisterPlayerPay />} />
-              <Route path="/club-affiliation" element={<ClubAffiliationPayment />} />
-              <Route path="/tournaments" element={<Tournaments />} />
-              <Route path="/tournaments/:id" element={<TournamentDetail />} />
-              <Route path="/tournaments/:id/register" element={<TournamentRegister />} />
-              <Route path="/rankings" element={<Rankings />} />
-              <Route path="/play" element={<Play />} />
-              <Route path="/calendar" element={<Calendar />} />
-              <Route path="/juniors" element={<Juniors />} />
-              <Route path="/madalas" element={<Madalas />} />
-              <Route path="/coaches" element={<Coaches />} />
-              <Route path="/coaches/:id" element={<CoachDetail />} />
-              <Route path="/gallery" element={<Gallery />} />
-              <Route path="/gallery/manage" element={<GalleryAdmin />} />
-              <Route path="/transformation" element={<Transformation />} />
-              <Route path="/rules" element={<Rules />} />
-              <Route path="/about" element={<About />} />
-              <Route path="/contact" element={<Contact />} />
-              <Route path="/donate" element={<Donate />} />
-              <Route path="/donate/verify" element={<DonateVerify />} />
-              <Route path="/pay/complete" element={<PayLaterComplete />} />
-              <Route path="/payment/verify" element={<PaymentVerify />} />
-              <Route path="/partnerships" element={<Sponsors />} />
-              <Route path="/sponsors" element={<Sponsors />} />
-              <Route path="/install" element={<Download />} />
-              <Route path="/download" element={<Download />} />
-              <Route path="/privacy" element={<Privacy />} />
-              <Route path="/terms" element={<Terms />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
+        <AppRoutes />
       </AuthProvider>
     </Router>
   )

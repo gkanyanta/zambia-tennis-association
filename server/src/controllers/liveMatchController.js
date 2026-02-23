@@ -1,5 +1,6 @@
 import LiveMatch from '../models/LiveMatch.js';
 import Tournament from '../models/Tournament.js';
+import User from '../models/User.js';
 import { createInitialState, awardPoint, undoPoint, getDisplayScore, getScoreString } from '../utils/tennisScoring.js';
 import { postMatchEvent } from '../services/socialMediaService.js';
 
@@ -8,7 +9,7 @@ import { postMatchEvent } from '../services/socialMediaService.js';
 // @access  Private (Admin/Staff)
 export const startLiveMatch = async (req, res) => {
   try {
-    const { tournamentId, categoryId, matchId, settings, court, firstServer } = req.body;
+    const { tournamentId, categoryId, matchId, settings, court, firstServer, umpireId } = req.body;
 
     // Verify tournament and match exist
     const tournament = await Tournament.findById(tournamentId);
@@ -61,6 +62,18 @@ export const startLiveMatch = async (req, res) => {
 
     const initialState = createInitialState(matchSettings, firstServer || 0);
 
+    // Determine umpire: use provided umpireId if given, otherwise fall back to current user
+    let resolvedUmpireId = req.user?._id?.toString();
+    let resolvedUmpireName = req.user ? `${req.user.firstName} ${req.user.lastName}` : undefined;
+
+    if (umpireId) {
+      const umpireUser = await User.findById(umpireId);
+      if (umpireUser) {
+        resolvedUmpireId = umpireUser._id.toString();
+        resolvedUmpireName = `${umpireUser.firstName} ${umpireUser.lastName}`;
+      }
+    }
+
     const liveMatch = await LiveMatch.create({
       tournamentId,
       categoryId,
@@ -78,8 +91,8 @@ export const startLiveMatch = async (req, res) => {
       matchState: initialState,
       settings: matchSettings,
       court: court || match.court,
-      umpireId: req.user?._id?.toString(),
-      umpireName: req.user ? `${req.user.firstName} ${req.user.lastName}` : undefined,
+      umpireId: resolvedUmpireId,
+      umpireName: resolvedUmpireName,
       tournamentName: tournament.name,
       categoryName: category.name,
       roundName: match.roundName || `Round ${match.round}`,
@@ -391,6 +404,22 @@ export const endMatch = async (req, res) => {
     }
 
     res.status(200).json({ success: true, data: liveMatch });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get matches assigned to the authenticated umpire
+// @route   GET /api/live-matches/my-matches
+// @access  Private (authenticated)
+export const getMyMatches = async (req, res) => {
+  try {
+    const matches = await LiveMatch.find({
+      umpireId: req.user._id.toString(),
+      status: { $in: ['warmup', 'live', 'suspended'] }
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: matches });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { authService } from '@/services/authService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -21,7 +22,12 @@ export function Login() {
 
     try {
       await login(email, password);
-      navigate('/');
+      const currentUser = authService.getCurrentUser();
+      if (currentUser?.role === 'umpire') {
+        navigate('/umpire');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to login');
     } finally {

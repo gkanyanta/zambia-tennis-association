@@ -134,7 +134,8 @@ export function UserManagement() {
       admin: 'destructive',
       staff: 'default',
       club_official: 'secondary',
-      player: 'outline'
+      player: 'outline',
+      umpire: 'default'
     }
 
     return (
@@ -290,6 +291,7 @@ export function UserManagement() {
                 >
                   <option value="player">Player</option>
                   <option value="club_official">Club Official</option>
+                  <option value="umpire">Umpire</option>
                   <option value="staff">Staff</option>
                   <option value="admin">Admin</option>
                 </select>

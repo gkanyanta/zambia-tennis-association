@@ -81,7 +81,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['player', 'club_official', 'admin', 'staff', 'coach'],
+    enum: ['player', 'club_official', 'admin', 'staff', 'coach', 'umpire'],
     default: 'player'
   },
   zpin: {

@@ -19,6 +19,9 @@ export const liveMatchService = {
     apiFetch(`/live-matches/tournament/${tournamentId}`),
 
   // Protected endpoints
+  getMyMatches: (): Promise<ApiResponse<LiveMatch[]>> =>
+    apiFetch('/live-matches/my-matches'),
+
   startLiveMatch: (data: {
     tournamentId: string
     categoryId: string
@@ -26,6 +29,7 @@ export const liveMatchService = {
     settings?: Partial<MatchSettings>
     court?: string
     firstServer?: 0 | 1
+    umpireId?: string
   }): Promise<ApiResponse<LiveMatch>> =>
     apiFetch('/live-matches', {
       method: 'POST',
