@@ -89,9 +89,9 @@ export function TournamentAdmin() {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="entries">Entries</TabsTrigger>
               <TabsTrigger value="draws">Draws</TabsTrigger>
-              <TabsTrigger value="results">Results</TabsTrigger>
               <TabsTrigger value="order-of-play">Order of Play</TabsTrigger>
               <TabsTrigger value="umpires">Umpires</TabsTrigger>
+              <TabsTrigger value="results">Results</TabsTrigger>
               <TabsTrigger value="finance">Finance</TabsTrigger>
             </TabsList>
 
@@ -107,16 +107,16 @@ export function TournamentAdmin() {
               <DrawsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
-            <TabsContent value="results" className="space-y-6">
-              <ResultsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
-            </TabsContent>
-
             <TabsContent value="order-of-play" className="space-y-6">
               <OrderOfPlayAdmin tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
             <TabsContent value="umpires" className="space-y-6">
               <UmpirePoolAdmin tournament={selectedTournament} onRefresh={refetchTournament} />
+            </TabsContent>
+
+            <TabsContent value="results" className="space-y-6">
+              <ResultsManagement tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
             <TabsContent value="finance" className="space-y-6">
