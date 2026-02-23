@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Award, BookOpen, Users, GraduationCap, MapPin, Mail, Phone } from 'lucide-react'
+import { Award, BookOpen, Users, GraduationCap, MapPin, Mail, Phone, Briefcase } from 'lucide-react'
 import { coachService, type Coach } from '@/services/coachService'
 
 const certificationLevels = [
@@ -149,69 +149,99 @@ export function Coaches() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
               {filteredCoaches.map((coach) => (
                 <Card
                   key={coach._id}
-                  className="card-elevated-hover cursor-pointer"
+                  className="card-elevated-hover cursor-pointer overflow-hidden"
                   onClick={() => navigate(`/coaches/${coach._id}`)}
                 >
-                  <CardHeader>
-                    <div className="w-16 h-16 rounded-full mb-4 mx-auto overflow-hidden border-2 border-border">
-                      {coach.profileImage ? (
-                        <img
-                          src={coach.profileImage}
-                          alt={`${coach.firstName} ${coach.lastName}`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                          <Users className="h-8 w-8 text-primary" />
+                  {/* Header with photo and name */}
+                  <div className="bg-primary/5 px-6 pt-6 pb-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-3 border-background shadow-md flex-shrink-0">
+                        {coach.profileImage ? (
+                          <img
+                            src={coach.profileImage}
+                            alt={`${coach.firstName} ${coach.lastName}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                            <Users className="h-10 w-10 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 pt-1">
+                        <h3 className="text-lg font-bold text-foreground leading-tight">
+                          {coach.fullName || `${coach.firstName} ${coach.lastName}`}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <Badge variant="default">{coach.itfLevel}</Badge>
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs ${coach.availableForBooking ? 'text-green-600' : 'text-muted-foreground'}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${coach.availableForBooking ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+                            {coach.availableForBooking ? 'Available' : 'Unavailable'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1.5 flex items-center gap-1">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">
+                            {coach.club.name}{coach.club.city ? `, ${coach.club.city}` : ''}{coach.club.province ? ` — ${coach.club.province}` : ''}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Body */}
+                  <CardContent className="px-6 pt-4 pb-5 space-y-4">
+                    {/* Bio */}
+                    {coach.bio && (
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {coach.bio}
+                      </p>
+                    )}
+
+                    {/* Specializations + Experience */}
+                    <div className="space-y-3">
+                      {coach.specializations && coach.specializations.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {coach.specializations.map((spec, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs font-normal">
+                              {spec}
+                            </Badge>
+                          ))}
                         </div>
                       )}
-                    </div>
-                    <CardTitle className="text-center">{coach.fullName || `${coach.firstName} ${coach.lastName}`}</CardTitle>
-                    <div className="flex justify-center">
-                      <Badge variant="default">{coach.itfLevel}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="text-center">
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      {coach.specializations && coach.specializations.length > 0 && (
-                        <p><strong>Specialization:</strong> {coach.specializations[0]}</p>
-                      )}
-                      <p className="flex items-center justify-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {coach.club.name}
+                      <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                        <Briefcase className="h-3.5 w-3.5 flex-shrink-0" />
+                        {coach.experience} {coach.experience === 1 ? 'year' : 'years'} experience
                       </p>
-                      <p><strong>Experience:</strong> {coach.experience} years</p>
                     </div>
-                    <div className="flex gap-2 mt-4">
+
+                    {/* Contact footer */}
+                    <div className="border-t pt-3 space-y-1.5">
                       {coach.preferredContactMethod !== 'phone' && (
-                        <Button
-                          className="flex-1"
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            window.location.href = `mailto:${coach.email}`
-                          }}
+                        <a
+                          href={`mailto:${coach.email}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
                         >
-                          <Mail className="h-4 w-4" />
-                        </Button>
+                          <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{coach.email}</span>
+                        </a>
                       )}
                       {coach.preferredContactMethod !== 'email' && (
-                        <Button
-                          className="flex-1"
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            window.location.href = `tel:${coach.phone}`
-                          }}
+                        <a
+                          href={`tel:${coach.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
                         >
-                          <Phone className="h-4 w-4" />
-                        </Button>
+                          <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>{coach.phone}</span>
+                        </a>
                       )}
                     </div>
                   </CardContent>
