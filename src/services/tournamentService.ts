@@ -29,6 +29,7 @@ export interface Tournament {
   allowMultipleCategories?: boolean;
   requirePaymentUpfront?: boolean;
   courts?: string[];
+  umpirePool?: Array<{ userId: string; name: string }>;
 }
 
 export interface TournamentCategory {
@@ -546,6 +547,18 @@ export const tournamentService = {
         body: JSON.stringify({ ratings }),
       }
     );
+    return response.data;
+  },
+
+  // Umpire Pool
+  async updateUmpirePool(
+    tournamentId: string,
+    umpirePool: Array<{ userId: string; name: string }>
+  ): Promise<Array<{ userId: string; name: string }>> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/umpire-pool`, {
+      method: 'PUT',
+      body: JSON.stringify({ umpirePool }),
+    });
     return response.data;
   },
 

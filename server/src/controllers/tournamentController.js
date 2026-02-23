@@ -2268,6 +2268,34 @@ export const downloadDrawPDF = async (req, res) => {
   }
 };
 
+// @desc    Update tournament umpire pool
+// @route   PUT /api/tournaments/:tournamentId/umpire-pool
+// @access  Private (Admin/Staff)
+export const updateUmpirePool = async (req, res) => {
+  try {
+    const { umpirePool } = req.body;
+
+    if (!Array.isArray(umpirePool)) {
+      return res.status(400).json({ success: false, message: 'umpirePool array is required' });
+    }
+
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    tournament.umpirePool = umpirePool;
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      data: tournament.umpirePool
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Bulk-schedule matches (assign court + time)
 // @route   PUT /api/tournaments/:tournamentId/schedule
 // @access  Private (Admin/Staff)

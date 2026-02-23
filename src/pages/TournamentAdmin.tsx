@@ -9,6 +9,7 @@ import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
 import { TournamentFinance } from '@/components/TournamentFinance'
 import { OrderOfPlayAdmin } from '@/components/OrderOfPlayAdmin'
+import { UmpirePoolAdmin } from '@/components/UmpirePoolAdmin'
 import { MixerDrawView } from '@/components/MixerDrawView'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -90,6 +91,7 @@ export function TournamentAdmin() {
               <TabsTrigger value="draws">Draws</TabsTrigger>
               <TabsTrigger value="results">Results</TabsTrigger>
               <TabsTrigger value="order-of-play">Order of Play</TabsTrigger>
+              <TabsTrigger value="umpires">Umpires</TabsTrigger>
               <TabsTrigger value="finance">Finance</TabsTrigger>
             </TabsList>
 
@@ -111,6 +113,10 @@ export function TournamentAdmin() {
 
             <TabsContent value="order-of-play" className="space-y-6">
               <OrderOfPlayAdmin tournament={selectedTournament} onRefresh={refetchTournament} />
+            </TabsContent>
+
+            <TabsContent value="umpires" className="space-y-6">
+              <UmpirePoolAdmin tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
             <TabsContent value="finance" className="space-y-6">
@@ -544,19 +550,27 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     fetchLiveMatches()
   }, [tournament._id])
 
-  // Fetch players for umpire selection when dialog opens
+  // Build umpire list from pool (or fall back to all players if pool is empty)
   useEffect(() => {
     if (!liveScoreDialogOpen) return
-    const fetchUmpires = async () => {
-      try {
-        const data = await apiFetch('/users?role=player')
-        setUmpireList(data.data || [])
-      } catch {
-        setUmpireList([])
+    const pool = (tournament as any).umpirePool as Array<{ userId: string; name: string }> | undefined
+    if (pool && pool.length > 0) {
+      setUmpireList(pool.map(p => {
+        const parts = p.name.split(' ')
+        return { _id: p.userId, firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || '' }
+      }))
+    } else {
+      const fetchUmpires = async () => {
+        try {
+          const data = await apiFetch('/users?role=player')
+          setUmpireList(data.data || [])
+        } catch {
+          setUmpireList([])
+        }
       }
+      fetchUmpires()
     }
-    fetchUmpires()
-  }, [liveScoreDialogOpen])
+  }, [liveScoreDialogOpen, tournament])
 
   const openLiveScoreDialog = (match: any) => {
     const isU10 = selectedCategory?.ageGroup === 'U10'

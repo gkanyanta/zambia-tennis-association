@@ -367,6 +367,10 @@ const tournamentSchema = new mongoose.Schema({
     default: 0
   },
   courts: { type: [String], default: [] },
+  umpirePool: [{
+    userId: String,
+    name: String
+  }],
   categories: [categorySchema],
   status: {
     type: String,
