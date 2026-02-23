@@ -22,6 +22,7 @@ export function UmpireScoring() {
   const { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch } = useLiveMatch(liveMatchId)
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const [firstServerConfirmed, setFirstServerConfirmed] = useState(false)
   const [endDialogOpen, setEndDialogOpen] = useState(false)
   const [endReason, setEndReason] = useState<string>('retirement')
   const [endWinner, setEndWinner] = useState<string>('')
@@ -202,7 +203,7 @@ export function UmpireScoring() {
       )}
 
       {/* First Server Selection - warmup with no points scored */}
-      {isWarmup && hasNoPoints && (
+      {isWarmup && hasNoPoints && !firstServerConfirmed && (
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold mb-1">Who serves first?</h2>
@@ -232,14 +233,19 @@ export function UmpireScoring() {
               <span className="text-lg font-bold text-center">{match.player2.name}</span>
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            Tap a player name to select, then award the first point to begin
-          </p>
+          <Button
+            className="mt-6 w-full max-w-sm"
+            size="lg"
+            onClick={() => setFirstServerConfirmed(true)}
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Start Scoring
+          </Button>
         </div>
       )}
 
-      {/* Point Buttons - only when live or warmup */}
-      {!isCompleted && !isSuspended && !(isWarmup && hasNoPoints) && (
+      {/* Point Buttons - when live, or warmup after confirming first server */}
+      {!isCompleted && !isSuspended && (!isWarmup || firstServerConfirmed || !hasNoPoints) && (
         <div className="flex-1 flex flex-col p-4 gap-4">
           <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
             {/* Player 1 Button */}
