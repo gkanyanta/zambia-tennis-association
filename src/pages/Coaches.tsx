@@ -10,33 +10,47 @@ import { coachService, type Coach } from '@/services/coachService'
 
 const certificationLevels = [
   {
-    level: 'Level 1 - Club Coach',
-    description: 'Introduction to coaching fundamentals',
+    level: 'Play Tennis Course',
+    description: 'Entry-level introduction to coaching tennis',
     content: [
-      'Basic coaching principles',
-      'Stroke technique fundamentals',
-      'Group management skills',
-      'Safety and first aid',
+      'Introduction to teaching tennis',
+      'Basic rally and scoring knowledge',
+      'Organizing beginner group sessions',
+      'Safety awareness on court',
+      'Ideal for parents, teachers & volunteers',
     ],
   },
   {
-    level: 'Level 2 - Advanced Coach',
-    description: 'Intermediate coaching techniques',
+    level: 'ITF Level 1 - CBI',
+    description: 'Coaching Beginner & Intermediate players',
     content: [
-      'Advanced stroke mechanics',
-      'Tactical development',
-      'Player assessment',
-      'Program planning',
+      'Fundamental stroke technique & correction',
+      'Lesson planning for beginners & intermediates',
+      'On-court communication & demonstration',
+      'Managing groups and class programs',
+      'Introduction to physical development',
     ],
   },
   {
-    level: 'Level 3 - Master Coach',
-    description: 'Elite coaching certification',
+    level: 'ITF Level 2 - CAP',
+    description: 'Coaching Advanced Players',
     content: [
-      'High-performance training',
-      'Periodization and planning',
-      'Sports science integration',
-      'Coach mentoring',
+      'Advanced stroke mechanics & tactics',
+      'Developing competitive match play',
+      'Periodization & tournament planning',
+      'Player assessment & individual programs',
+      'Sports science fundamentals (fitness, nutrition, psychology)',
+    ],
+  },
+  {
+    level: 'ITF Level 3 - HP',
+    description: 'High Performance coaching',
+    content: [
+      'Elite player development pathways',
+      'Advanced periodization & peaking',
+      'Biomechanics & performance analysis',
+      'Sports psychology & mental conditioning',
+      'Coach mentoring & leadership',
     ],
   },
 ]
@@ -209,9 +223,9 @@ export function Coaches() {
           {/* Certification Levels */}
           <div className="mb-16">
             <h2 className="text-3xl font-bold text-foreground mb-8 text-center">
-              Coaching Certification
+              ITF Coaching Pathway
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {certificationLevels.map((cert, index) => (
                 <Card key={index} className="card-elevated-hover">
                   <CardHeader>
