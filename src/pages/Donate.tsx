@@ -421,24 +421,6 @@ export function Donate() {
                   </p>
                 </div>
 
-                <div>
-                  <h4 className="font-semibold text-foreground mb-4 text-lg">Mobile Money</h4>
-                  <div className="bg-muted/50 rounded-lg p-6 space-y-3">
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-sm text-muted-foreground">MTN:</div>
-                      <div className="col-span-2 font-medium">[MTN Number]</div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-sm text-muted-foreground">Airtel:</div>
-                      <div className="col-span-2 font-medium">[Airtel Number]</div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-sm text-muted-foreground">Zamtel:</div>
-                      <div className="col-span-2 font-medium">[Zamtel Number]</div>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="text-center pt-4">
                   <Button size="lg" onClick={() => window.location.href = 'mailto:info@zambiatennis.com?subject=Donation Inquiry'}>
                     <Heart className="h-4 w-4 mr-2" />
