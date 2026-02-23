@@ -208,7 +208,13 @@ function handleGameWon(state: MatchState, playerIndex: 0 | 1): MatchState {
     }
 
     sets.push({ games: [0, 0], winner: undefined })
-    state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: false }
+
+    // If this is the deciding set and match tiebreak is enabled, start as super tiebreak
+    if (isFinalSet(state) && settings.finalSetTiebreak) {
+      state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: true }
+    } else {
+      state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: false }
+    }
     state.server = state.server === 0 ? 1 : 0
     return state
   }

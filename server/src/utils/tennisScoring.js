@@ -274,7 +274,13 @@ function handleGameWon(state, playerIndex) {
 
     // Start new set
     sets.push({ games: [0, 0], winner: null });
-    state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: false };
+
+    // If this is the deciding set and match tiebreak is enabled, start as super tiebreak
+    if (isFinalSet(state) && settings.finalSetTiebreak) {
+      state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: true };
+    } else {
+      state.currentGame = { points: [0, 0], isTiebreak: false, isMatchTiebreak: false };
+    }
 
     // After tiebreak, the player who received first in the tiebreak serves the new set
     // After regular game, alternate server
