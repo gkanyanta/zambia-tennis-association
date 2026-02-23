@@ -3,12 +3,14 @@ import { Slideshow } from '@/components/Slideshow'
 import { NewsCard } from '@/components/NewsCard'
 import { LiveScoreCard } from '@/components/live/LiveScoreCard'
 import { Button } from '@/components/ui/button'
-import { Trophy, Users, Calendar, TrendingUp, Radio } from 'lucide-react'
+import { Trophy, Users, Calendar, TrendingUp, Radio, ChevronRight } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { galleryService } from '@/services/galleryService'
 import { newsService, NewsArticle } from '@/services/newsService'
 import { statsService, Stats } from '@/services/statsService'
 import { useLiveScoreboard } from '@/hooks/useLiveScoreboard'
+import { useAuth } from '@/context/AuthContext'
+import { liveMatchService } from '@/services/liveMatchService'
 import { PageSEO } from '@/components/SEO'
 
 export function Home() {
@@ -20,12 +22,31 @@ export function Home() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loadingStats, setLoadingStats] = useState(true)
   const { matches: liveMatches } = useLiveScoreboard()
+  const { isAuthenticated } = useAuth()
+  const [umpireMatchCount, setUmpireMatchCount] = useState(0)
 
   useEffect(() => {
     fetchSlides()
     fetchLatestNews()
     fetchStats()
   }, [])
+
+  // Check if logged-in user has umpire assignments
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUmpireMatchCount(0)
+      return
+    }
+    const checkUmpireMatches = async () => {
+      try {
+        const data = await liveMatchService.getMyMatches()
+        setUmpireMatchCount(data.data?.length || 0)
+      } catch {
+        setUmpireMatchCount(0)
+      }
+    }
+    checkUmpireMatches()
+  }, [isAuthenticated])
 
   const fetchSlides = async () => {
     try {
@@ -118,6 +139,25 @@ export function Home() {
           )}
         </div>
       </section>
+
+      {/* Umpire Assignment Banner */}
+      {umpireMatchCount > 0 && (
+        <section className="py-0">
+          <Link to="/umpire" className="block bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+            <div className="container-custom py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Radio className="h-5 w-5 animate-pulse" />
+                <span className="font-medium">
+                  You have {umpireMatchCount} {umpireMatchCount === 1 ? 'match' : 'matches'} to umpire
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-sm font-medium">
+                Open Umpire Panel <ChevronRight className="h-4 w-4" />
+              </div>
+            </div>
+          </Link>
+        </section>
+      )}
 
       {/* Live Matches Section — only shown when there are active matches */}
       {liveMatches.length > 0 && (
