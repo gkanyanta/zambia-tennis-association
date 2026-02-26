@@ -44,20 +44,22 @@ export const confirmSubscriptionPayment = async (req, res) => {
     if (subscription.entityType === 'player') {
       const player = await User.findById(subscription.entityId);
       if (player) {
+        const updates = {
+          membershipType: subscription.membershipTypeCode,
+          membershipStatus: 'active',
+          membershipExpiry: subscription.endDate,
+          lastPaymentDate: new Date(),
+          lastPaymentAmount: subscription.amount,
+        };
         if (!player.zpin) {
           const year = new Date().getFullYear().toString().slice(-2);
           const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
-          player.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+          updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
         }
-        player.membershipType = subscription.membershipTypeCode;
-        player.membershipStatus = 'active';
-        player.membershipExpiry = subscription.endDate;
-        player.lastPaymentDate = new Date();
-        player.lastPaymentAmount = subscription.amount;
-        await player.save({ validateModifiedOnly: true });
+        const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
 
-        subscription.zpin = player.zpin;
-        entityEmail = player.email;
+        subscription.zpin = updatedPlayer.zpin;
+        entityEmail = updatedPlayer.email;
       }
     } else if (subscription.entityType === 'club') {
       const club = await Club.findById(subscription.entityId);
@@ -555,21 +557,22 @@ export const verifyBulkPayment = async (req, res) => {
       // Update player record
       const player = await User.findById(subscription.entityId);
       if (player) {
+        const updates = {
+          membershipType: subscription.membershipTypeCode,
+          membershipStatus: 'active',
+          membershipExpiry: subscription.endDate,
+          lastPaymentDate: new Date(),
+          lastPaymentAmount: subscription.amount,
+        };
         // Generate ZPIN if not exists
         if (!player.zpin) {
           const year = new Date().getFullYear().toString().slice(-2);
           const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
-          player.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+          updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
         }
+        const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
 
-        player.membershipType = subscription.membershipTypeCode;
-        player.membershipStatus = 'active';
-        player.membershipExpiry = subscription.endDate;
-        player.lastPaymentDate = new Date();
-        player.lastPaymentAmount = subscription.amount;
-        await player.save({ validateModifiedOnly: true });
-
-        subscription.zpin = player.zpin;
+        subscription.zpin = updatedPlayer.zpin;
       }
 
       await subscription.save();
