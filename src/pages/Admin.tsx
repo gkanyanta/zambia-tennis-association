@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Hero } from '@/components/Hero';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Newspaper,
   Trophy,
@@ -17,12 +18,17 @@ import {
   FileText,
   CreditCard,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  Loader2,
+  ClipboardList
 } from 'lucide-react';
+import { statsService, type AdminStats } from '@/services/statsService';
 
 export function Admin() {
   const { isAdmin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -31,6 +37,25 @@ export function Admin() {
       navigate('/');
     }
   }, [isAuthenticated, isAdmin, navigate]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      statsService.getAdminStats()
+        .then(data => setStats(data))
+        .catch(err => console.error('Failed to load admin stats:', err))
+        .finally(() => setStatsLoading(false));
+    }
+  }, [isAdmin]);
+
+  const getTimeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  };
 
   if (!isAdmin) {
     return null;
@@ -155,40 +180,70 @@ export function Admin() {
       <section className="py-16">
         <div className="container-custom">
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Members</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">245</div>
-                <p className="text-xs text-muted-foreground">+12 from last month</p>
-              </CardContent>
-            </Card>
+          {statsLoading ? (
+            <div className="flex items-center justify-center py-8 mb-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : stats ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Total Players</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.totalPlayers.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.activeMembers} active, {stats.expiredMembers} expired
+                  </p>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Active Tournaments</CardTitle>
-                <Trophy className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">5</div>
-                <p className="text-xs text-muted-foreground">2 with open registration</p>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Pending Applications</CardTitle>
+                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.pendingApplications}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.pendingPayment} awaiting payment, {stats.pendingApproval} awaiting approval
+                  </p>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Revenue (Month)</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">K 45,200</div>
-                <p className="text-xs text-muted-foreground">+8% from last month</p>
-              </CardContent>
-            </Card>
-          </div>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Tournaments ({new Date().getFullYear()})</CardTitle>
+                  <Trophy className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats.tournamentsThisYear}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.clubsCount} registered club{stats.clubsCount !== 1 ? 's' : ''}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Revenue (This Month)</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">K {stats.revenueThisMonth.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.revenueTransactions} transaction{stats.revenueTransactions !== 1 ? 's' : ''}
+                    {stats.revenueChange !== 0 && (
+                      <span className={stats.revenueChange > 0 ? ' text-green-600' : ' text-red-600'}>
+                        {' '}{stats.revenueChange > 0 ? '+' : ''}{stats.revenueChange}% vs last month
+                      </span>
+                    )}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
 
           {/* Admin Sections */}
           <h2 className="text-2xl font-bold text-foreground mb-6">Management Tools</h2>
@@ -217,36 +272,39 @@ export function Admin() {
             ))}
           </div>
 
-          {/* Recent Activity */}
-          <div className="mt-12">
-            <h3 className="text-xl font-bold text-foreground mb-4">Recent Activity</h3>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                    <span className="text-muted-foreground">10 minutes ago</span>
-                    <span className="flex-1">New tournament registration by John Banda</span>
+          {/* Recent Registrations */}
+          {stats && stats.recentRegistrations.length > 0 && (
+            <div className="mt-12">
+              <h3 className="text-xl font-bold text-foreground mb-4">Recent Registrations</h3>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    {stats.recentRegistrations.map((reg, i) => {
+                      const statusColor = {
+                        pending_payment: 'bg-amber-500',
+                        pending_approval: 'bg-blue-500',
+                        approved: 'bg-green-500',
+                        rejected: 'bg-red-500'
+                      }[reg.status] || 'bg-gray-500';
+                      const statusLabel = reg.status.replace(/_/g, ' ');
+                      const timeAgo = getTimeAgo(reg.createdAt);
+
+                      return (
+                        <div key={i} className="flex items-center gap-4 text-sm">
+                          <div className={`w-2 h-2 rounded-full ${statusColor}`}></div>
+                          <span className="text-muted-foreground w-28 shrink-0">{timeAgo}</span>
+                          <span className="flex-1">
+                            {reg.firstName} {reg.lastName} — {reg.membershipTypeName}
+                          </span>
+                          <Badge variant="outline" className="text-xs capitalize">{statusLabel}</Badge>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <span className="text-muted-foreground">1 hour ago</span>
-                    <span className="flex-1">New player registration completed</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                    <span className="text-muted-foreground">2 hours ago</span>
-                    <span className="flex-1">New membership payment received</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                    <span className="text-muted-foreground">3 hours ago</span>
-                    <span className="flex-1">Rankings updated for Men's Singles</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </section>
     </div>
