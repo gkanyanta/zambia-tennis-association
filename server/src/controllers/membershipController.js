@@ -54,7 +54,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
         player.membershipExpiry = subscription.endDate;
         player.lastPaymentDate = new Date();
         player.lastPaymentAmount = subscription.amount;
-        await player.save();
+        await player.save({ validateModifiedOnly: true });
 
         subscription.zpin = player.zpin;
         entityEmail = player.email;
@@ -567,7 +567,7 @@ export const verifyBulkPayment = async (req, res) => {
         player.membershipExpiry = subscription.endDate;
         player.lastPaymentDate = new Date();
         player.lastPaymentAmount = subscription.amount;
-        await player.save();
+        await player.save({ validateModifiedOnly: true });
 
         subscription.zpin = player.zpin;
       }
