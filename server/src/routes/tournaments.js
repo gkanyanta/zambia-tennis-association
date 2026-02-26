@@ -35,7 +35,9 @@ import {
   exportBudgetPDF,
   exportFinanceReportPDF,
   scheduleMatches,
-  updateUmpirePool
+  updateUmpirePool,
+  saveOrderOfPlay,
+  downloadOrderOfPlayPDF
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -76,6 +78,10 @@ router.put('/:tournamentId/umpire-pool', protect, authorize('admin', 'staff'), u
 
 // Match scheduling
 router.put('/:tournamentId/schedule', protect, authorize('admin', 'staff'), scheduleMatches);
+
+// Order of Play
+router.put('/:tournamentId/order-of-play', protect, authorize('admin', 'staff'), saveOrderOfPlay);
+router.get('/:tournamentId/order-of-play/pdf', downloadOrderOfPlayPDF);
 
 // Match result routes
 router.put('/:tournamentId/categories/:categoryId/matches/:matchId', protect, authorize('admin', 'staff'), updateMatchResult);

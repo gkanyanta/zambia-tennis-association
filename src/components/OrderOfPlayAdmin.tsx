@@ -1,17 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Plus, X, Save, Eye, CalendarClock } from 'lucide-react'
-import { tournamentService, Tournament } from '@/services/tournamentService'
+import { Plus, X, Save, CalendarClock, ChevronUp, ChevronDown, FileDown, Trash2 } from 'lucide-react'
+import { tournamentService, Tournament, OrderOfPlayEntry, OrderOfPlaySlot } from '@/services/tournamentService'
 
 interface Props {
   tournament: Tournament
@@ -26,21 +18,38 @@ interface SchedulableMatch {
   roundName: string
   player1Name: string
   player2Name: string
-  court: string
-  scheduledTime: string | null // ISO string
+  status: string
 }
-
-type FilterMode = 'all' | 'unscheduled' | 'scheduled'
 
 export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
   const [newCourt, setNewCourt] = useState('')
   const [savingCourts, setSavingCourts] = useState(false)
-  const [edits, setEdits] = useState<Record<string, { court: string; date: string; time: string }>>({})
-  const [savingSchedule, setSavingSchedule] = useState(false)
-  const [filter, setFilter] = useState<FilterMode>('all')
-  const [previewMode, setPreviewMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(0)
 
-  const courts = (tournament as any).courts || []
+  // Local OOP state — initialised from tournament.orderOfPlay
+  const [slots, setSlots] = useState<OrderOfPlaySlot[]>([])
+
+  const courts = tournament.courts || []
+
+  // Generate array of tournament days
+  const tournamentDays = useMemo(() => {
+    const days: string[] = []
+    const start = new Date(tournament.startDate)
+    const end = new Date(tournament.endDate)
+    const d = new Date(start)
+    while (d <= end) {
+      days.push(d.toISOString().split('T')[0])
+      d.setDate(d.getDate() + 1)
+    }
+    if (days.length === 0) days.push(start.toISOString().split('T')[0])
+    return days
+  }, [tournament.startDate, tournament.endDate])
+
+  // Initialise slots from tournament data
+  useEffect(() => {
+    setSlots(tournament.orderOfPlay || [])
+  }, [tournament.orderOfPlay])
 
   // Aggregate all schedulable matches across categories
   const allMatches = useMemo(() => {
@@ -51,10 +60,8 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
       if (!draw) continue
 
       const addMatch = (m: any) => {
-        // Skip BYEs and matches without both players
         if (!m.player1 || !m.player2) return
         if (m.player1.isBye || m.player2.isBye) return
-        // Skip if both players are TBD (no id)
         if (!m.player1.name && !m.player2.name) return
 
         matches.push({
@@ -65,14 +72,11 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
           roundName: m.roundName || `Round ${m.round}`,
           player1Name: m.player1.name || 'TBD',
           player2Name: m.player2.name || 'TBD',
-          court: m.court || '',
-          scheduledTime: m.scheduledTime || null,
+          status: m.status || 'scheduled',
         })
       }
 
-      if (draw.matches) {
-        draw.matches.forEach(addMatch)
-      }
+      if (draw.matches) draw.matches.forEach(addMatch)
       if (draw.roundRobinGroups) {
         for (const group of draw.roundRobinGroups) {
           if (group.matches) group.matches.forEach(addMatch)
@@ -83,51 +87,85 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
     return matches
   }, [tournament])
 
-  const filteredMatches = useMemo(() => {
-    switch (filter) {
-      case 'scheduled':
-        return allMatches.filter(m => {
-          const edit = edits[m.matchId]
-          if (edit) return edit.court || edit.date
-          return m.court || m.scheduledTime
-        })
-      case 'unscheduled':
-        return allMatches.filter(m => {
-          const edit = edits[m.matchId]
-          if (edit) return !edit.court && !edit.date
-          return !m.court && !m.scheduledTime
-        })
-      default:
-        return allMatches
+  // IDs of matches already assigned to any slot
+  const assignedMatchIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const slot of slots) {
+      for (const entry of slot.matches) {
+        ids.add(entry.matchId)
+      }
     }
-  }, [allMatches, filter, edits])
+    return ids
+  }, [slots])
 
-  // Helper: parse scheduledTime into date + time strings
-  const parseScheduledTime = (iso: string | null): { date: string; time: string } => {
-    if (!iso) return { date: '', time: '' }
-    const d = new Date(iso)
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    const hours = String(d.getHours()).padStart(2, '0')
-    const minutes = String(d.getMinutes()).padStart(2, '0')
-    return { date: `${year}-${month}-${day}`, time: `${hours}:${minutes}` }
+  // Unassigned matches available for the picker
+  const unassignedMatches = useMemo(() => {
+    return allMatches.filter(m => !assignedMatchIds.has(m.matchId))
+  }, [allMatches, assignedMatchIds])
+
+  const currentDayKey = tournamentDays[selectedDay] || tournamentDays[0]
+
+  // Get slots for the current day, one per court
+  const currentDaySlots = useMemo(() => {
+    return courts.map((court: string) => {
+      const existing = slots.find(
+        s => s.court === court && s.day.split('T')[0] === currentDayKey
+      )
+      return existing || { day: currentDayKey, court, matches: [] as OrderOfPlayEntry[] }
+    })
+  }, [slots, courts, currentDayKey])
+
+  // Helper: update a slot in the slots array
+  const updateSlot = (court: string, updater: (matches: OrderOfPlayEntry[]) => OrderOfPlayEntry[]) => {
+    setSlots(prev => {
+      const existing = prev.find(s => s.court === court && s.day.split('T')[0] === currentDayKey)
+      if (existing) {
+        return prev.map(s =>
+          s.court === court && s.day.split('T')[0] === currentDayKey
+            ? { ...s, matches: updater([...s.matches]) }
+            : s
+        )
+      }
+      // Create new slot
+      return [...prev, { day: currentDayKey, court, matches: updater([]) }]
+    })
   }
 
-  const getEditOrDefault = (match: SchedulableMatch) => {
-    if (edits[match.matchId]) return edits[match.matchId]
-    const parsed = parseScheduledTime(match.scheduledTime)
-    return { court: match.court, date: parsed.date, time: parsed.time }
+  // Add a match to a court
+  const handleAddMatch = (court: string, matchId: string) => {
+    const match = allMatches.find(m => m.matchId === matchId)
+    if (!match) return
+    updateSlot(court, (matches) => [
+      ...matches,
+      { categoryId: match.categoryId, matchId: match.matchId, notBefore: '' }
+    ])
   }
 
-  const updateEdit = (matchId: string, field: 'court' | 'date' | 'time', value: string) => {
-    setEdits(prev => {
-      const match = allMatches.find(m => m.matchId === matchId)!
-      const existing = prev[matchId] || (() => {
-        const parsed = parseScheduledTime(match.scheduledTime)
-        return { court: match.court, date: parsed.date, time: parsed.time }
-      })()
-      return { ...prev, [matchId]: { ...existing, [field]: value } }
+  // Remove a match from a court
+  const handleRemoveMatch = (court: string, index: number) => {
+    updateSlot(court, (matches) => {
+      matches.splice(index, 1)
+      return matches
+    })
+  }
+
+  // Move match up/down within a court
+  const handleMoveMatch = (court: string, index: number, direction: 'up' | 'down') => {
+    updateSlot(court, (matches) => {
+      const newIdx = direction === 'up' ? index - 1 : index + 1
+      if (newIdx < 0 || newIdx >= matches.length) return matches
+      const temp = matches[index]
+      matches[index] = matches[newIdx]
+      matches[newIdx] = temp
+      return matches
+    })
+  }
+
+  // Update notBefore annotation
+  const handleNotBeforeChange = (court: string, index: number, value: string) => {
+    updateSlot(court, (matches) => {
+      matches[index] = { ...matches[index], notBefore: value }
+      return matches
     })
   }
 
@@ -159,86 +197,46 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
     }
   }
 
-  // Save schedule
-  const handleSaveSchedule = async () => {
-    const schedules = Object.entries(edits).map(([matchId, edit]) => {
-      const match = allMatches.find(m => m.matchId === matchId)!
-      let scheduledTime: string | null = null
-      if (edit.date) {
-        const timePart = edit.time || '00:00'
-        scheduledTime = new Date(`${edit.date}T${timePart}`).toISOString()
-      }
-      return {
-        categoryId: match.categoryId,
-        matchId,
-        court: edit.court,
-        scheduledTime,
-      }
-    })
-
-    if (schedules.length === 0) return
-
-    setSavingSchedule(true)
+  // Save order of play
+  const handleSave = async () => {
+    // Filter out empty slots
+    const toSave = slots.filter(s => s.matches.length > 0)
+    setSaving(true)
     try {
-      await tournamentService.scheduleMatches(tournament._id, schedules)
-      setEdits({})
+      await tournamentService.saveOrderOfPlay(tournament._id, toSave)
       await onRefresh()
     } catch (error: any) {
-      alert(error.message || 'Failed to save schedule')
+      alert(error.message || 'Failed to save order of play')
     } finally {
-      setSavingSchedule(false)
+      setSaving(false)
     }
   }
 
-  // OOP preview data: group scheduled matches by date, then court
-  const previewData = useMemo(() => {
-    const scheduled = allMatches.filter(m => {
-      const edit = edits[m.matchId]
-      const time = edit ? (edit.date ? `${edit.date}T${edit.time || '00:00'}` : null) : m.scheduledTime
-      return time !== null
-    })
+  // Export PDF
+  const handleExportPDF = () => {
+    const apiUrl = import.meta.env.VITE_API_URL || ''
+    window.open(`${apiUrl}/api/tournaments/${tournament._id}/order-of-play/pdf`, '_blank')
+  }
 
-    const byDate: Record<string, Record<string, Array<{ time: string; label: string }>>> = {}
+  // Get match display label
+  const getMatchLabel = (entry: OrderOfPlayEntry) => {
+    const match = allMatches.find(m => m.matchId === entry.matchId)
+    if (!match) return 'Unknown match'
+    return `${match.categoryName} ${match.roundName}: ${match.player1Name} vs ${match.player2Name}`
+  }
 
-    for (const match of scheduled) {
-      const edit = edits[match.matchId]
-      let date: string, time: string, court: string
-      if (edit) {
-        date = edit.date
-        time = edit.time || '00:00'
-        court = edit.court || 'Unassigned'
-      } else {
-        const parsed = parseScheduledTime(match.scheduledTime)
-        date = parsed.date
-        time = parsed.time
-        court = match.court || 'Unassigned'
-      }
-      if (!date) continue
+  // Check if local state differs from saved state
+  const hasChanges = useMemo(() => {
+    const savedStr = JSON.stringify(tournament.orderOfPlay || [])
+    const currentStr = JSON.stringify(slots.filter(s => s.matches.length > 0))
+    return savedStr !== currentStr
+  }, [tournament.orderOfPlay, slots])
 
-      if (!byDate[date]) byDate[date] = {}
-      if (!byDate[date][court]) byDate[date][court] = []
-
-      byDate[date][court].push({
-        time,
-        label: `${match.categoryName} ${match.roundName}: ${match.player1Name} vs ${match.player2Name}`
-      })
-    }
-
-    // Sort matches within each court by time
-    for (const date of Object.keys(byDate)) {
-      for (const court of Object.keys(byDate[date])) {
-        byDate[date][court].sort((a, b) => a.time.localeCompare(b.time))
-      }
-    }
-
-    return byDate
-  }, [allMatches, edits])
-
-  const hasEdits = Object.keys(edits).length > 0
+  const hasSavedData = (tournament.orderOfPlay || []).some(s => s.matches.length > 0)
 
   return (
     <div className="space-y-6">
-      {/* Section A: Court Management */}
+      {/* Court Management */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -249,7 +247,7 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {courts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No courts added yet. Add courts to assign matches.</p>
+              <p className="text-sm text-muted-foreground">No courts added yet. Add courts to start building the order of play.</p>
             ) : (
               courts.map((court: string) => (
                 <Badge key={court} variant="secondary" className="text-sm py-1 px-3 gap-1">
@@ -283,154 +281,172 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
         </CardContent>
       </Card>
 
-      {/* Section B: Match Scheduling Table */}
+      {/* Order of Play Builder */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Match Scheduling</CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle>Order of Play</CardTitle>
             <div className="flex items-center gap-2">
-              <div className="flex rounded-md border overflow-hidden text-sm">
-                {(['all', 'unscheduled', 'scheduled'] as FilterMode[]).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`px-3 py-1 capitalize ${filter === f ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                  >
-                    {f}
-                  </button>
-                ))}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPreviewMode(!previewMode)}
-              >
-                <Eye className="h-4 w-4 mr-1" />
-                {previewMode ? 'Table' : 'Preview'}
+              {hasSavedData && (
+                <Button variant="outline" size="sm" onClick={handleExportPDF}>
+                  <FileDown className="h-4 w-4 mr-1" />
+                  Export PDF
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={saving || !hasChanges} size="sm">
+                <Save className="h-4 w-4 mr-1" />
+                {saving ? 'Saving...' : 'Save'}
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {allMatches.length === 0 ? (
+          {courts.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              No schedulable matches found. Generate draws first, then assign courts and times here.
+              Add courts above to start building the order of play.
             </p>
-          ) : previewMode ? (
-            /* Section C: OOP Preview */
-            <div className="space-y-6">
-              {Object.keys(previewData).length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  No matches have been scheduled yet. Assign courts and times in the table view.
-                </p>
-              ) : (
-                Object.entries(previewData)
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([date, courts]) => (
-                    <div key={date}>
-                      <h3 className="font-semibold text-lg mb-3 border-b pb-2">
-                        {new Date(date + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {Object.entries(courts)
-                          .sort(([a], [b]) => a.localeCompare(b))
-                          .map(([court, matches]) => (
-                            <div key={court} className="border rounded-lg p-3">
-                              <h4 className="font-medium mb-2 text-sm text-muted-foreground">{court}</h4>
-                              <div className="space-y-1">
-                                {matches.map((m, i) => (
-                                  <div key={i} className="text-sm">
-                                    <span className="font-mono text-muted-foreground">{m.time}</span>
-                                    {' — '}
-                                    {m.label}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
+          ) : allMatches.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No schedulable matches found. Generate draws first.
+            </p>
           ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Round</TableHead>
-                      <TableHead>Players</TableHead>
-                      <TableHead className="w-[140px]">Court</TableHead>
-                      <TableHead className="w-[150px]">Date</TableHead>
-                      <TableHead className="w-[110px]">Time</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredMatches.map((match) => {
-                      const current = getEditOrDefault(match)
-                      return (
-                        <TableRow key={match.matchId}>
-                          <TableCell className="text-sm">{match.categoryName}</TableCell>
-                          <TableCell className="text-sm">{match.roundName}</TableCell>
-                          <TableCell className="text-sm">
-                            {match.player1Name} vs {match.player2Name}
-                          </TableCell>
-                          <TableCell>
-                            {courts.length > 0 ? (
-                              <select
-                                className="w-full p-1 border rounded text-sm"
-                                value={current.court}
-                                onChange={(e) => updateEdit(match.matchId, 'court', e.target.value)}
-                              >
-                                <option value="">--</option>
-                                {courts.map((c: string) => (
-                                  <option key={c} value={c}>{c}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type="text"
-                                className="w-full p-1 border rounded text-sm"
-                                placeholder="Court"
-                                value={current.court}
-                                onChange={(e) => updateEdit(match.matchId, 'court', e.target.value)}
-                              />
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <input
-                              type="date"
-                              className="w-full p-1 border rounded text-sm"
-                              value={current.date}
-                              onChange={(e) => updateEdit(match.matchId, 'date', e.target.value)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <input
-                              type="time"
-                              className="w-full p-1 border rounded text-sm"
-                              value={current.time}
-                              onChange={(e) => updateEdit(match.matchId, 'time', e.target.value)}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+            <div className="space-y-4">
+              {/* Day Tabs */}
+              <div className="flex gap-1 border-b overflow-x-auto pb-px">
+                {tournamentDays.map((day, idx) => {
+                  const dayDate = new Date(day + 'T00:00')
+                  const label = dayDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+                  const daySlotCount = slots
+                    .filter(s => s.day.split('T')[0] === day)
+                    .reduce((sum, s) => sum + s.matches.length, 0)
+
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDay(idx)}
+                      className={`px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                        selectedDay === idx
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'
+                      }`}
+                    >
+                      {label}
+                      {daySlotCount > 0 && (
+                        <span className="ml-1.5 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                          {daySlotCount}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
 
-              {hasEdits && (
-                <div className="flex justify-end mt-4">
-                  <Button onClick={handleSaveSchedule} disabled={savingSchedule}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {savingSchedule ? 'Saving...' : `Save Schedule (${Object.keys(edits).length} changes)`}
-                  </Button>
-                </div>
-              )}
-            </>
+              {/* Per-Court Sections */}
+              <div className="space-y-4">
+                {currentDaySlots.map((slot) => (
+                  <div key={slot.court} className="border rounded-lg">
+                    {/* Court Header */}
+                    <div className="bg-blue-50 px-4 py-2 rounded-t-lg border-b">
+                      <h4 className="font-semibold text-blue-800 text-sm">{slot.court}</h4>
+                    </div>
+
+                    <div className="p-3 space-y-1">
+                      {slot.matches.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-2 text-center">No matches assigned</p>
+                      ) : (
+                        slot.matches.map((entry, idx) => (
+                          <div key={`${entry.matchId}-${idx}`}>
+                            {/* "followed by" separator */}
+                            {idx > 0 && (
+                              <div className="text-xs text-muted-foreground italic text-center py-0.5">
+                                followed by
+                              </div>
+                            )}
+
+                            <div className="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-muted/50 group">
+                              {/* Match number */}
+                              <span className="text-sm font-medium text-muted-foreground w-5 shrink-0 pt-0.5">
+                                {idx + 1}.
+                              </span>
+
+                              {/* Match info + not-before */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm">{getMatchLabel(entry)}</div>
+                                <input
+                                  type="text"
+                                  placeholder="Not before (e.g. Not before 2:00 PM)"
+                                  className="mt-1 w-full text-xs p-1 border rounded text-amber-700 placeholder:text-muted-foreground/50"
+                                  value={entry.notBefore}
+                                  onChange={(e) => handleNotBeforeChange(slot.court, idx, e.target.value)}
+                                />
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleMoveMatch(slot.court, idx, 'up')}
+                                  disabled={idx === 0}
+                                  className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                                  title="Move up"
+                                >
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleMoveMatch(slot.court, idx, 'down')}
+                                  disabled={idx === slot.matches.length - 1}
+                                  className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                                  title="Move down"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveMatch(slot.court, idx)}
+                                  className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600"
+                                  title="Remove"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+
+                      {/* Add match picker */}
+                      {unassignedMatches.length > 0 && (
+                        <div className="pt-2 border-t mt-2">
+                          <select
+                            className="w-full p-1.5 border rounded text-sm"
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) handleAddMatch(slot.court, e.target.value)
+                            }}
+                          >
+                            <option value="">+ Add match...</option>
+                            {unassignedMatches.map(m => (
+                              <option key={m.matchId} value={m.matchId}>
+                                {m.categoryName} {m.roundName}: {m.player1Name} vs {m.player2Name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary */}
+              <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 border-t">
+                <span>
+                  {assignedMatchIds.size} of {allMatches.length} matches assigned
+                  {unassignedMatches.length > 0 && ` (${unassignedMatches.length} remaining)`}
+                </span>
+                {hasChanges && (
+                  <span className="text-amber-600 font-medium">Unsaved changes</span>
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

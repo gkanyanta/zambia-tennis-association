@@ -249,6 +249,19 @@ const categorySchema = new mongoose.Schema({
   }]
 });
 
+// Order of Play schemas
+const orderOfPlayEntrySchema = new mongoose.Schema({
+  categoryId: { type: String, required: true },
+  matchId: { type: String, required: true },
+  notBefore: { type: String, default: '' } // e.g. "Not before 2:00 PM"
+}, { _id: false });
+
+const orderOfPlaySlotSchema = new mongoose.Schema({
+  day: { type: Date, required: true },
+  court: { type: String, required: true },
+  matches: [orderOfPlayEntrySchema]
+}, { _id: false });
+
 // Budget line schema for pre-tournament budget planning
 const budgetLineSchema = new mongoose.Schema({
   category: {
@@ -410,6 +423,8 @@ const tournamentSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Order of Play
+  orderOfPlay: [orderOfPlaySlotSchema],
   // Finance module
   budget: [budgetLineSchema],
   expenses: [expenseRecordSchema],

@@ -14,6 +14,7 @@ import {
 } from '../utils/tournamentEligibility.js';
 import { generateDrawPDF } from '../utils/generateDrawPDF.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
+import { generateOrderOfPlayPDF } from '../utils/generateOrderOfPlayPDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
 
 // @desc    Get all tournaments
@@ -2351,6 +2352,77 @@ export const scheduleMatches = async (req, res) => {
       message: `Updated ${updated} match schedule(s)`,
       data: { updated }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Save order of play
+// @route   PUT /api/tournaments/:tournamentId/order-of-play
+// @access  Private (admin/staff)
+export const saveOrderOfPlay = async (req, res) => {
+  try {
+    const { tournamentId } = req.params;
+    const { orderOfPlay } = req.body;
+
+    if (!orderOfPlay || !Array.isArray(orderOfPlay)) {
+      return res.status(400).json({ success: false, message: 'orderOfPlay array is required' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    // Validate courts exist on tournament
+    for (const slot of orderOfPlay) {
+      if (tournament.courts.length > 0 && !tournament.courts.includes(slot.court)) {
+        return res.status(400).json({
+          success: false,
+          message: `Court "${slot.court}" is not in the tournament courts list`
+        });
+      }
+    }
+
+    tournament.orderOfPlay = orderOfPlay;
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Order of play saved',
+      data: tournament.orderOfPlay
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Download order of play as PDF
+// @route   GET /api/tournaments/:tournamentId/order-of-play/pdf
+// @access  Public (opened via window.open)
+export const downloadOrderOfPlayPDF = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    if (!tournament.orderOfPlay || tournament.orderOfPlay.length === 0) {
+      return res.status(400).json({ success: false, message: 'No order of play data to export' });
+    }
+
+    const pdfBuffer = await generateOrderOfPlayPDF(tournament);
+
+    const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${safeName(tournament.name)}-Order-of-Play.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': pdfBuffer.length
+    });
+
+    res.send(pdfBuffer);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

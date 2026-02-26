@@ -30,6 +30,7 @@ export interface Tournament {
   requirePaymentUpfront?: boolean;
   courts?: string[];
   umpirePool?: Array<{ userId: string; name: string }>;
+  orderOfPlay?: OrderOfPlaySlot[];
 }
 
 export interface TournamentCategory {
@@ -174,6 +175,19 @@ export interface EligibleCategoryInfo {
   maxEntries: number | null;
   currentEntries: number;
   isFull: boolean;
+}
+
+// Order of Play interfaces
+export interface OrderOfPlayEntry {
+  categoryId: string;
+  matchId: string;
+  notBefore: string;
+}
+
+export interface OrderOfPlaySlot {
+  day: string; // ISO date
+  court: string;
+  matches: OrderOfPlayEntry[];
 }
 
 // Finance interfaces
@@ -577,5 +591,17 @@ export const tournamentService = {
       }
     );
     return response.data;
-  }
+  },
+
+  // Order of Play
+  async saveOrderOfPlay(
+    tournamentId: string,
+    orderOfPlay: OrderOfPlaySlot[]
+  ): Promise<OrderOfPlaySlot[]> {
+    const response = await apiFetch(`/tournaments/${tournamentId}/order-of-play`, {
+      method: 'PUT',
+      body: JSON.stringify({ orderOfPlay }),
+    });
+    return response.data;
+  },
 };
