@@ -173,9 +173,9 @@ export const generateReceipt = (transaction) => {
       doc.font('Helvetica');
 
       // Type-specific details
+      let detailsY = 530;
       if (transaction.metadata) {
         const metadata = transaction.metadata;
-        let detailsY = 530;
 
         if (transaction.type === 'donation' && metadata.donationType) {
           doc
@@ -208,6 +208,29 @@ export const generateReceipt = (transaction) => {
           }
         }
 
+        if (transaction.type === 'membership' && metadata.players && metadata.players.length > 0) {
+          detailsY += 25;
+          doc
+            .fontSize(11)
+            .font('Helvetica-Bold')
+            .fillColor('#1F2937')
+            .text(`Players (${metadata.players.length}):`, 50, detailsY);
+          doc.font('Helvetica');
+
+          for (const player of metadata.players) {
+            detailsY += 18;
+            doc
+              .fontSize(10)
+              .fillColor('#1F2937')
+              .text(`•  ${player.name}`, 60, detailsY, { continued: !!player.zpin })
+            if (player.zpin) {
+              doc
+                .fillColor('#6B7280')
+                .text(`  (ZPIN: ${player.zpin})`, { continued: false });
+            }
+          }
+        }
+
         if (transaction.type === 'tournament' && metadata.tournamentName) {
           doc
             .fontSize(11)
@@ -219,7 +242,7 @@ export const generateReceipt = (transaction) => {
       }
 
       // Footer
-      const footerY = 680;
+      const footerY = Math.max(680, detailsY + 40);
       doc
         .strokeColor('#E5E7EB')
         .lineWidth(1)
