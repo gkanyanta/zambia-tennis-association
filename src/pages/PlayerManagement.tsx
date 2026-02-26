@@ -444,7 +444,10 @@ export function PlayerManagement() {
     try {
       setActionLoading(true)
       const result = await playerRegistrationService.approveRegistration(showApproveDialog._id, approveNotes)
-      alert(`Approved! ZPIN: ${result.user.zpin}`)
+      const statusNote = result.user.membershipStatus === 'expired'
+        ? ' (membership expired — awaiting payment)'
+        : ' (membership active)'
+      alert(`Approved! ZPIN: ${result.user.zpin}${statusNote}`)
       setShowApproveDialog(null)
       setApproveNotes('')
       fetchApplications(appPage)
@@ -821,7 +824,7 @@ export function PlayerManagement() {
                                         <CreditCard className="h-3.5 w-3.5" />
                                       </Button>
                                     )}
-                                    {app.status === 'pending_approval' && (
+                                    {(app.status === 'pending_approval' || app.status === 'pending_payment') && (
                                       <>
                                         <Button size="sm" variant="ghost" title="Approve" className="text-green-600" onClick={() => setShowApproveDialog(app)}>
                                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1365,6 +1368,15 @@ export function PlayerManagement() {
                 Approve <strong>{showApproveDialog.firstName} {showApproveDialog.lastName}</strong>'s registration?
                 This will create a new player with an assigned ZPIN.
               </p>
+              {showApproveDialog.status === 'pending_payment' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                  <p className="text-sm text-amber-800 font-medium">No payment recorded</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    This player will be added with an <strong>expired</strong> membership status.
+                    They can make their ZPIN payment later to activate their membership.
+                  </p>
+                </div>
+              )}
               <div>
                 <Label>Admin Notes (optional)</Label>
                 <textarea

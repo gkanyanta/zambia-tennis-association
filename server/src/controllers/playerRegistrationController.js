@@ -555,12 +555,15 @@ export const approveRegistration = async (req, res) => {
       });
     }
 
-    if (registration.status !== 'pending_approval') {
+    if (registration.status !== 'pending_approval' && registration.status !== 'pending_payment') {
       return res.status(400).json({
         success: false,
-        message: 'Registration must be in pending_approval status to approve. Current status: ' + registration.status
+        message: 'Registration must be in pending_payment or pending_approval status to approve. Current status: ' + registration.status
       });
     }
+
+    // Determine whether payment has been made
+    const hasPaid = registration.status === 'pending_approval' || !!registration.paymentDate;
 
     // Determine the user's membership type for ZPIN generation
     const age = calculateAge(registration.dateOfBirth);
@@ -569,7 +572,7 @@ export const approveRegistration = async (req, res) => {
     // Generate ZPIN
     const zpin = await generateNextZPIN(membershipType);
 
-    // Create User record
+    // Create User record — if unpaid, membership is expired so player can pay later
     const userData = {
       firstName: registration.firstName,
       lastName: registration.lastName,
@@ -585,10 +588,12 @@ export const approveRegistration = async (req, res) => {
       role: 'player',
       zpin,
       membershipType,
-      membershipStatus: 'active',
-      membershipExpiry: new Date(new Date().getFullYear() + 1, 0, 31), // End of next Jan
-      lastPaymentDate: registration.paymentDate,
-      lastPaymentAmount: registration.paymentAmount
+      membershipStatus: hasPaid ? 'active' : 'expired',
+      ...(hasPaid ? {
+        membershipExpiry: new Date(new Date().getFullYear() + 1, 0, 31), // End of next Jan
+        lastPaymentDate: registration.paymentDate,
+        lastPaymentAmount: registration.paymentAmount
+      } : {})
     };
 
     const user = new User(userData);
@@ -605,6 +610,11 @@ export const approveRegistration = async (req, res) => {
     // Send confirmation email if email exists
     if (registration.email) {
       try {
+        const statusText = hasPaid ? 'Active' : 'Expired (Payment Pending)';
+        const nextSteps = hasPaid
+          ? '<p>You can now participate in ZTA-sanctioned tournaments and activities.</p>'
+          : `<p>Your registration has been approved but your membership is not yet active. To activate your ZPIN, please complete your membership payment of <strong>K${registration.paymentAmount}</strong> on our website.</p>`;
+
         await sendEmail({
           email: registration.email,
           subject: 'ZPIN Registration Approved - Zambia Tennis Association',
@@ -617,9 +627,9 @@ export const approveRegistration = async (req, res) => {
               <li>ZPIN: <strong>${zpin}</strong></li>
               <li>Name: ${registration.firstName} ${registration.lastName}</li>
               <li>Membership Type: ${registration.membershipTypeName}</li>
-              <li>Status: Active</li>
+              <li>Status: ${statusText}</li>
             </ul>
-            <p>You can now participate in ZTA-sanctioned tournaments and activities.</p>
+            ${nextSteps}
             <p>Best regards,<br>Zambia Tennis Association</p>
           `
         });
@@ -630,7 +640,9 @@ export const approveRegistration = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Registration approved and player created successfully',
+      message: hasPaid
+        ? 'Registration approved and player created successfully'
+        : 'Registration approved. Player created with expired membership — awaiting ZPIN payment.',
       data: {
         registration,
         user: {
