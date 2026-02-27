@@ -7,6 +7,7 @@ import {
   verifyPayment,
   handleWebhook,
   downloadReceipt,
+  resendReceipt,
   getIncomeStatement,
   getTransactions
 } from '../controllers/lencoPaymentController.js';
@@ -28,6 +29,7 @@ router.post('/webhook', handleWebhook); // Public - called by Lenco
 
 // Receipt download (public - anyone with receipt number can download)
 router.get('/receipt/:receiptNumber', downloadReceipt);
+router.post('/receipt/:receiptNumber/send', protect, authorize('admin', 'staff'), resendReceipt);
 
 // Admin routes for income tracking
 router.get('/income-statement', protect, authorize('admin'), getIncomeStatement);

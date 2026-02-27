@@ -1016,6 +1016,62 @@ export const downloadReceipt = async (req, res) => {
   }
 };
 
+// @desc    Resend receipt PDF to an email address
+// @route   POST /api/lenco/receipt/:receiptNumber/send
+// @access  Private (admin)
+export const resendReceipt = async (req, res) => {
+  try {
+    const { receiptNumber } = req.params;
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+
+    const transaction = await Transaction.findOne({ receiptNumber });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Receipt not found' });
+    }
+
+    const pdfBuffer = await generateReceipt(transaction);
+
+    await sendEmail({
+      email,
+      subject: `Payment Receipt - ${transaction.receiptNumber} - ZTA`,
+      html: `
+        <h2>Payment Receipt</h2>
+        <p>Dear ${transaction.payerName},</p>
+        <p>Please find your official payment receipt from the Zambia Tennis Association attached to this email.</p>
+        <p><strong>Receipt Details:</strong></p>
+        <ul>
+          <li>Receipt Number: ${transaction.receiptNumber}</li>
+          <li>Amount: K${parseFloat(transaction.amount).toFixed(2)}</li>
+          <li>Date: ${new Date(transaction.paymentDate || transaction.createdAt).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })}</li>
+        </ul>
+        <p>Best regards,<br>Zambia Tennis Association</p>
+      `,
+      attachments: [{
+        filename: `ZTA-Receipt-${transaction.receiptNumber}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf'
+      }]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Receipt sent to ${email}`
+    });
+  } catch (error) {
+    console.error('Resend receipt error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // Helper: sync missing Transaction records from active MembershipSubscriptions
 // This handles cases where subscriptions were activated but Transaction creation failed
 const syncMissingTransactions = async () => {

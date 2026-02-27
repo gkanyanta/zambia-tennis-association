@@ -185,4 +185,12 @@ export const lencoPaymentService = {
     const response = await apiFetch(`/lenco/transactions${qs ? `?${qs}` : ''}`);
     return response.data;
   },
+
+  async resendReceipt(receiptNumber: string, email: string): Promise<{ message: string }> {
+    const response = await apiFetch(`/lenco/receipt/${receiptNumber}/send`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  },
 };

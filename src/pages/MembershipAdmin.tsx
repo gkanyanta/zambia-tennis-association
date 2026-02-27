@@ -45,7 +45,9 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
-  Banknote
+  Banknote,
+  FileDown,
+  Mail
 } from 'lucide-react'
 import debounce from 'lodash/debounce'
 import { useAuth } from '@/context/AuthContext'
@@ -57,6 +59,7 @@ import {
   ClubSearchResult,
   PlayerSearchResult
 } from '@/services/membershipService'
+import { lencoPaymentService } from '@/services/lencoPaymentService'
 
 export function MembershipAdmin() {
   const navigate = useNavigate()
@@ -115,6 +118,13 @@ export function MembershipAdmin() {
   const [manualNotes, setManualNotes] = useState('')
   const [savingManualPayment, setSavingManualPayment] = useState(false)
   const [manualPaymentSuccess, setManualPaymentSuccess] = useState<string | null>(null)
+
+  // Send receipt dialog
+  const [sendReceiptOpen, setSendReceiptOpen] = useState(false)
+  const [sendReceiptSub, setSendReceiptSub] = useState<MembershipSubscription | null>(null)
+  const [sendReceiptEmail, setSendReceiptEmail] = useState('')
+  const [sendingReceipt, setSendingReceipt] = useState(false)
+  const [sendReceiptResult, setSendReceiptResult] = useState<string | null>(null)
 
   // Auth check
   useEffect(() => {
@@ -250,6 +260,27 @@ export function MembershipAdmin() {
       setConfirmError(err.message || 'Failed to confirm payment')
     } finally {
       setConfirmingPayment(false)
+    }
+  }
+
+  // Download receipt
+  const handleDownloadReceipt = (receiptNumber: string) => {
+    const apiUrl = import.meta.env.VITE_API_URL || ''
+    window.open(`${apiUrl}/api/lenco/receipt/${receiptNumber}`, '_blank')
+  }
+
+  // Send receipt to email
+  const handleSendReceipt = async () => {
+    if (!sendReceiptSub?.receiptNumber || !sendReceiptEmail.trim()) return
+    setSendingReceipt(true)
+    setSendReceiptResult(null)
+    try {
+      await lencoPaymentService.resendReceipt(sendReceiptSub.receiptNumber, sendReceiptEmail.trim())
+      setSendReceiptResult(`Receipt sent to ${sendReceiptEmail.trim()}`)
+    } catch (err: any) {
+      setSendReceiptResult(`Failed: ${err.message || 'Could not send receipt'}`)
+    } finally {
+      setSendingReceipt(false)
     }
   }
 
@@ -553,23 +584,50 @@ export function MembershipAdmin() {
                                 })}
                               </TableCell>
                               <TableCell>
-                                {sub.status === 'pending' && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-green-600 border-green-600 hover:bg-green-50"
-                                    onClick={() => {
-                                      setConfirmingSub(sub)
-                                      setConfirmPaymentMethod('bank_transfer')
-                                      setConfirmError(null)
-                                      setConfirmSuccess(null)
-                                      setConfirmDialogOpen(true)
-                                    }}
-                                  >
-                                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                                    Confirm
-                                  </Button>
-                                )}
+                                <div className="flex items-center gap-1">
+                                  {sub.status === 'pending' && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-green-600 border-green-600 hover:bg-green-50"
+                                      onClick={() => {
+                                        setConfirmingSub(sub)
+                                        setConfirmPaymentMethod('bank_transfer')
+                                        setConfirmError(null)
+                                        setConfirmSuccess(null)
+                                        setConfirmDialogOpen(true)
+                                      }}
+                                    >
+                                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                                      Confirm
+                                    </Button>
+                                  )}
+                                  {sub.receiptNumber && (
+                                    <>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Download Receipt"
+                                        onClick={() => handleDownloadReceipt(sub.receiptNumber!)}
+                                      >
+                                        <FileDown className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Send Receipt to Email"
+                                        onClick={() => {
+                                          setSendReceiptSub(sub)
+                                          setSendReceiptEmail('')
+                                          setSendReceiptResult(null)
+                                          setSendReceiptOpen(true)
+                                        }}
+                                      >
+                                        <Mail className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -946,6 +1004,64 @@ export function MembershipAdmin() {
                     <>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       Confirm &amp; Activate
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Receipt Dialog */}
+      <Dialog open={sendReceiptOpen} onOpenChange={setSendReceiptOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Send Receipt
+            </DialogTitle>
+            <DialogDescription>
+              Send receipt <span className="font-mono">{sendReceiptSub?.receiptNumber}</span> for{' '}
+              <span className="font-semibold">{sendReceiptSub?.entityName}</span> to an email address.
+            </DialogDescription>
+          </DialogHeader>
+
+          {sendReceiptResult ? (
+            <div className="py-4">
+              <p className="text-sm text-center">{sendReceiptResult}</p>
+              <div className="flex justify-center mt-4">
+                <Button onClick={() => setSendReceiptOpen(false)}>Close</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 py-2">
+                <div>
+                  <Label>Email Address</Label>
+                  <Input
+                    type="email"
+                    placeholder="Enter payer's email"
+                    value={sendReceiptEmail}
+                    onChange={(e) => setSendReceiptEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendReceipt()}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSendReceiptOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSendReceipt} disabled={sendingReceipt || !sendReceiptEmail.trim()}>
+                  {sendingReceipt ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Send
                     </>
                   )}
                 </Button>
