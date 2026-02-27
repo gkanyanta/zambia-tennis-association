@@ -100,6 +100,14 @@ const membershipSubscriptionSchema = new mongoose.Schema({
     index: true
   },
 
+  // Payer details (the person who made the payment — may differ from entity)
+  payer: {
+    name: String,
+    email: String,
+    phone: String,
+    relation: String
+  },
+
   // Admin notes
   notes: {
     type: String

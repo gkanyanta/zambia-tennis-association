@@ -81,8 +81,8 @@ export const confirmSubscriptionPayment = async (req, res) => {
       type: 'membership',
       amount: subscription.amount,
       currency: subscription.currency || 'ZMW',
-      payerName: subscription.entityName,
-      payerEmail: entityEmail,
+      payerName: subscription.payer?.name || subscription.entityName,
+      payerEmail: subscription.payer?.email || entityEmail,
       status: 'completed',
       paymentGateway: 'manual',
       paymentMethod,
@@ -104,16 +104,18 @@ export const confirmSubscriptionPayment = async (req, res) => {
     await subscription.save();
 
     // Generate and send receipt
+    const receiptEmail = subscription.payer?.email || entityEmail;
+    const receiptRecipient = subscription.payer?.name || subscription.entityName;
     try {
       const pdfBuffer = await generateReceipt(transaction);
-      if (entityEmail) {
+      if (receiptEmail) {
         await sendEmail({
-          email: entityEmail,
+          email: receiptEmail,
           subject: `Membership Payment Confirmed - ${transaction.receiptNumber} - ZTA`,
           html: `
             <h2>Membership Payment Confirmed!</h2>
-            <p>Dear ${subscription.entityName},</p>
-            <p>Your ${subscription.membershipTypeName} has been confirmed and activated.</p>
+            <p>Dear ${receiptRecipient},</p>
+            <p>The ${subscription.membershipTypeName} for ${subscription.entityName} has been confirmed and activated.</p>
             <p><strong>Details:</strong></p>
             <ul>
               <li>Receipt Number: ${transaction.receiptNumber}</li>
@@ -456,6 +458,7 @@ export const initializeBulkPayment = async (req, res) => {
         subscription.membershipTypeCode = membershipType.code;
         subscription.amount = membershipType.amount;
         subscription.paymentReference = reference;
+        subscription.payer = { name: payerName, email: payerEmail, phone: payerPhone, relation: payerRelation };
         subscription.notes = `Bulk payment by ${payerName} (${payerRelation || 'N/A'})`;
         await subscription.save();
       } else {
@@ -475,6 +478,7 @@ export const initializeBulkPayment = async (req, res) => {
           currency: membershipType.currency,
           paymentReference: reference,
           status: 'pending',
+          payer: { name: payerName, email: payerEmail, phone: payerPhone, relation: payerRelation },
           notes: `Bulk payment by ${payerName} (${payerRelation || 'N/A'})`
         });
         await subscription.save();
@@ -598,8 +602,8 @@ export const verifyBulkPayment = async (req, res) => {
       type: 'membership',
       amount: totalAmount,
       currency: 'ZMW',
-      payerName: subscriptions[0]?.notes?.match(/Bulk payment by ([^(]+)/)?.[1]?.trim() || 'Bulk Payer',
-      payerEmail: payerEmail,
+      payerName: subscriptions[0]?.payer?.name || subscriptions[0]?.notes?.match(/Bulk payment by ([^(]+)/)?.[1]?.trim() || 'Bulk Payer',
+      payerEmail: subscriptions[0]?.payer?.email || payerEmail,
       status: 'completed',
       paymentGateway: 'lenco',
       paymentMethod: 'online',
@@ -1414,10 +1418,10 @@ export const verifyMembershipPayment = async (req, res) => {
       type: 'membership',
       amount: subscription.amount,
       currency: subscription.currency,
-      payerName: subscription.entityName,
-      payerEmail: subscription.entityType === 'player'
+      payerName: subscription.payer?.name || subscription.entityName,
+      payerEmail: subscription.payer?.email || (subscription.entityType === 'player'
         ? (await User.findById(subscription.entityId))?.email
-        : (await Club.findById(subscription.entityId))?.email,
+        : (await Club.findById(subscription.entityId))?.email),
       status: 'completed',
       paymentGateway: 'lenco',
       relatedId: subscription._id,
@@ -1427,6 +1431,7 @@ export const verifyMembershipPayment = async (req, res) => {
         membershipType: subscription.membershipTypeCode,
         membershipYear: subscription.year,
         entityType: subscription.entityType,
+        playerName: subscription.entityName,
         zpin: subscription.zpin
       },
       paymentDate: new Date()

@@ -460,16 +460,14 @@ export const verifyPayment = async (req, res) => {
         }
 
         // Create transaction record
-        const payerInfo = subscriptions[0]?.notes?.match(/payment by ([^(]+)\(([^)]+)\)/i);
-        // Try to get payer email from the first player in the batch
-        const firstPlayer = subscriptions[0]?.entityId ? await User.findById(subscriptions[0].entityId) : null;
+        const firstSub = subscriptions[0];
         const transaction = await createTransactionAndSendReceipt({
           reference,
           transactionId,
           type: 'membership',
           amount: totalAmount,
-          payerName: payerInfo?.[1]?.trim() || 'Bulk Payer',
-          payerEmail: firstPlayer?.email || null,
+          payerName: firstSub?.payer?.name || firstSub?.notes?.match(/payment by ([^(]+)\(/i)?.[1]?.trim() || 'Bulk Payer',
+          payerEmail: firstSub?.payer?.email || null,
           relatedId: subscriptions[0]?._id,
           relatedModel: 'MembershipSubscription',
           description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
@@ -564,8 +562,8 @@ export const verifyPayment = async (req, res) => {
           transactionId,
           type: 'membership',
           amount: amountPaid,
-          payerName: subscription.entityName,
-          payerEmail: entityEmail,
+          payerName: subscription.payer?.name || subscription.entityName,
+          payerEmail: subscription.payer?.email || entityEmail,
           relatedId: subscription._id,
           relatedModel: 'MembershipSubscription',
           description: `${subscription.membershipTypeName} - ${subscription.year}`,

@@ -43,6 +43,7 @@ export interface MembershipSubscription {
   paymentMethod: string;
   receiptNumber?: string;
   zpin?: string;
+  payer?: { name?: string; email?: string; phone?: string; relation?: string };
   notes?: string;
   isRenewal: boolean;
   createdAt: string;
