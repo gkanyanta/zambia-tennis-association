@@ -93,7 +93,9 @@ export const confirmSubscriptionPayment = async (req, res) => {
         membershipType: subscription.membershipTypeCode,
         membershipYear: subscription.year,
         entityType: subscription.entityType,
-        confirmedBy: req.user.id
+        confirmedBy: req.user.id,
+        playerName: subscription.entityName,
+        zpin: subscription.zpin
       },
       paymentDate: new Date()
     });
@@ -1719,7 +1721,9 @@ export const recordManualPayment = async (req, res) => {
         membershipType: membershipType.code,
         membershipYear: subscription.year,
         entityType,
-        recordedBy: req.user.id
+        recordedBy: req.user.id,
+        playerName: entityName,
+        zpin: subscription.zpin
       },
       paymentDate: new Date()
     });

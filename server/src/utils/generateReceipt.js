@@ -113,7 +113,7 @@ export const generateReceipt = (transaction) => {
       currentY += 28;
       doc
         .fillColor('#6B7280')
-        .text('Email:', detailsLeft, currentY)
+        .text('Payer Email:', detailsLeft, currentY)
         .fillColor('#1F2937')
         .text(transaction.payerEmail, valuesLeft, currentY);
 
@@ -205,6 +205,25 @@ export const generateReceipt = (transaction) => {
                 month: 'long',
                 year: 'numeric'
               }), 180, detailsY);
+          }
+        }
+
+        if (transaction.type === 'membership' && metadata.playerName && !metadata.players) {
+          detailsY += 20;
+          doc
+            .fontSize(11)
+            .fillColor('#6B7280')
+            .text('Player:', 50, detailsY)
+            .fillColor('#1F2937')
+            .text(metadata.playerName, 180, detailsY);
+
+          if (metadata.zpin) {
+            detailsY += 20;
+            doc
+              .fillColor('#6B7280')
+              .text('ZPIN:', 50, detailsY)
+              .fillColor('#1F2937')
+              .text(metadata.zpin, 180, detailsY);
           }
         }
 

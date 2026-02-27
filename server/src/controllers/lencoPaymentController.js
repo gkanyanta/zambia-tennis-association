@@ -532,20 +532,22 @@ export const verifyPayment = async (req, res) => {
         if (subscription.entityType === 'player') {
           const user = await User.findById(subscription.entityId);
           if (user) {
+            const updates = {
+              membershipType: subscription.membershipTypeCode,
+              membershipStatus: 'active',
+              membershipExpiry: subscription.endDate,
+              lastPaymentDate: new Date(),
+              lastPaymentAmount: amountPaid,
+            };
             // Generate ZPIN if not exists
             if (!user.zpin) {
               const year = new Date().getFullYear().toString().slice(-2);
               const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
-              user.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+              updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
             }
-            user.membershipType = subscription.membershipTypeCode;
-            user.membershipStatus = 'active';
-            user.membershipExpiry = subscription.endDate;
-            user.lastPaymentDate = new Date();
-            user.lastPaymentAmount = amountPaid;
-            await user.save();
+            const updatedUser = await User.findByIdAndUpdate(user._id, updates, { new: true });
 
-            subscription.zpin = user.zpin;
+            subscription.zpin = updatedUser.zpin;
           }
         }
 
@@ -571,6 +573,7 @@ export const verifyPayment = async (req, res) => {
             membershipType: subscription.membershipTypeCode,
             membershipYear: subscription.year,
             entityType: subscription.entityType,
+            playerName: subscription.entityName,
             zpin: subscription.zpin
           }
         });
@@ -613,12 +616,13 @@ export const verifyPayment = async (req, res) => {
       const membershipType = reference.includes('junior') ? 'junior' :
                             reference.includes('family') ? 'family' : 'adult';
 
-      user.membershipType = membershipType;
-      user.membershipStatus = 'active';
-      user.membershipExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year
-      user.lastPaymentDate = new Date();
-      user.lastPaymentAmount = amountPaid;
-      await user.save();
+      await User.findByIdAndUpdate(user._id, {
+        membershipType,
+        membershipStatus: 'active',
+        membershipExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+        lastPaymentDate: new Date(),
+        lastPaymentAmount: amountPaid,
+      });
 
       // Send confirmation email
       try {
