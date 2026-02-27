@@ -18,6 +18,15 @@ const sendEmail = async (options) => {
       html: options.html
     };
 
+    if (options.attachments && options.attachments.length > 0) {
+      message.attachments = options.attachments.map(att => ({
+        content: Buffer.isBuffer(att.content) ? att.content.toString('base64') : att.content,
+        filename: att.filename,
+        type: att.contentType || 'application/pdf',
+        disposition: 'attachment'
+      }));
+    }
+
     console.log('Sending email via SendGrid...');
     const response = await sgMail.send(message);
     console.log('Email sent successfully via SendGrid');
