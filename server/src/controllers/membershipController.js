@@ -1379,20 +1379,22 @@ export const verifyMembershipPayment = async (req, res) => {
     if (subscription.entityType === 'player') {
       const user = await User.findById(subscription.entityId);
       if (user) {
+        const updates = {
+          membershipType: subscription.membershipTypeCode,
+          membershipStatus: 'active',
+          membershipExpiry: subscription.endDate,
+          lastPaymentDate: new Date(),
+          lastPaymentAmount: subscription.amount,
+        };
         // Generate ZPIN if not exists
         if (!user.zpin) {
           const year = new Date().getFullYear().toString().slice(-2);
           const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
-          user.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+          updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
         }
-        user.membershipType = subscription.membershipTypeCode;
-        user.membershipStatus = 'active';
-        user.membershipExpiry = subscription.endDate;
-        user.lastPaymentDate = new Date();
-        user.lastPaymentAmount = subscription.amount;
-        await user.save();
+        const updatedUser = await User.findByIdAndUpdate(user._id, updates, { new: true });
 
-        subscription.zpin = user.zpin;
+        subscription.zpin = updatedUser.zpin;
         await subscription.save();
       }
     } else if (subscription.entityType === 'club') {
@@ -1685,16 +1687,18 @@ export const recordManualPayment = async (req, res) => {
 
     // Update entity
     if (entityType === 'player') {
+      const playerUpdates = {
+        membershipType: membershipType.code,
+        membershipStatus: 'active',
+        membershipExpiry: subscription.endDate,
+      };
       if (!entity.zpin) {
         const year = new Date().getFullYear().toString().slice(-2);
         const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
-        entity.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+        playerUpdates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
       }
-      entity.membershipType = membershipType.code;
-      entity.membershipStatus = 'active';
-      entity.membershipExpiry = subscription.endDate;
-      await entity.save();
-      subscription.zpin = entity.zpin;
+      const updatedEntity = await User.findByIdAndUpdate(entity._id, playerUpdates, { new: true });
+      subscription.zpin = updatedEntity.zpin;
       await subscription.save();
     } else {
       entity.affiliationStatus = 'active';
