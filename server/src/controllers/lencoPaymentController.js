@@ -434,18 +434,20 @@ export const verifyPayment = async (req, res) => {
           // Update player record
           const player = await User.findById(subscription.entityId);
           if (player) {
+            const updates = {
+              membershipType: subscription.membershipTypeCode,
+              membershipStatus: 'active',
+              membershipExpiry: subscription.endDate,
+              lastPaymentDate: new Date(),
+              lastPaymentAmount: subscription.amount,
+            };
             if (!player.zpin) {
               const year = new Date().getFullYear().toString().slice(-2);
               const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
-              player.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+              updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
             }
-            player.membershipType = subscription.membershipTypeCode;
-            player.membershipStatus = 'active';
-            player.membershipExpiry = subscription.endDate;
-            player.lastPaymentDate = new Date();
-            player.lastPaymentAmount = subscription.amount;
-            await player.save();
-            subscription.zpin = player.zpin;
+            const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
+            subscription.zpin = updatedPlayer.zpin;
           }
 
           await subscription.save();
@@ -931,6 +933,204 @@ export const handleWebhook = async (req, res) => {
       // Determine payment type and update accordingly
       const referencePrefix = reference.split('-')[0];
 
+      if (referencePrefix === 'MEM') {
+        const isBulkPayment = reference.includes('-BULK-');
+
+        if (isBulkPayment) {
+          // Bulk membership payment
+          const subscriptions = await MembershipSubscription.find({ paymentReference: reference });
+
+          if (!subscriptions.length) {
+            console.log(`Webhook: No subscriptions found for bulk reference ${reference}`);
+          } else if (subscriptions.every(s => s.status === 'active')) {
+            console.log(`Webhook: Bulk subscriptions already active for ${reference}`);
+          } else {
+            const activatedPlayers = [];
+            let totalAmount = 0;
+
+            for (const subscription of subscriptions) {
+              if (subscription.status === 'active') continue;
+
+              subscription.status = 'active';
+              subscription.transactionId = transaction_id;
+              subscription.paymentDate = new Date();
+              subscription.paymentMethod = 'online';
+
+              // Update player record
+              const player = await User.findById(subscription.entityId);
+              if (player) {
+                const updates = {
+                  membershipType: subscription.membershipTypeCode,
+                  membershipStatus: 'active',
+                  membershipExpiry: subscription.endDate,
+                  lastPaymentDate: new Date(),
+                  lastPaymentAmount: subscription.amount,
+                };
+                if (!player.zpin) {
+                  const year = new Date().getFullYear().toString().slice(-2);
+                  const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
+                  updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+                }
+                const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
+                subscription.zpin = updatedPlayer.zpin;
+              }
+
+              await subscription.save();
+              activatedPlayers.push({
+                playerId: subscription.entityId,
+                playerName: subscription.entityName,
+                zpin: subscription.zpin,
+                membershipType: subscription.membershipTypeName,
+                amount: subscription.amount
+              });
+              totalAmount += subscription.amount;
+            }
+
+            // Create transaction record and send receipt
+            if (activatedPlayers.length > 0) {
+              const firstSub = subscriptions[0];
+              try {
+                await createTransactionAndSendReceipt({
+                  reference,
+                  transactionId: transaction_id,
+                  type: 'membership',
+                  amount: totalAmount,
+                  payerName: firstSub?.payer?.name || 'Bulk Payer',
+                  payerEmail: firstSub?.payer?.email || null,
+                  relatedId: subscriptions[0]?._id,
+                  relatedModel: 'MembershipSubscription',
+                  description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
+                  metadata: {
+                    playerCount: activatedPlayers.length,
+                    players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
+                  }
+                });
+              } catch (txnError) {
+                console.error('Webhook: Failed to create bulk transaction record:', txnError);
+              }
+            }
+
+            console.log(`Webhook: Activated ${activatedPlayers.length} bulk membership(s) for ${reference}`);
+          }
+        } else {
+          // Single membership payment
+          const subscription = await MembershipSubscription.findOne({ paymentReference: reference })
+            .populate('membershipType');
+
+          if (!subscription) {
+            console.log(`Webhook: No subscription found for reference ${reference}`);
+          } else if (subscription.status === 'active') {
+            console.log(`Webhook: Subscription already active for ${reference}`);
+          } else {
+            // Activate the subscription
+            subscription.status = 'active';
+            subscription.transactionId = transaction_id;
+            subscription.paymentDate = new Date();
+
+            // Update entity (User for player, Club for club)
+            if (subscription.entityType === 'player') {
+              const user = await User.findById(subscription.entityId);
+              if (user) {
+                const updates = {
+                  membershipType: subscription.membershipTypeCode,
+                  membershipStatus: 'active',
+                  membershipExpiry: subscription.endDate,
+                  lastPaymentDate: new Date(),
+                  lastPaymentAmount: amount,
+                };
+                if (!user.zpin) {
+                  const year = new Date().getFullYear().toString().slice(-2);
+                  const count = await User.countDocuments({ zpin: { $exists: true, $ne: null } });
+                  updates.zpin = `ZP${year}${String(count + 1).padStart(5, '0')}`;
+                }
+                const updatedUser = await User.findByIdAndUpdate(user._id, updates, { new: true });
+                subscription.zpin = updatedUser.zpin;
+              }
+            }
+
+            // Create transaction record and send receipt
+            let entityEmail = null;
+            if (subscription.entityType === 'player') {
+              entityEmail = (await User.findById(subscription.entityId))?.email || null;
+            } else if (subscription.entityType === 'club') {
+              entityEmail = (await Club.findById(subscription.entityId))?.email || null;
+            }
+
+            try {
+              const transaction = await createTransactionAndSendReceipt({
+                reference,
+                transactionId: transaction_id,
+                type: 'membership',
+                amount,
+                payerName: subscription.payer?.name || subscription.entityName,
+                payerEmail: subscription.payer?.email || entityEmail,
+                relatedId: subscription._id,
+                relatedModel: 'MembershipSubscription',
+                description: `${subscription.membershipTypeName} - ${subscription.year}`,
+                metadata: {
+                  membershipType: subscription.membershipTypeCode,
+                  membershipYear: subscription.year,
+                  entityType: subscription.entityType,
+                  playerName: subscription.entityName,
+                  zpin: subscription.zpin
+                }
+              });
+
+              subscription.receiptNumber = transaction.receiptNumber;
+            } catch (txnError) {
+              console.error('Webhook: Failed to create single MEM transaction record:', txnError);
+            }
+
+            await subscription.save();
+            console.log(`Webhook: Activated single membership for ${reference}`);
+          }
+        }
+      }
+
+      if (referencePrefix === 'CLUB') {
+        const subscription = await MembershipSubscription.findOne({ paymentReference: reference })
+          .populate('membershipType');
+
+        if (!subscription) {
+          console.log(`Webhook: No club subscription found for reference ${reference}`);
+        } else if (subscription.status === 'active') {
+          console.log(`Webhook: Club subscription already active for ${reference}`);
+        } else {
+          subscription.status = 'active';
+          subscription.transactionId = transaction_id;
+          subscription.paymentDate = new Date();
+          await subscription.save();
+
+          // Create transaction record and send receipt
+          const club = await Club.findById(subscription.entityId);
+          try {
+            const transaction = await createTransactionAndSendReceipt({
+              reference,
+              transactionId: transaction_id,
+              type: 'membership',
+              amount,
+              payerName: subscription.payer?.name || subscription.entityName,
+              payerEmail: subscription.payer?.email || club?.email || null,
+              relatedId: subscription._id,
+              relatedModel: 'MembershipSubscription',
+              description: `Club Affiliation - ${subscription.membershipTypeName} - ${subscription.year}`,
+              metadata: {
+                membershipType: subscription.membershipTypeCode,
+                membershipYear: subscription.year,
+                entityType: 'club'
+              }
+            });
+
+            subscription.receiptNumber = transaction.receiptNumber;
+            await subscription.save();
+          } catch (txnError) {
+            console.error('Webhook: Failed to create CLUB transaction record:', txnError);
+          }
+
+          console.log(`Webhook: Activated club affiliation for ${reference}`);
+        }
+      }
+
       if (referencePrefix === 'DON') {
         const donation = await Donation.findOne({ lencoReference: reference });
 
@@ -939,6 +1139,29 @@ export const handleWebhook = async (req, res) => {
           donation.lencoTransactionId = transaction_id;
           donation.paymentDate = new Date();
           await donation.save();
+
+          // Create transaction record and send receipt
+          try {
+            await createTransactionAndSendReceipt({
+              reference,
+              transactionId: transaction_id,
+              type: 'donation',
+              amount,
+              payerName: donation.donorName,
+              payerEmail: donation.donorEmail,
+              payerPhone: donation.donorPhone,
+              relatedId: donation._id,
+              relatedModel: 'Donation',
+              description: `Donation - ${donation.donationType?.replace('_', ' ') || 'General'}`,
+              metadata: {
+                donationType: donation.donationType,
+                message: donation.message,
+                isAnonymous: donation.isAnonymous
+              }
+            });
+          } catch (txnError) {
+            console.error('Webhook: Failed to create DON transaction record:', txnError);
+          }
 
           console.log(`Donation ${donation._id} updated via webhook`);
         }
@@ -952,6 +1175,28 @@ export const handleWebhook = async (req, res) => {
           registration.paymentDate = new Date();
           registration.paymentMethod = 'online';
           await registration.save();
+
+          // Create transaction record and send receipt
+          try {
+            await createTransactionAndSendReceipt({
+              reference,
+              transactionId: transaction_id,
+              type: 'registration',
+              amount,
+              payerName: `${registration.firstName} ${registration.lastName}`,
+              payerEmail: registration.email,
+              payerPhone: registration.phone,
+              relatedId: registration._id,
+              relatedModel: 'PlayerRegistration',
+              description: `Player Registration - ${registration.membershipTypeName}`,
+              metadata: {
+                registrationRef: registration.referenceNumber,
+                membershipType: registration.membershipTypeCode
+              }
+            });
+          } catch (txnError) {
+            console.error('Webhook: Failed to create REG transaction record:', txnError);
+          }
 
           console.log(`Registration ${registration.referenceNumber} updated via webhook`);
         }
@@ -979,6 +1224,61 @@ export const handleWebhook = async (req, res) => {
   }
 };
 
+// Helper: enrich membership transaction metadata from subscription data
+// Handles cases where transactions were created before playerName/zpin metadata was added
+const enrichTransactionMetadata = async (transaction) => {
+  if (transaction.type !== 'membership' || transaction.relatedModel !== 'MembershipSubscription') {
+    return transaction;
+  }
+
+  if (!transaction.metadata) transaction.metadata = {};
+
+  // Enrich single player info
+  if (!transaction.metadata.players && transaction.relatedId) {
+    const subscription = await MembershipSubscription.findById(transaction.relatedId);
+    if (subscription) {
+      if (!transaction.metadata.playerName) transaction.metadata.playerName = subscription.entityName;
+      if (!transaction.metadata.zpin) transaction.metadata.zpin = subscription.zpin;
+      if (!transaction.metadata.membershipType) transaction.metadata.membershipType = subscription.membershipTypeCode;
+    }
+  }
+
+  // Enrich bulk player data
+  if (transaction.metadata.playerCount && (!transaction.metadata.players || transaction.metadata.players.length === 0)) {
+    const subscriptions = await MembershipSubscription.find({ paymentReference: transaction.reference });
+    if (subscriptions.length > 0) {
+      transaction.metadata.players = subscriptions.map(s => ({
+        id: s.entityId,
+        name: s.entityName,
+        zpin: s.zpin
+      }));
+    }
+  }
+
+  // Enrich existing bulk player entries that may have missing zpin/name
+  if (transaction.metadata.players && transaction.metadata.players.length > 0) {
+    const missingData = transaction.metadata.players.some(p => !p.zpin || !p.name);
+    if (missingData) {
+      const subscriptions = await MembershipSubscription.find({ paymentReference: transaction.reference });
+      if (subscriptions.length > 0) {
+        const subMap = {};
+        for (const sub of subscriptions) {
+          subMap[sub.entityId.toString()] = sub;
+        }
+        for (const player of transaction.metadata.players) {
+          const sub = subMap[player.id?.toString()];
+          if (sub) {
+            if (!player.name) player.name = sub.entityName;
+            if (!player.zpin) player.zpin = sub.zpin;
+          }
+        }
+      }
+    }
+  }
+
+  return transaction;
+};
+
 // @desc    Download receipt PDF
 // @route   GET /api/lenco/receipt/:receiptNumber
 // @access  Public
@@ -994,6 +1294,9 @@ export const downloadReceipt = async (req, res) => {
         message: 'Receipt not found'
       });
     }
+
+    // Enrich metadata for membership receipts
+    await enrichTransactionMetadata(transaction);
 
     // Generate PDF
     const pdfBuffer = await generateReceipt(transaction);
@@ -1031,6 +1334,9 @@ export const resendReceipt = async (req, res) => {
     if (!transaction) {
       return res.status(404).json({ success: false, message: 'Receipt not found' });
     }
+
+    // Enrich metadata for membership receipts
+    await enrichTransactionMetadata(transaction);
 
     const pdfBuffer = await generateReceipt(transaction);
 
@@ -1123,6 +1429,8 @@ const syncMissingTransactions = async () => {
             membershipType: sub.membershipTypeCode,
             membershipYear: sub.year,
             entityType: sub.entityType,
+            playerName: sub.entityName,
+            zpin: sub.zpin,
             synced: true
           },
           paymentDate: sub.paymentDate
