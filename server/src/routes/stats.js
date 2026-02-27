@@ -4,6 +4,7 @@ import Club from '../models/Club.js';
 import Tournament from '../models/Tournament.js';
 import Transaction from '../models/Transaction.js';
 import PlayerRegistration from '../models/PlayerRegistration.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -67,10 +68,24 @@ router.get('/admin', protect, authorize('admin', 'staff'), async (req, res) => {
     ] = await Promise.all([
       // Total registered players
       User.countDocuments({ role: 'player' }),
-      // Active memberships
-      User.countDocuments({ role: 'player', membershipStatus: 'active' }),
-      // Expired memberships
-      User.countDocuments({ role: 'player', membershipStatus: 'expired' }),
+      // Active memberships - count from actual subscriptions for current year
+      MembershipSubscription.countDocuments({ entityType: 'player', year: currentYear, status: 'active' }),
+      // Expired memberships - players who had a subscription in past years but not active this year
+      MembershipSubscription.distinct('entityId', {
+        entityType: 'player',
+        status: 'active',
+        year: { $lt: currentYear }
+      }).then(async (pastPlayerIds) => {
+        if (pastPlayerIds.length === 0) return 0;
+        const activeThisYear = new Set(
+          (await MembershipSubscription.distinct('entityId', {
+            entityType: 'player',
+            year: currentYear,
+            status: 'active'
+          })).map(id => id.toString())
+        );
+        return pastPlayerIds.filter(id => !activeThisYear.has(id.toString())).length;
+      }),
       // Tournaments this year
       Tournament.countDocuments({
         startDate: {
