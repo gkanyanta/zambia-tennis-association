@@ -4,7 +4,7 @@ import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Trophy, Calendar, MapPin, Edit, Loader2 } from 'lucide-react'
+import { Trophy, Calendar, MapPin, Edit, Loader2, Download } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -13,6 +13,7 @@ import {
   fetchLeagueTies,
   fetchPlayoffBracket,
   registerForLeague,
+  getFixturesPDFUrl,
   League,
   LeagueStanding,
   Tie,
@@ -297,6 +298,13 @@ export function Leagues() {
               {/* Upcoming Ties (Fixtures) */}
               {activeTab === 'fixtures' && (
                 <div className="space-y-4">
+                  {!loading && ties.length > 0 && currentLeague && (
+                    <div className="flex justify-end">
+                      <Button variant="outline" size="sm" onClick={() => window.open(getFixturesPDFUrl(currentLeague._id), '_blank')}>
+                        <Download className="h-4 w-4 mr-2" />Download Fixtures PDF
+                      </Button>
+                    </div>
+                  )}
                   {loading ? (
                     <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
                   ) : ties.length === 0 ? (

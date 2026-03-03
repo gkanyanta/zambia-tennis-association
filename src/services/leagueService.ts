@@ -338,6 +338,13 @@ export const reviewLeagueRegistration = async (
   return response.data;
 };
 
+// ─── Fixtures PDF ──────────────────────────────────────────────
+
+export const getFixturesPDFUrl = (leagueId: string): string => {
+  const apiUrl = import.meta.env.VITE_API_URL || '';
+  return `${apiUrl}/api/leagues/${leagueId}/ties/pdf`;
+};
+
 // ─── Playoffs API ──────────────────────────────────────────────
 
 export const generatePlayoffs = async (

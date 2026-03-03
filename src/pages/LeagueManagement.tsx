@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2, List, Pencil, CalendarClock, AlertTriangle } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2, List, Pencil, CalendarClock, AlertTriangle, Download } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   fetchLeagues,
@@ -23,7 +23,8 @@ import {
   League,
   LeagueRegistration,
   Tie,
-  FORMAT_LABELS
+  FORMAT_LABELS,
+  getFixturesPDFUrl
 } from '@/services/leagueService'
 import { clubService, Club } from '@/services/clubService'
 
@@ -422,12 +423,19 @@ export function LeagueManagement() {
                       <div className="mt-4 border-t pt-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold text-sm">Fixtures ({fixtures.length})</h4>
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
-                            setCreateFixtureForm({ homeTeam: '', awayTeam: '', round: 1, roundName: '', scheduledDate: '', scheduledTime: '', venue: '', venueAddress: '' })
-                            setShowCreateFixture(league)
-                          }}>
-                            <Plus className="h-3 w-3 mr-1" />Add Fixture
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            {fixtures.length > 0 && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => window.open(getFixturesPDFUrl(league._id), '_blank')} title="Download Fixtures PDF">
+                                <Download className="h-3 w-3 mr-1" />PDF
+                              </Button>
+                            )}
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                              setCreateFixtureForm({ homeTeam: '', awayTeam: '', round: 1, roundName: '', scheduledDate: '', scheduledTime: '', venue: '', venueAddress: '' })
+                              setShowCreateFixture(league)
+                            }}>
+                              <Plus className="h-3 w-3 mr-1" />Add Fixture
+                            </Button>
+                          </div>
                         </div>
                         {/* Round filters */}
                         {getFixtureRounds().length > 1 && (

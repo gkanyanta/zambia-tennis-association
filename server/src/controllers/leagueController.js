@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Club from '../models/Club.js';
 import CalendarEvent from '../models/CalendarEvent.js';
 import LeagueRegistration from '../models/LeagueRegistration.js';
+import { generateFixturesPDF } from '../utils/generateFixturesPDF.js';
 
 // Match format definitions (ITF-aligned)
 export const MATCH_FORMATS = {
@@ -301,6 +302,35 @@ export const getLeagueTies = async (req, res) => {
       .sort('round scheduledDate');
 
     res.json({ success: true, count: ties.length, data: ties });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// GET /api/leagues/:id/ties/pdf
+export const downloadFixturesPDF = async (req, res) => {
+  try {
+    const league = await League.findById(req.params.id).populate('teams');
+    if (!league) {
+      return res.status(404).json({ success: false, error: 'League not found' });
+    }
+
+    const ties = await Tie.find({ league: req.params.id })
+      .populate('homeTeam awayTeam winner')
+      .sort('round scheduledDate');
+
+    const pdfBuffer = await generateFixturesPDF(league, ties);
+
+    const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `${safeName(league.name)}-Fixtures.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
