@@ -304,17 +304,27 @@ export const generateOrderOfPlayPDF = (tournament) => {
               }
             }
 
-            // Match number + label
+            // Match number
+            const numX = MARGIN + 10;
+            const labelX = MARGIN + 28;
+            const labelW = CONTENT_WIDTH - 38;
+
             doc.save();
             doc
               .fontSize(9)
               .font('Helvetica-Bold')
               .fillColor(COLORS.primary)
-              .text(`${i + 1}.`, MARGIN + 10, y, { continued: true, width: 18 });
-            doc
-              .font('Helvetica')
-              .text(` ${label}`, { width: CONTENT_WIDTH - 50, lineBreak: false });
+              .text(`${i + 1}.`, numX, y, { width: 16, lineBreak: false });
             doc.restore();
+
+            // Match label (allow wrapping for long names)
+            doc.save();
+            doc.fontSize(9).font('Helvetica').fillColor(COLORS.primary);
+            const labelHeight = doc.heightOfString(label, { width: labelW });
+            doc.text(label, labelX, y, { width: labelW });
+            doc.restore();
+
+            const baseRowHeight = Math.max(14, labelHeight + 2);
 
             // Not-before annotation
             if (entry.notBefore) {
@@ -323,14 +333,14 @@ export const generateOrderOfPlayPDF = (tournament) => {
                 .fontSize(7.5)
                 .font('Helvetica-Oblique')
                 .fillColor(COLORS.notBefore)
-                .text(entry.notBefore, MARGIN + 28, y + 12, {
-                  width: CONTENT_WIDTH - 50,
+                .text(entry.notBefore, labelX, y + baseRowHeight, {
+                  width: labelW,
                   lineBreak: false,
                 });
               doc.restore();
-              y += 24;
+              y += baseRowHeight + 12;
             } else {
-              y += 16;
+              y += baseRowHeight + 4;
             }
           }
 
