@@ -240,6 +240,12 @@ export const generateFixturesPDF = (league, ties) => {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
+      // Build team lookup from league
+      const allTeams = (league.teams || []).map(t => ({
+        id: t._id?.toString(),
+        name: t.name || 'Unknown',
+      }));
+
       // Group ties by round
       const tiesByRound = {};
       for (const tie of ties) {
@@ -266,8 +272,17 @@ export const generateFixturesPDF = (league, ties) => {
         // Determine round label
         const roundName = roundTies[0]?.roundName || `Round ${round}`;
 
-        // Estimate space needed: round header + table header + rows
-        const neededHeight = ROUND_HEADER_HEIGHT + HEADER_ROW_HEIGHT + roundTies.length * ROW_HEIGHT + 15;
+        // Find bye team(s) for this round
+        const teamsInRound = new Set();
+        for (const tie of roundTies) {
+          if (tie.homeTeam?._id) teamsInRound.add(tie.homeTeam._id.toString());
+          if (tie.awayTeam?._id) teamsInRound.add(tie.awayTeam._id.toString());
+        }
+        const byeTeams = allTeams.filter(t => t.id && !teamsInRound.has(t.id));
+        const hasBye = byeTeams.length > 0;
+
+        // Estimate space needed: round header + table header + rows + bye line
+        const neededHeight = ROUND_HEADER_HEIGHT + HEADER_ROW_HEIGHT + roundTies.length * ROW_HEIGHT + (hasBye ? 18 : 0) + 15;
 
         // Check if we need a new page
         if (!isFirstPage && y + neededHeight > bottomLimit) {
@@ -327,6 +342,22 @@ export const generateFixturesPDF = (league, ties) => {
           }
 
           y = renderFixtureRow(doc, y, roundTies[i], i % 2 === 1);
+        }
+
+        // Bye indicator
+        if (hasBye) {
+          const byeNames = byeTeams.map(t => t.name).join(', ');
+          doc.save();
+          doc
+            .fontSize(8)
+            .font('Helvetica-Oblique')
+            .fillColor(COLORS.secondary)
+            .text(`Bye: ${byeNames}`, MARGIN + 4, y + 4, {
+              width: CONTENT_WIDTH,
+              lineBreak: false,
+            });
+          doc.restore();
+          y += 18;
         }
 
         y += 12; // spacing after round
