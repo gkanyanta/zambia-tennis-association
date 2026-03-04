@@ -1,3 +1,4 @@
+import xlsx from 'xlsx';
 import MembershipType from '../models/MembershipType.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
 import User from '../models/User.js';
@@ -16,7 +17,14 @@ import sendEmail from '../utils/sendEmail.js';
 export const confirmSubscriptionPayment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { paymentMethod = 'other' } = req.body;
+    const { paymentMethod = 'other', bankReference } = req.body;
+
+    if (!bankReference || !bankReference.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bank reference / transaction ID is required to confirm a payment'
+      });
+    }
 
     const subscription = await MembershipSubscription.findById(id);
 
@@ -38,6 +46,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
     subscription.status = 'active';
     subscription.paymentDate = new Date();
     subscription.paymentMethod = paymentMethod;
+    subscription.paymentReference = bankReference.trim();
 
     // Update entity (player or club)
     let entityEmail;
@@ -78,6 +87,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
     const confirmRef = `CONFIRM-${subscription._id}-${Date.now()}`;
     const transaction = await Transaction.create({
       reference: confirmRef,
+      transactionId: bankReference.trim(),
       type: 'membership',
       amount: subscription.amount,
       currency: subscription.currency || 'ZMW',
@@ -95,7 +105,8 @@ export const confirmSubscriptionPayment = async (req, res) => {
         entityType: subscription.entityType,
         confirmedBy: req.user.id,
         playerName: subscription.entityName,
-        zpin: subscription.zpin
+        zpin: subscription.zpin,
+        bankReference: bankReference.trim()
       },
       paymentDate: new Date()
     });
@@ -1752,6 +1763,76 @@ export const recordManualPayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to record payment',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Export subscriptions to Excel
+// @route   GET /api/membership/subscriptions/export/excel
+// @access  Private (Admin)
+export const exportSubscriptionsExcel = async (req, res) => {
+  try {
+    const { entityType, status, year, search, startDate, endDate, paymentSource } = req.query;
+
+    const query = {};
+    if (entityType) query.entityType = entityType;
+    if (status) query.status = status;
+    if (year) query.year = parseInt(year);
+    if (search) {
+      query.$or = [
+        { entityName: { $regex: search, $options: 'i' } },
+        { zpin: { $regex: search, $options: 'i' } },
+        { paymentReference: { $regex: search, $options: 'i' } }
+      ];
+    }
+    if (startDate || endDate) {
+      query.paymentDate = {};
+      if (startDate) query.paymentDate.$gte = new Date(startDate);
+      if (endDate) query.paymentDate.$lte = new Date(endDate);
+    }
+    if (paymentSource === 'manual') query.paymentMethod = { $ne: 'online' };
+    else if (paymentSource === 'online') query.paymentMethod = 'online';
+
+    const subscriptions = await MembershipSubscription.find(query)
+      .populate('processedBy', 'firstName lastName')
+      .sort({ createdAt: -1 });
+
+    const excelData = subscriptions.map(sub => ({
+      'Entity Name': sub.entityName || '',
+      'Entity Type': sub.entityType || '',
+      'ZPIN': sub.zpin || '',
+      'Membership Type': sub.membershipTypeName || '',
+      'Year': sub.year || '',
+      'Amount': sub.amount || 0,
+      'Status': sub.status || '',
+      'Payment Method': sub.paymentMethod || '',
+      'Payment Date': sub.paymentDate ? new Date(sub.paymentDate).toLocaleDateString() : '',
+      'Receipt #': sub.receiptNumber || '',
+      'Payer Name': sub.payer?.name || '',
+      'Payer Email': sub.payer?.email || '',
+      'Processed By': sub.processedBy ? `${sub.processedBy.firstName} ${sub.processedBy.lastName}` : ''
+    }));
+
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.json_to_sheet(excelData);
+    worksheet['!cols'] = [
+      { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 8 },
+      { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 22 },
+      { wch: 20 }, { wch: 25 }, { wch: 20 }
+    ];
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Subscriptions');
+
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `ZTA_Subscriptions_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Export subscriptions Excel error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export subscriptions',
       error: error.message
     });
   }

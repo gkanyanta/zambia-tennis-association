@@ -1,4 +1,5 @@
 import axios from 'axios';
+import xlsx from 'xlsx';
 import User from '../models/User.js';
 import Club from '../models/Club.js';
 import Tournament from '../models/Tournament.js';
@@ -478,6 +479,14 @@ export const verifyPayment = async (req, res) => {
             players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
           }
         });
+
+        // Write receipt number back to all subscriptions in the bulk
+        if (transaction?.receiptNumber) {
+          await MembershipSubscription.updateMany(
+            { paymentReference: reference },
+            { $set: { receiptNumber: transaction.receiptNumber } }
+          );
+        }
 
         return res.status(200).json({
           success: true,
@@ -990,7 +999,7 @@ export const handleWebhook = async (req, res) => {
             if (activatedPlayers.length > 0) {
               const firstSub = subscriptions[0];
               try {
-                await createTransactionAndSendReceipt({
+                const txnRecord = await createTransactionAndSendReceipt({
                   reference,
                   transactionId: transaction_id,
                   type: 'membership',
@@ -1005,6 +1014,14 @@ export const handleWebhook = async (req, res) => {
                     players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
                   }
                 });
+
+                // Write receipt number back to all subscriptions in the bulk
+                if (txnRecord?.receiptNumber) {
+                  await MembershipSubscription.updateMany(
+                    { paymentReference: reference },
+                    { $set: { receiptNumber: txnRecord.receiptNumber } }
+                  );
+                }
               } catch (txnError) {
                 console.error('Webhook: Failed to create bulk transaction record:', txnError);
               }
@@ -1548,6 +1565,64 @@ export const getTransactions = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get transactions',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Export transactions to Excel
+// @route   GET /api/lenco/transactions/export/excel
+// @access  Private (Admin)
+export const exportTransactionsExcel = async (req, res) => {
+  try {
+    const { type, status, startDate, endDate, paymentSource } = req.query;
+
+    await syncMissingTransactions();
+
+    const query = {};
+    if (type) query.type = type;
+    if (status) query.status = status;
+    if (startDate || endDate) {
+      query.paymentDate = {};
+      if (startDate) query.paymentDate.$gte = new Date(startDate);
+      if (endDate) query.paymentDate.$lte = new Date(endDate);
+    }
+    if (paymentSource === 'manual') query.paymentGateway = 'manual';
+    else if (paymentSource === 'online') query.paymentGateway = 'lenco';
+
+    const transactions = await Transaction.find(query).sort({ createdAt: -1 });
+
+    const excelData = transactions.map(txn => ({
+      'Date': txn.paymentDate ? new Date(txn.paymentDate).toLocaleDateString() : '',
+      'Receipt #': txn.receiptNumber || '',
+      'Type': txn.type || '',
+      'Description': txn.description || '',
+      'Payer Name': txn.payerName || '',
+      'Payer Email': txn.payerEmail || '',
+      'Amount': txn.amount || 0,
+      'Currency': txn.currency || 'ZMW',
+      'Status': txn.status || '',
+      'Payment Method': txn.paymentGateway === 'manual' ? 'Manual' : 'Online'
+    }));
+
+    const workbook = xlsx.utils.book_new();
+    const worksheet = xlsx.utils.json_to_sheet(excelData);
+    worksheet['!cols'] = [
+      { wch: 15 }, { wch: 22 }, { wch: 15 }, { wch: 30 }, { wch: 20 },
+      { wch: 25 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 15 }
+    ];
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const filename = `ZTA_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buffer);
+  } catch (error) {
+    console.error('Export transactions Excel error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export transactions',
       error: error.message
     });
   }

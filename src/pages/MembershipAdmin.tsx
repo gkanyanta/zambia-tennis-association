@@ -63,7 +63,7 @@ import { lencoPaymentService } from '@/services/lencoPaymentService'
 
 export function MembershipAdmin() {
   const navigate = useNavigate()
-  const { isAdmin, isAuthenticated } = useAuth()
+  const { isAdmin, isFinance, isAuthenticated, user } = useAuth()
 
   // State
   const [activeTab, setActiveTab] = useState('subscriptions')
@@ -77,8 +77,12 @@ export function MembershipAdmin() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterEntityType, setFilterEntityType] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [subStartDate, setSubStartDate] = useState<string>('')
+  const [subEndDate, setSubEndDate] = useState<string>('')
+  const [subPaymentSource, setSubPaymentSource] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [exporting, setExporting] = useState(false)
 
   // Dialogs
   const [typeDialogOpen, setTypeDialogOpen] = useState(false)
@@ -99,6 +103,7 @@ export function MembershipAdmin() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [confirmingSub, setConfirmingSub] = useState<MembershipSubscription | null>(null)
   const [confirmPaymentMethod, setConfirmPaymentMethod] = useState('bank_transfer')
+  const [confirmBankReference, setConfirmBankReference] = useState('')
   const [confirmingPayment, setConfirmingPayment] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null)
@@ -130,10 +135,10 @@ export function MembershipAdmin() {
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login')
-    } else if (!isAdmin) {
+    } else if (!isAdmin && !isFinance) {
       navigate('/')
     }
-  }, [isAuthenticated, isAdmin, navigate])
+  }, [isAuthenticated, isAdmin, isFinance, navigate])
 
   // Fetch data
   useEffect(() => {
@@ -171,6 +176,39 @@ export function MembershipAdmin() {
       setError(err.message || 'Failed to load membership data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleExportSubscriptions = async () => {
+    try {
+      setExporting(true)
+      const params = new URLSearchParams()
+      if (filterEntityType !== 'all') params.append('entityType', filterEntityType)
+      if (filterStatus !== 'all') params.append('status', filterStatus)
+      if (searchTerm) params.append('search', searchTerm)
+      if (subStartDate) params.append('startDate', subStartDate)
+      if (subEndDate) params.append('endDate', subEndDate)
+      if (subPaymentSource !== 'all') params.append('paymentSource', subPaymentSource)
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${apiUrl}/api/membership/subscriptions/export/excel?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!response.ok) throw new Error('Export failed')
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ZTA_Subscriptions_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      console.error('Export failed:', err)
+      setError(err.message || 'Failed to export')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -251,7 +289,7 @@ export function MembershipAdmin() {
       setConfirmingPayment(true)
       setConfirmError(null)
       setConfirmSuccess(null)
-      const result = await membershipService.confirmSubscription(confirmingSub._id, confirmPaymentMethod)
+      const result = await membershipService.confirmSubscription(confirmingSub._id, confirmPaymentMethod, confirmBankReference)
       setConfirmSuccess(
         `Activated ${confirmingSub.entityName}${result.zpin ? ` (ZPIN: ${result.zpin})` : ''}. Receipt: ${result.transaction?.receiptNumber || 'N/A'}`
       )
@@ -385,7 +423,7 @@ export function MembershipAdmin() {
 
   const EARLIEST_PAYABLE_YEAR = 2024
 
-  if (!isAdmin) {
+  if (!isAdmin && !isFinance) {
     return null
   }
 
@@ -506,8 +544,41 @@ export function MembershipAdmin() {
                           <SelectItem value="expired">Expired</SelectItem>
                         </SelectContent>
                       </Select>
+                      <Select value={subPaymentSource} onValueChange={setSubPaymentSource}>
+                        <SelectTrigger className="w-[130px]">
+                          <SelectValue placeholder="Source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Sources</SelectItem>
+                          <SelectItem value="online">Online</SelectItem>
+                          <SelectItem value="manual">Manual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="date"
+                        value={subStartDate}
+                        onChange={(e) => setSubStartDate(e.target.value)}
+                        className="w-[140px]"
+                        placeholder="From"
+                      />
+                      <Input
+                        type="date"
+                        value={subEndDate}
+                        onChange={(e) => setSubEndDate(e.target.value)}
+                        className="w-[140px]"
+                        placeholder="To"
+                      />
                       <Button variant="outline" size="icon" onClick={fetchData}>
                         <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleExportSubscriptions}
+                        disabled={exporting}
+                        title="Export to Excel"
+                      >
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                       </Button>
                       <Button onClick={handleOpenManualPayment}>
                         <Banknote className="h-4 w-4 mr-2" />
@@ -585,7 +656,7 @@ export function MembershipAdmin() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-1">
-                                  {sub.status === 'pending' && (
+                                  {sub.status === 'pending' && (user?.role === 'admin' || user?.role === 'finance') && (
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -593,6 +664,7 @@ export function MembershipAdmin() {
                                       onClick={() => {
                                         setConfirmingSub(sub)
                                         setConfirmPaymentMethod('bank_transfer')
+                                        setConfirmBankReference('')
                                         setConfirmError(null)
                                         setConfirmSuccess(null)
                                         setConfirmDialogOpen(true)
@@ -971,7 +1043,24 @@ export function MembershipAdmin() {
                 </div>
               )}
 
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800 font-medium">
+                  Please verify that the payment has been received in the bank account before confirming.
+                </p>
+              </div>
+
               <div className="space-y-4 py-4">
+                <div>
+                  <Label>Bank Reference / Transaction ID <span className="text-destructive">*</span></Label>
+                  <Input
+                    placeholder="Enter the bank reference or transaction ID"
+                    value={confirmBankReference}
+                    onChange={(e) => setConfirmBankReference(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The reference number from the bank or payment platform confirming receipt of funds
+                  </p>
+                </div>
                 <div>
                   <Label>Payment Method</Label>
                   <Select value={confirmPaymentMethod} onValueChange={setConfirmPaymentMethod}>
@@ -994,7 +1083,7 @@ export function MembershipAdmin() {
                 <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleConfirmPayment} disabled={confirmingPayment}>
+                <Button onClick={handleConfirmPayment} disabled={confirmingPayment || !confirmBankReference.trim()}>
                   {confirmingPayment ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -374,14 +374,14 @@ export const membershipService = {
   /**
    * Confirm/activate a pending subscription (admin)
    */
-  async confirmSubscription(id: string, paymentMethod: string): Promise<{
+  async confirmSubscription(id: string, paymentMethod: string, bankReference: string): Promise<{
     subscription: MembershipSubscription;
     transaction: any;
     zpin?: string;
   }> {
     const response = await apiFetch(`/membership/subscriptions/${id}/confirm`, {
       method: 'PUT',
-      body: JSON.stringify({ paymentMethod }),
+      body: JSON.stringify({ paymentMethod, bankReference }),
     });
     return response.data;
   },

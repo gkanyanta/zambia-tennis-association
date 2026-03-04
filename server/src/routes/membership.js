@@ -18,7 +18,8 @@ import {
   initializeBulkPayment,
   verifyBulkPayment,
   searchClubsForPayment,
-  initializePublicClubPayment
+  initializePublicClubPayment,
+  exportSubscriptionsExcel
 } from '../controllers/membershipController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -91,6 +92,9 @@ router.post('/verify-payment', verifyMembershipPayment);
 // ADMIN ROUTES
 // ============================================
 
+// Export subscriptions to Excel
+router.get('/subscriptions/export/excel', protect, authorize('admin'), exportSubscriptionsExcel);
+
 // Get all subscriptions with filtering
 router.get('/subscriptions', protect, authorize('admin'), getSubscriptions);
 
@@ -101,6 +105,6 @@ router.get('/stats', protect, authorize('admin'), getSubscriptionStats);
 router.post('/record-payment', protect, authorize('admin'), recordManualPayment);
 
 // Confirm/activate a pending subscription
-router.put('/subscriptions/:id/confirm', protect, authorize('admin'), confirmSubscriptionPayment);
+router.put('/subscriptions/:id/confirm', protect, authorize('admin', 'finance'), confirmSubscriptionPayment);
 
 export default router;
