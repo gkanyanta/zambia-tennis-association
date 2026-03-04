@@ -25,13 +25,11 @@ const COLORS = {
 
 // Column layout for fixture table
 const COLS = {
-  date:   { x: MARGIN,       w: 80 },
-  time:   { x: MARGIN + 80,  w: 40 },
-  home:   { x: MARGIN + 120, w: 120 },
-  vs:     { x: MARGIN + 240, w: 25 },
-  away:   { x: MARGIN + 265, w: 120 },
-  venue:  { x: MARGIN + 385, w: 85 },
-  result: { x: MARGIN + 470, w: CONTENT_WIDTH - 470 + MARGIN },
+  home:   { x: MARGIN,       w: 160 },
+  vs:     { x: MARGIN + 160, w: 25 },
+  away:   { x: MARGIN + 185, w: 160 },
+  venue:  { x: MARGIN + 345, w: 110 },
+  result: { x: MARGIN + 455, w: CONTENT_WIDTH - 455 + MARGIN },
 };
 
 const ROW_HEIGHT = 20;
@@ -164,8 +162,6 @@ function renderTableHeader(doc, y) {
     .font('Helvetica-Bold')
     .fillColor(COLORS.secondary);
 
-  doc.text('DATE',   COLS.date.x + 4,   y + 5, { width: COLS.date.w,   lineBreak: false });
-  doc.text('TIME',   COLS.time.x + 2,   y + 5, { width: COLS.time.w,   lineBreak: false });
   doc.text('HOME',   COLS.home.x + 4,   y + 5, { width: COLS.home.w,   lineBreak: false });
   doc.text('',       COLS.vs.x,         y + 5, { width: COLS.vs.w,     lineBreak: false });
   doc.text('AWAY',   COLS.away.x + 4,   y + 5, { width: COLS.away.w,   lineBreak: false });
@@ -189,9 +185,6 @@ function renderFixtureRow(doc, y, tie, isAlternate) {
   const textY = y + 6;
   doc.save();
   doc.fontSize(7.5).font('Helvetica').fillColor(COLORS.primary);
-
-  doc.text(formatDate(tie.scheduledDate), COLS.date.x + 4,   textY, { width: COLS.date.w - 4,   lineBreak: false });
-  doc.text(formatTime(tie.scheduledTime), COLS.time.x + 2,   textY, { width: COLS.time.w - 2,   lineBreak: false });
 
   // Home team (bold if winner)
   const homeIsWinner = tie.winner && tie.winner._id?.toString() === tie.homeTeam?._id?.toString();
