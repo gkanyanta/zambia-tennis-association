@@ -9,7 +9,8 @@ import {
   downloadReceipt,
   resendReceipt,
   getIncomeStatement,
-  getTransactions
+  getTransactions,
+  exportTransactionsExcel
 } from '../controllers/lencoPaymentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -33,6 +34,7 @@ router.post('/receipt/:receiptNumber/send', protect, authorize('admin', 'staff')
 
 // Admin routes for income tracking
 router.get('/income-statement', protect, authorize('admin'), getIncomeStatement);
+router.get('/transactions/export/excel', protect, authorize('admin'), exportTransactionsExcel);
 router.get('/transactions', protect, authorize('admin'), getTransactions);
 
 export default router;

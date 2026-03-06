@@ -36,7 +36,8 @@ import {
   TrendingUp,
   Calendar,
   ArrowLeft,
-  Banknote
+  Banknote,
+  FileDown
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -78,11 +79,13 @@ export function IncomeAdmin() {
   // Filters
   const [filterType, setFilterType] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [paymentSource, setPaymentSource] = useState<string>('all')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -112,6 +115,7 @@ export function IncomeAdmin() {
       const params: Record<string, string | number> = { page: currentPage, limit: 20 }
       if (filterType !== 'all') params.type = filterType
       if (filterStatus !== 'all') params.status = filterStatus
+      if (paymentSource !== 'all') params.paymentSource = paymentSource
       if (startDate) params.startDate = startDate
       if (endDate) params.endDate = endDate
       const data = await lencoPaymentService.getTransactions(params as any)
@@ -124,7 +128,7 @@ export function IncomeAdmin() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage, filterType, filterStatus, startDate, endDate])
+  }, [currentPage, filterType, filterStatus, paymentSource, startDate, endDate])
 
   useEffect(() => {
     if (isAdmin) {
@@ -148,6 +152,38 @@ export function IncomeAdmin() {
       month: 'short',
       year: 'numeric',
     })
+  }
+
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true)
+      const params = new URLSearchParams()
+      if (filterType !== 'all') params.append('type', filterType)
+      if (filterStatus !== 'all') params.append('status', filterStatus)
+      if (paymentSource !== 'all') params.append('paymentSource', paymentSource)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const token = localStorage.getItem('token')
+      const response = await fetch(`${apiUrl}/api/lenco/transactions/export/excel?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!response.ok) throw new Error('Export failed')
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ZTA_Transactions_${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err: any) {
+      console.error('Export failed:', err)
+      setError(err.message || 'Failed to export')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const getTypeTotal = (type: string) => {
@@ -227,7 +263,7 @@ export function IncomeAdmin() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                 <div className="grid gap-2">
                   <Label>Type</Label>
                   <Select value={filterType} onValueChange={(v) => { setFilterType(v); handleFilterChange() }}>
@@ -261,6 +297,20 @@ export function IncomeAdmin() {
                 </div>
 
                 <div className="grid gap-2">
+                  <Label>Source</Label>
+                  <Select value={paymentSource} onValueChange={(v) => { setPaymentSource(v); handleFilterChange() }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="manual">Manual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-2">
                   <Label>From</Label>
                   <Input
                     type="date"
@@ -285,6 +335,7 @@ export function IncomeAdmin() {
                     onClick={() => {
                       setFilterType('all')
                       setFilterStatus('all')
+                      setPaymentSource('all')
                       setStartDate('')
                       setEndDate('')
                       setCurrentPage(1)
@@ -298,6 +349,15 @@ export function IncomeAdmin() {
                     onClick={() => { loadSummary(); loadTransactions() }}
                   >
                     <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleExportExcel}
+                    disabled={exporting}
+                    title="Export to Excel"
+                  >
+                    {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>

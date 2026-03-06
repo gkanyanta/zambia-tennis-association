@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import xlsx from 'xlsx';
 import User from '../models/User.js';
 import Club from '../models/Club.js';
@@ -13,6 +14,7 @@ import { generateReceipt } from '../utils/generateReceipt.js';
 
 // Lenco API configuration
 const LENCO_BASE_URL = process.env.LENCO_BASE_URL || 'https://sandbox.lenco.co/access/v2/';
+const LENCO_WEBHOOK_SECRET = process.env.LENCO_WEBHOOK_SECRET;
 const LENCO_API_KEY = process.env.LENCO_API_KEY;
 const LENCO_PUBLIC_KEY = process.env.LENCO_PUBLIC_KEY;
 
@@ -49,9 +51,16 @@ const verifyLencoPayment = async (reference) => {
   }
 };
 
-// Helper function to create transaction record and send receipt
+// Helper function to create transaction record and send receipt (idempotent)
 const createTransactionAndSendReceipt = async (transactionData) => {
   try {
+    // Idempotency: check if a Transaction already exists for this reference
+    const existing = await Transaction.findOne({ reference: transactionData.reference });
+    if (existing) {
+      console.log(`Transaction already exists for reference ${transactionData.reference}: ${existing.receiptNumber}`);
+      return existing;
+    }
+
     // Create transaction record
     const transaction = new Transaction({
       reference: transactionData.reference,
@@ -63,13 +72,13 @@ const createTransactionAndSendReceipt = async (transactionData) => {
       payerEmail: transactionData.payerEmail,
       payerPhone: transactionData.payerPhone,
       status: 'completed',
-      paymentGateway: 'lenco',
+      paymentGateway: transactionData.paymentGateway || 'lenco',
       paymentMethod: transactionData.paymentMethod || 'card',
       relatedId: transactionData.relatedId,
       relatedModel: transactionData.relatedModel,
       metadata: transactionData.metadata || {},
       description: transactionData.description,
-      paymentDate: new Date()
+      paymentDate: transactionData.paymentDate || new Date()
     });
 
     await transaction.save();
@@ -398,9 +407,13 @@ export const verifyPayment = async (req, res) => {
           });
         }
 
-        // Check if already activated
+        // Check if already activated — return existing data including receipt
         const allActive = subscriptions.every(s => s.status === 'active');
         if (allActive) {
+          // Ensure Transaction + receipt exist even if previous run failed after activation
+          const existingTxn = await Transaction.findOne({ reference });
+          const receiptNumber = existingTxn?.receiptNumber || subscriptions[0]?.receiptNumber;
+
           return res.status(200).json({
             success: true,
             message: 'Memberships already active',
@@ -409,6 +422,7 @@ export const verifyPayment = async (req, res) => {
               transactionId,
               amount: amountPaid,
               status: 'successful',
+              receiptNumber,
               playerCount: subscriptions.length,
               players: subscriptions.map(s => ({
                 id: s.entityId,
@@ -510,7 +524,17 @@ export const verifyPayment = async (req, res) => {
       if (subscription) {
         // New subscription system - activate subscription
         if (subscription.status === 'active') {
-          // Already activated (perhaps via webhook)
+          // Already activated (perhaps via webhook) — ensure receipt exists
+          let receiptNumber = subscription.receiptNumber;
+          if (!receiptNumber) {
+            const existingTxn = await Transaction.findOne({ reference });
+            if (existingTxn) {
+              receiptNumber = existingTxn.receiptNumber;
+              subscription.receiptNumber = receiptNumber;
+              await subscription.save();
+            }
+          }
+
           return res.status(200).json({
             success: true,
             message: 'Membership already active',
@@ -519,7 +543,7 @@ export const verifyPayment = async (req, res) => {
               transactionId,
               amount: amountPaid,
               status: 'successful',
-              receiptNumber: subscription.receiptNumber,
+              receiptNumber,
               user: {
                 id: subscription.entityId,
                 name: subscription.entityName,
@@ -689,6 +713,17 @@ export const verifyPayment = async (req, res) => {
       }
 
       if (subscription.status === 'active') {
+        // Ensure receipt exists
+        let receiptNumber = subscription.receiptNumber;
+        if (!receiptNumber) {
+          const existingTxn = await Transaction.findOne({ reference });
+          if (existingTxn) {
+            receiptNumber = existingTxn.receiptNumber;
+            subscription.receiptNumber = receiptNumber;
+            await subscription.save();
+          }
+        }
+
         return res.status(200).json({
           success: true,
           message: 'Club affiliation already active',
@@ -697,7 +732,7 @@ export const verifyPayment = async (req, res) => {
             transactionId,
             amount: amountPaid,
             status: 'successful',
-            receiptNumber: subscription.receiptNumber,
+            receiptNumber,
             club: {
               id: subscription.entityId,
               name: subscription.entityName,
@@ -924,12 +959,36 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
+// Helper: verify Lenco webhook signature
+const verifyWebhookSignature = (req) => {
+  if (!LENCO_WEBHOOK_SECRET) {
+    console.warn('LENCO_WEBHOOK_SECRET not set — skipping webhook signature verification');
+    return true;
+  }
+  const signature = req.headers['x-lenco-signature'] || req.headers['x-webhook-signature'];
+  if (!signature) {
+    console.warn('No webhook signature header found');
+    return false;
+  }
+  const hash = crypto
+    .createHmac('sha512', LENCO_WEBHOOK_SECRET)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+  return hash === signature;
+};
+
 // @desc    Handle Lenco webhook notifications
 // @route   POST /api/lenco/webhook
 // @access  Public
 export const handleWebhook = async (req, res) => {
   try {
-    console.log('Lenco webhook received:', req.body);
+    console.log('Lenco webhook received:', JSON.stringify(req.body));
+
+    // Verify webhook signature if secret is configured
+    if (LENCO_WEBHOOK_SECRET && !verifyWebhookSignature(req)) {
+      console.error('Webhook signature verification failed');
+      return res.status(401).json({ success: false, message: 'Invalid signature' });
+    }
 
     const { event, data } = req.body;
 
@@ -953,6 +1012,21 @@ export const handleWebhook = async (req, res) => {
             console.log(`Webhook: No subscriptions found for bulk reference ${reference}`);
           } else if (subscriptions.every(s => s.status === 'active')) {
             console.log(`Webhook: Bulk subscriptions already active for ${reference}`);
+            // Backfill receipt if missing
+            const anyMissingReceipt = subscriptions.some(s => !s.receiptNumber);
+            if (anyMissingReceipt) {
+              const existingTxn = await Transaction.findOne({ reference });
+              if (existingTxn?.receiptNumber) {
+                await MembershipSubscription.updateMany(
+                  { paymentReference: reference, receiptNumber: { $exists: false } },
+                  { $set: { receiptNumber: existingTxn.receiptNumber } }
+                );
+                await MembershipSubscription.updateMany(
+                  { paymentReference: reference, receiptNumber: null },
+                  { $set: { receiptNumber: existingTxn.receiptNumber } }
+                );
+              }
+            }
           } else {
             const activatedPlayers = [];
             let totalAmount = 0;
@@ -1038,6 +1112,15 @@ export const handleWebhook = async (req, res) => {
             console.log(`Webhook: No subscription found for reference ${reference}`);
           } else if (subscription.status === 'active') {
             console.log(`Webhook: Subscription already active for ${reference}`);
+            // Ensure Transaction + receipt exist even if verify created the subscription
+            // but failed to create the Transaction
+            if (!subscription.receiptNumber) {
+              const existingTxn = await Transaction.findOne({ reference });
+              if (existingTxn?.receiptNumber) {
+                subscription.receiptNumber = existingTxn.receiptNumber;
+                await subscription.save();
+              }
+            }
           } else {
             // Activate the subscription
             subscription.status = 'active';
@@ -1112,6 +1195,14 @@ export const handleWebhook = async (req, res) => {
           console.log(`Webhook: No club subscription found for reference ${reference}`);
         } else if (subscription.status === 'active') {
           console.log(`Webhook: Club subscription already active for ${reference}`);
+          // Backfill receipt if missing
+          if (!subscription.receiptNumber) {
+            const existingTxn = await Transaction.findOne({ reference });
+            if (existingTxn?.receiptNumber) {
+              subscription.receiptNumber = existingTxn.receiptNumber;
+              await subscription.save();
+            }
+          }
         } else {
           subscription.status = 'active';
           subscription.transactionId = transaction_id;
@@ -1394,7 +1485,8 @@ export const resendReceipt = async (req, res) => {
 };
 
 // Helper: sync missing Transaction records from active MembershipSubscriptions
-// This handles cases where subscriptions were activated but Transaction creation failed
+// This handles cases where subscriptions were activated but Transaction creation failed.
+// Also backfills receiptNumber on subscriptions that are active but missing it.
 const syncMissingTransactions = async () => {
   try {
     // Get IDs of subscriptions that already have Transaction records
@@ -1421,8 +1513,6 @@ const syncMissingTransactions = async () => {
              !existingReferences.has(sub.paymentReference)
     );
 
-    if (missing.length === 0) return 0;
-
     let created = 0;
     for (const sub of missing) {
       try {
@@ -1430,7 +1520,7 @@ const syncMissingTransactions = async () => {
         const methodMap = { online: 'card', cash: 'cash', cheque: 'cheque' };
         const txnPaymentMethod = methodMap[sub.paymentMethod] || sub.paymentMethod || 'other';
 
-        await Transaction.create({
+        const txn = await Transaction.create({
           reference: sub.paymentReference || `SYNC-${sub._id}-${Date.now()}`,
           type: 'membership',
           amount: sub.amount,
@@ -1452,10 +1542,39 @@ const syncMissingTransactions = async () => {
           },
           paymentDate: sub.paymentDate
         });
+
+        // Backfill receiptNumber onto the subscription
+        if (txn.receiptNumber && !sub.receiptNumber) {
+          sub.receiptNumber = txn.receiptNumber;
+          await sub.save();
+        }
+
         created++;
       } catch (err) {
         // Skip duplicates or validation errors
         console.error(`Failed to sync transaction for subscription ${sub._id}:`, err.message);
+      }
+    }
+
+    // Backfill receiptNumber for active subscriptions that have a Transaction but missing receiptNumber
+    const subsWithoutReceipt = activeSubscriptions.filter(
+      sub => !sub.receiptNumber && (existingIdSet.has(sub._id.toString()) || existingReferences.has(sub.paymentReference))
+    );
+    for (const sub of subsWithoutReceipt) {
+      try {
+        const txn = await Transaction.findOne({
+          $or: [
+            { relatedId: sub._id, relatedModel: 'MembershipSubscription' },
+            { reference: sub.paymentReference }
+          ],
+          status: 'completed'
+        });
+        if (txn?.receiptNumber) {
+          sub.receiptNumber = txn.receiptNumber;
+          await sub.save();
+        }
+      } catch (err) {
+        console.error(`Failed to backfill receipt for subscription ${sub._id}:`, err.message);
       }
     }
 
@@ -1527,7 +1646,7 @@ export const getIncomeStatement = async (req, res) => {
 // @access  Private (Admin)
 export const getTransactions = async (req, res) => {
   try {
-    const { page = 1, limit = 20, type, status, startDate, endDate } = req.query;
+    const { page = 1, limit = 20, type, status, startDate, endDate, paymentSource } = req.query;
 
     // Sync any missing transaction records from subscriptions
     await syncMissingTransactions();
@@ -1536,6 +1655,8 @@ export const getTransactions = async (req, res) => {
 
     if (type) query.type = type;
     if (status) query.status = status;
+    if (paymentSource === 'manual') query.paymentGateway = 'manual';
+    else if (paymentSource === 'online') query.paymentGateway = 'lenco';
     if (startDate || endDate) {
       query.paymentDate = {};
       if (startDate) query.paymentDate.$gte = new Date(startDate);

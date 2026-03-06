@@ -35,10 +35,29 @@ export const confirmSubscriptionPayment = async (req, res) => {
       });
     }
 
+    if (subscription.status === 'active') {
+      // Already active — return existing data instead of erroring
+      const existingTxn = await Transaction.findOne({
+        relatedId: subscription._id,
+        relatedModel: 'MembershipSubscription',
+        status: 'completed'
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Subscription is already active',
+        data: {
+          subscription,
+          transaction: existingTxn || null,
+          zpin: subscription.zpin
+        }
+      });
+    }
+
     if (subscription.status !== 'pending') {
       return res.status(400).json({
         success: false,
-        message: `Subscription is already ${subscription.status}`
+        message: `Cannot confirm subscription — status is "${subscription.status}"`
       });
     }
 
@@ -46,7 +65,9 @@ export const confirmSubscriptionPayment = async (req, res) => {
     subscription.status = 'active';
     subscription.paymentDate = new Date();
     subscription.paymentMethod = paymentMethod;
-    subscription.paymentReference = bankReference.trim();
+    // Store bank reference in transactionId — do NOT overwrite paymentReference
+    // paymentReference is the canonical link to the Lenco payment
+    subscription.transactionId = bankReference.trim();
 
     // Update entity (player or club)
     let entityEmail;
@@ -83,33 +104,43 @@ export const confirmSubscriptionPayment = async (req, res) => {
 
     await subscription.save();
 
-    // Create transaction record (use unique reference to avoid duplicate key on shared bulk references)
-    const confirmRef = `CONFIRM-${subscription._id}-${Date.now()}`;
-    const transaction = await Transaction.create({
-      reference: confirmRef,
-      transactionId: bankReference.trim(),
-      type: 'membership',
-      amount: subscription.amount,
-      currency: subscription.currency || 'ZMW',
-      payerName: subscription.payer?.name || subscription.entityName,
-      payerEmail: subscription.payer?.email || null,
-      status: 'completed',
-      paymentGateway: 'manual',
-      paymentMethod,
-      relatedId: subscription._id,
-      relatedModel: 'MembershipSubscription',
-      description: `${subscription.membershipTypeName} - ${subscription.year} (Confirmed)`,
-      metadata: {
-        membershipType: subscription.membershipTypeCode,
-        membershipYear: subscription.year,
-        entityType: subscription.entityType,
-        confirmedBy: req.user.id,
-        playerName: subscription.entityName,
-        zpin: subscription.zpin,
-        bankReference: bankReference.trim()
-      },
-      paymentDate: new Date()
-    });
+    // Create transaction record — use original paymentReference if it's a Lenco ref,
+    // otherwise generate a unique confirm reference
+    const isLencoRef = subscription.paymentReference &&
+      (subscription.paymentReference.startsWith('MEM-') || subscription.paymentReference.startsWith('CLUB-'));
+    const txnReference = isLencoRef
+      ? subscription.paymentReference
+      : `CONFIRM-${subscription._id}-${Date.now()}`;
+
+    // Idempotency: check if Transaction already exists for this reference
+    let transaction = await Transaction.findOne({ reference: txnReference });
+    if (!transaction) {
+      transaction = await Transaction.create({
+        reference: txnReference,
+        transactionId: bankReference.trim(),
+        type: 'membership',
+        amount: subscription.amount,
+        currency: subscription.currency || 'ZMW',
+        payerName: subscription.payer?.name || subscription.entityName,
+        payerEmail: subscription.payer?.email || null,
+        status: 'completed',
+        paymentGateway: isLencoRef ? 'lenco' : 'manual',
+        paymentMethod: isLencoRef ? 'online' : paymentMethod,
+        relatedId: subscription._id,
+        relatedModel: 'MembershipSubscription',
+        description: `${subscription.membershipTypeName} - ${subscription.year} (Confirmed)`,
+        metadata: {
+          membershipType: subscription.membershipTypeCode,
+          membershipYear: subscription.year,
+          entityType: subscription.entityType,
+          confirmedBy: req.user.id,
+          playerName: subscription.entityName,
+          zpin: subscription.zpin,
+          bankReference: bankReference.trim()
+        },
+        paymentDate: new Date()
+      });
+    }
 
     subscription.receiptNumber = transaction.receiptNumber;
     await subscription.save();
