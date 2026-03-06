@@ -1,7 +1,34 @@
 import cron from 'node-cron';
 import User from '../models/User.js';
 import Club from '../models/Club.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 import Settings from '../models/Settings.js';
+
+// Pending subscriptions older than this are considered abandoned
+const PENDING_TIMEOUT_HOURS = 2;
+
+/**
+ * Cancel stale pending subscriptions that were never paid.
+ * A subscription is considered abandoned if it's been pending for over 2 hours
+ * with no paymentDate or transactionId (i.e. payment was never completed).
+ */
+export const cancelStalePendingSubscriptions = async () => {
+  const cutoff = new Date(Date.now() - PENDING_TIMEOUT_HOURS * 60 * 60 * 1000);
+
+  const result = await MembershipSubscription.updateMany(
+    {
+      status: 'pending',
+      createdAt: { $lt: cutoff },
+      paymentDate: { $eq: null },
+      transactionId: { $eq: null }
+    },
+    {
+      $set: { status: 'cancelled', notes: `Auto-cancelled: no payment received within ${PENDING_TIMEOUT_HOURS} hours` }
+    }
+  );
+
+  return result.modifiedCount || 0;
+};
 
 /**
  * Check and update membership/affiliation status for expired entities
@@ -11,6 +38,12 @@ export const updateExpiredMemberships = async () => {
   try {
     const now = new Date();
     console.log(`[${now.toISOString()}] Running membership status update job...`);
+
+    // Cancel stale pending subscriptions first
+    const cancelledCount = await cancelStalePendingSubscriptions();
+    if (cancelledCount > 0) {
+      console.log(`  - Cancelled ${cancelledCount} stale pending subscription(s)`);
+    }
 
     const settings = await Settings.getSettings();
     let playersUpdated = 0;
@@ -95,6 +128,7 @@ export const updateExpiredMemberships = async () => {
       playersUpdated,
       clubsUpdated,
       arrearsAdded,
+      stalePendingCancelled: cancelledCount,
       timestamp: now
     };
   } catch (error) {
@@ -136,6 +170,20 @@ export const initializeStatusUpdateJob = async () => {
     });
 
     console.log('Membership status update job scheduled successfully');
+
+    // Run stale pending cleanup every hour
+    cron.schedule('0 * * * *', async () => {
+      try {
+        const cancelled = await cancelStalePendingSubscriptions();
+        if (cancelled > 0) {
+          console.log(`[${new Date().toISOString()}] Stale pending cleanup: cancelled ${cancelled} subscription(s)`);
+        }
+      } catch (err) {
+        console.error('Stale pending cleanup error:', err);
+      }
+    }, { scheduled: true, timezone: 'Africa/Lusaka' });
+
+    console.log('Stale pending subscription cleanup scheduled: every hour');
 
     return job;
   } catch (error) {
