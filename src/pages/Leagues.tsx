@@ -28,7 +28,7 @@ export function Leagues() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user, isAdmin } = useAuth()
-  const canScore = isAdmin || user?.role === 'club_official'
+  const canScore = isAdmin
   const isClubOfficial = user?.role === 'club_official'
   const [selectedRegion, setSelectedRegion] = useState<Region>('northern')
   const [selectedGender, setSelectedGender] = useState<Gender>('men')

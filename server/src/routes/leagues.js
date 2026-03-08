@@ -50,12 +50,12 @@ router.post('/:id/ties', protect, authorize('admin', 'staff'), createTie);
 router.get('/:leagueId/ties/:tieId', getTie);
 router.put('/:leagueId/ties/:tieId', protect, authorize('admin', 'staff'), updateTie);
 
-// Player selection & scoring (club_official can score their own ties)
-router.get('/:leagueId/ties/:tieId/available-players', protect, authorize('admin', 'staff', 'club_official'), getAvailablePlayers);
-router.put('/:leagueId/ties/:tieId/players', protect, authorize('admin', 'staff', 'club_official'), updateTiePlayers);
+// Player selection & scoring (admin/staff only)
+router.get('/:leagueId/ties/:tieId/available-players', protect, authorize('admin', 'staff'), getAvailablePlayers);
+router.put('/:leagueId/ties/:tieId/players', protect, authorize('admin', 'staff'), updateTiePlayers);
 
 // Rubber scoring
-router.put('/:leagueId/ties/:tieId/rubbers/:rubberIndex/score', protect, authorize('admin', 'staff', 'club_official'), validateRubberScores, updateRubberScore);
+router.put('/:leagueId/ties/:tieId/rubbers/:rubberIndex/score', protect, authorize('admin', 'staff'), validateRubberScores, updateRubberScore);
 
 // Walkover
 router.post('/:leagueId/ties/:tieId/walkover', protect, authorize('admin', 'staff'), recordWalkover);

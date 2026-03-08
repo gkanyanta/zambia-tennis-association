@@ -717,17 +717,9 @@ export const updateTie = async (req, res) => {
  * Admin/staff always have access. Returns false if club_official's club
  * does not match either home or away team.
  */
-async function checkTieAccess(user, tie) {
-  if (user.role === 'admin' || user.role === 'staff') return true;
-  if (user.role !== 'club_official' || !user.club) return false;
-
-  // Populate team names if not already populated
-  const populatedTie = tie.homeTeam?.name ? tie : await Tie.findById(tie._id).populate('homeTeam awayTeam');
-  const userClub = user.club.toLowerCase();
-  return (
-    populatedTie.homeTeam.name.toLowerCase() === userClub ||
-    populatedTie.awayTeam.name.toLowerCase() === userClub
-  );
+async function checkTieAccess(user) {
+  // Only admin and staff can enter league results
+  return user.role === 'admin' || user.role === 'staff';
 }
 
 // ─── Player selection ───────────────────────────────────────────
@@ -743,7 +735,7 @@ export const getAvailablePlayers = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Tie not found' });
     }
 
-    if (!(await checkTieAccess(req.user, tie))) {
+    if (!(await checkTieAccess(req.user))) {
       return res.status(403).json({ success: false, error: 'You can only manage ties involving your club' });
     }
 
@@ -797,7 +789,7 @@ export const updateTiePlayers = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Tie not found' });
     }
 
-    if (!(await checkTieAccess(req.user, tie))) {
+    if (!(await checkTieAccess(req.user))) {
       return res.status(403).json({ success: false, error: 'You can only manage ties involving your club' });
     }
 
@@ -839,7 +831,7 @@ export const updateRubberScore = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Tie not found' });
     }
 
-    if (!(await checkTieAccess(req.user, tie))) {
+    if (!(await checkTieAccess(req.user))) {
       return res.status(403).json({ success: false, error: 'You can only score ties involving your club' });
     }
     if (!tie.rubbers[rubberIndex]) {

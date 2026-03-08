@@ -20,8 +20,8 @@ const TieScoreEntry: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, isAdmin } = useAuth();
 
-  // Access check: admin, staff, or club_official
-  const canScore = isAdmin || user?.role === 'club_official';
+  // Access check: admin/staff only
+  const canScore = isAdmin;
 
   if (!isAuthenticated) {
     return (
@@ -44,7 +44,7 @@ const TieScoreEntry: React.FC = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <Lock className="h-8 w-8 text-red-600 mx-auto mb-3" />
           <h2 className="text-lg font-semibold text-red-800 mb-2">Access Denied</h2>
-          <p className="text-red-700">Only administrators and club officials can enter scores.</p>
+          <p className="text-red-700">Only administrators and staff can enter scores.</p>
         </div>
       </div>
     );
