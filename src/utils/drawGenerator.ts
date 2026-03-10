@@ -271,9 +271,44 @@ export function generateFeedInDraw(entries: TournamentEntry[]): Draw {
   }
 }
 
+// Shuffle an array in place using Fisher-Yates
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// Randomize positions within ITF seed groups
+// Seeds 1-2 are fixed; seeds 3-4, 5-8, 9-16, 17-32 are shuffled within their designated positions
+function randomizeSeedGroups(positions: number[]): number[] {
+  const result = [...positions]
+  const len = result.length
+
+  // Seed groups: [3,4], [5,8], [9,16], [17,32], [33,64], [65,128]
+  // Index ranges (0-based): [2,3], [4,7], [8,15], [16,31], [32,63], [64,127]
+  const groups: [number, number][] = [
+    [2, 3], [4, 7], [8, 15], [16, 31], [32, 63], [64, 127]
+  ]
+
+  for (const [start, end] of groups) {
+    if (start >= len) break
+    const groupEnd = Math.min(end, len - 1)
+    const slice = result.slice(start, groupEnd + 1)
+    const shuffled = shuffleArray(slice)
+    for (let i = 0; i < shuffled.length; i++) {
+      result[start + i] = shuffled[i]
+    }
+  }
+
+  return result
+}
+
 // Standard seeding positions for different draw sizes
 function getSeedingPositions(drawSize: number): number[] {
-  // ITF standard seeding positions
+  // ITF standard seeding positions (base template)
   const positions: Record<number, number[]> = {
     4: [0, 3, 1, 2],
     8: [0, 7, 3, 4, 1, 6, 2, 5],
@@ -284,7 +319,8 @@ function getSeedingPositions(drawSize: number): number[] {
     128: generateSeedingPositions128()
   }
 
-  return positions[drawSize] || []
+  const base = positions[drawSize] || []
+  return base.length > 0 ? randomizeSeedGroups(base) : base
 }
 
 function generateSeedingPositions64(): number[] {
