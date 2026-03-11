@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2, List, Pencil, CalendarClock, AlertTriangle, Download } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Calendar, PlayCircle, Trophy, CheckCircle, XCircle, ClipboardList, Loader2, List, Pencil, CalendarClock, AlertTriangle, Download, ClipboardEdit } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   fetchLeagues,
@@ -29,6 +30,7 @@ import {
 import { clubService, Club } from '@/services/clubService'
 
 export function LeagueManagement() {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [leagues, setLeagues] = useState<League[]>([])
   const [searchLeague, setSearchLeague] = useState('')
@@ -475,25 +477,37 @@ export function LeagueManagement() {
                                     {tie.scheduledTime && ` ${tie.scheduledTime}`}
                                     {tie.venue && ` · ${tie.venue}`}
                                   </div>
-                                  {!['completed', 'walkover'].includes(tie.status) && (
-                                    <div className="flex gap-1">
-                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Edit"
-                                        onClick={() => openEditFixture(tie, league, 'edit')}>
-                                        <Pencil className="h-3 w-3" />
+                                  <div className="flex gap-1">
+                                    {!['completed', 'walkover', 'cancelled'].includes(tie.status) && (
+                                      <>
+                                        <Button size="sm" variant="ghost" className="h-6 px-1.5" title="Enter Scores"
+                                          onClick={() => navigate(`/leagues/${league._id}/ties/${tie._id}/score`)}>
+                                          <ClipboardEdit className="h-3 w-3 mr-1" /><span className="text-xs">Scores</span>
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Edit"
+                                          onClick={() => openEditFixture(tie, league, 'edit')}>
+                                          <Pencil className="h-3 w-3" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Reschedule"
+                                          onClick={() => openEditFixture(tie, league, 'reschedule')}>
+                                          <CalendarClock className="h-3 w-3" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Walkover"
+                                          onClick={() => {
+                                            setWalkoverForm({ walkoverTeam: '', reason: '' })
+                                            setShowWalkoverModal({ tie, league })
+                                          }}>
+                                          <AlertTriangle className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    )}
+                                    {tie.status === 'completed' && (
+                                      <Button size="sm" variant="ghost" className="h-6 px-1.5" title="Edit Scores"
+                                        onClick={() => navigate(`/leagues/${league._id}/ties/${tie._id}/score`)}>
+                                        <ClipboardEdit className="h-3 w-3 mr-1" /><span className="text-xs">Edit Scores</span>
                                       </Button>
-                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Reschedule"
-                                        onClick={() => openEditFixture(tie, league, 'reschedule')}>
-                                        <CalendarClock className="h-3 w-3" />
-                                      </Button>
-                                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Walkover"
-                                        onClick={() => {
-                                          setWalkoverForm({ walkoverTeam: '', reason: '' })
-                                          setShowWalkoverModal({ tie, league })
-                                        }}>
-                                        <AlertTriangle className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ))}
