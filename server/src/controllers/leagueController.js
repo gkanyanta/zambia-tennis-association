@@ -294,7 +294,7 @@ export const getLeagueTies = async (req, res) => {
   try {
     const { status, round } = req.query;
     const filter = { league: req.params.id };
-    if (status) filter.status = status;
+    if (status) filter.status = status.includes(',') ? { $in: status.split(',') } : status;
     if (round) filter.round = parseInt(round);
 
     const ties = await Tie.find(filter)

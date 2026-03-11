@@ -112,7 +112,7 @@ export function Leagues() {
     if (!currentLeague) return
     setLoading(true)
     try {
-      const status = activeTab === 'fixtures' ? 'scheduled' : 'completed'
+      const status = activeTab === 'fixtures' ? 'scheduled,in_progress' : 'completed'
       const response = await fetchLeagueTies(currentLeague._id, { status })
       setTies(response.data)
     } catch (error: any) {
@@ -308,7 +308,7 @@ export function Leagues() {
                   {loading ? (
                     <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
                   ) : ties.length === 0 ? (
-                    <Card><CardContent className="py-12 text-center text-muted-foreground">No upcoming fixtures scheduled.</CardContent></Card>
+                    <Card><CardContent className="py-12 text-center text-muted-foreground">No upcoming or in-progress fixtures.</CardContent></Card>
                   ) : (
                     ties.map(tie => (
                       <Card key={tie._id} className="card-elevated">
@@ -412,6 +412,13 @@ export function Leagues() {
                                   </div>
                                 ))}
                               </div>
+                            </div>
+                          )}
+                          {canScore && (
+                            <div className="mt-4 border-t pt-4">
+                              <Button variant="outline" size="sm" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
+                                <Edit className="h-4 w-4 mr-2" /> Edit Scores
+                              </Button>
                             </div>
                           )}
                         </CardContent>
