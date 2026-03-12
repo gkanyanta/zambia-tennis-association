@@ -400,17 +400,33 @@ export function Leagues() {
                             <div className="border-t pt-4">
                               <h5 className="font-semibold mb-3 text-sm">Rubber Details</h5>
                               <div className="space-y-2 text-sm">
-                                {tie.rubbers.map((rubber, idx) => (
-                                  <div key={idx} className="flex justify-between items-center py-2 px-3 bg-muted/30 rounded">
-                                    <span className="font-medium">{getRubberLabel(rubber.type)}</span>
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-muted-foreground">{formatSetScore(rubber)}</span>
-                                      <Badge variant={rubber.winner === 'home' ? 'default' : rubber.winner === 'away' ? 'secondary' : 'outline'} className="text-xs">
-                                        {rubber.winner === 'home' ? 'H' : rubber.winner === 'away' ? 'A' : '-'}
-                                      </Badge>
+                                {tie.rubbers.map((rubber, idx) => {
+                                  const isDoubles = rubber.type.startsWith('doubles')
+                                  const homeName = isDoubles
+                                    ? (rubber.homePlayers?.map(p => `${p.firstName} ${p.lastName}`).join(' / ') || 'TBD')
+                                    : (rubber.homePlayer ? `${rubber.homePlayer.firstName} ${rubber.homePlayer.lastName}` : 'TBD')
+                                  const awayName = isDoubles
+                                    ? (rubber.awayPlayers?.map(p => `${p.firstName} ${p.lastName}`).join(' / ') || 'TBD')
+                                    : (rubber.awayPlayer ? `${rubber.awayPlayer.firstName} ${rubber.awayPlayer.lastName}` : 'TBD')
+                                  return (
+                                    <div key={idx} className="py-2 px-3 bg-muted/30 rounded">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-medium text-xs text-muted-foreground">{getRubberLabel(rubber.type)}</span>
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-muted-foreground">{formatSetScore(rubber)}</span>
+                                          <Badge variant={rubber.winner === 'home' ? 'default' : rubber.winner === 'away' ? 'secondary' : 'outline'} className="text-xs">
+                                            {rubber.winner === 'home' ? 'H' : rubber.winner === 'away' ? 'A' : '-'}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                      <div className="flex justify-between mt-1">
+                                        <span className={rubber.winner === 'home' ? 'font-semibold' : ''}>{homeName}</span>
+                                        <span className="text-muted-foreground mx-2">vs</span>
+                                        <span className={rubber.winner === 'away' ? 'font-semibold' : ''}>{awayName}</span>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </div>
                           )}
