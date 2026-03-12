@@ -402,12 +402,21 @@ export function Leagues() {
                               <div className="space-y-2 text-sm">
                                 {tie.rubbers.map((rubber, idx) => {
                                   const isDoubles = rubber.type.startsWith('doubles')
-                                  const homeName = isDoubles
-                                    ? (rubber.homePlayers?.map(p => `${p.firstName} ${p.lastName}`).join(' / ') || 'TBD')
-                                    : (rubber.homePlayer ? `${rubber.homePlayer.firstName} ${rubber.homePlayer.lastName}` : 'TBD')
-                                  const awayName = isDoubles
-                                    ? (rubber.awayPlayers?.map(p => `${p.firstName} ${p.lastName}`).join(' / ') || 'TBD')
-                                    : (rubber.awayPlayer ? `${rubber.awayPlayer.firstName} ${rubber.awayPlayer.lastName}` : 'TBD')
+                                  const homePlayerName = isDoubles
+                                    ? (rubber.homePlayers && rubber.homePlayers.length > 0
+                                        ? rubber.homePlayers.map(p => `${p.firstName} ${p.lastName}`).join(' / ')
+                                        : null)
+                                    : (rubber.homePlayer && rubber.homePlayer.firstName
+                                        ? `${rubber.homePlayer.firstName} ${rubber.homePlayer.lastName}`
+                                        : null)
+                                  const awayPlayerName = isDoubles
+                                    ? (rubber.awayPlayers && rubber.awayPlayers.length > 0
+                                        ? rubber.awayPlayers.map(p => `${p.firstName} ${p.lastName}`).join(' / ')
+                                        : null)
+                                    : (rubber.awayPlayer && rubber.awayPlayer.firstName
+                                        ? `${rubber.awayPlayer.firstName} ${rubber.awayPlayer.lastName}`
+                                        : null)
+                                  const hasPlayerNames = homePlayerName || awayPlayerName
                                   return (
                                     <div key={idx} className="py-2 px-3 bg-muted/30 rounded">
                                       <div className="flex justify-between items-center">
@@ -419,11 +428,13 @@ export function Leagues() {
                                           </Badge>
                                         </div>
                                       </div>
-                                      <div className="flex justify-between mt-1">
-                                        <span className={rubber.winner === 'home' ? 'font-semibold' : ''}>{homeName}</span>
-                                        <span className="text-muted-foreground mx-2">vs</span>
-                                        <span className={rubber.winner === 'away' ? 'font-semibold' : ''}>{awayName}</span>
-                                      </div>
+                                      {hasPlayerNames && (
+                                        <div className="flex justify-between mt-1">
+                                          <span className={rubber.winner === 'home' ? 'font-semibold' : ''}>{homePlayerName || tie.homeTeam.name}</span>
+                                          <span className="text-muted-foreground mx-2">vs</span>
+                                          <span className={rubber.winner === 'away' ? 'font-semibold' : ''}>{awayPlayerName || tie.awayTeam.name}</span>
+                                        </div>
+                                      )}
                                     </div>
                                   )
                                 })}

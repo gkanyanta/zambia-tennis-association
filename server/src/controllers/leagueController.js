@@ -299,7 +299,10 @@ export const getLeagueTies = async (req, res) => {
 
     const ties = await Tie.find(filter)
       .populate('homeTeam awayTeam winner')
-      .populate('rubbers.homePlayer rubbers.awayPlayer rubbers.homePlayers rubbers.awayPlayers', 'firstName lastName zpin')
+      .populate({ path: 'rubbers.homePlayer', select: 'firstName lastName zpin' })
+      .populate({ path: 'rubbers.awayPlayer', select: 'firstName lastName zpin' })
+      .populate({ path: 'rubbers.homePlayers', select: 'firstName lastName zpin' })
+      .populate({ path: 'rubbers.awayPlayers', select: 'firstName lastName zpin' })
       .sort('round scheduledDate');
 
     res.json({ success: true, count: ties.length, data: ties });
