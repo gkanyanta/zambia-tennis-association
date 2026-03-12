@@ -1489,28 +1489,21 @@ export const resendReceipt = async (req, res) => {
 // Also backfills receiptNumber on subscriptions that are active but missing it.
 const syncMissingTransactions = async () => {
   try {
-    // Get IDs of subscriptions that already have Transaction records
+    // Get IDs of subscriptions that already have Transaction records (by relatedId)
     const existingRelatedIds = await Transaction.distinct('relatedId', {
       relatedModel: 'MembershipSubscription'
     });
 
     const existingIdSet = new Set(existingRelatedIds.map(id => id.toString()));
 
-    // Also collect existing Transaction references to handle bulk payments
-    // where the Transaction exists but uses a shared reference without relatedId
-    const existingReferences = new Set(
-      await Transaction.distinct('reference', { type: 'membership' })
-    );
-
-    // Find active subscriptions with payment dates that have no Transaction
+    // Find active subscriptions with payment dates that have no Transaction by relatedId
     const activeSubscriptions = await MembershipSubscription.find({
       status: 'active',
       paymentDate: { $exists: true, $ne: null }
     });
 
     const missing = activeSubscriptions.filter(
-      sub => !existingIdSet.has(sub._id.toString()) &&
-             !existingReferences.has(sub.paymentReference)
+      sub => !existingIdSet.has(sub._id.toString())
     );
 
     let created = 0;
@@ -1520,8 +1513,13 @@ const syncMissingTransactions = async () => {
         const methodMap = { online: 'card', cash: 'cash', cheque: 'cheque' };
         const txnPaymentMethod = methodMap[sub.paymentMethod] || sub.paymentMethod || 'other';
 
+        // Always use a unique reference that includes subscription ID
+        // to avoid duplicate key errors from shared bank references
+        const txnReference = `SYNC-${sub._id}-${Date.now()}`;
+
         const txn = await Transaction.create({
-          reference: sub.paymentReference || `SYNC-${sub._id}-${Date.now()}`,
+          reference: txnReference,
+          transactionId: sub.transactionId || null,
           type: 'membership',
           amount: sub.amount,
           currency: sub.currency || 'ZMW',
@@ -1538,6 +1536,7 @@ const syncMissingTransactions = async () => {
             entityType: sub.entityType,
             playerName: sub.entityName,
             zpin: sub.zpin,
+            bankReference: sub.paymentReference,
             synced: true
           },
           paymentDate: sub.paymentDate
@@ -1551,22 +1550,19 @@ const syncMissingTransactions = async () => {
 
         created++;
       } catch (err) {
-        // Skip duplicates or validation errors
         console.error(`Failed to sync transaction for subscription ${sub._id}:`, err.message);
       }
     }
 
     // Backfill receiptNumber for active subscriptions that have a Transaction but missing receiptNumber
     const subsWithoutReceipt = activeSubscriptions.filter(
-      sub => !sub.receiptNumber && (existingIdSet.has(sub._id.toString()) || existingReferences.has(sub.paymentReference))
+      sub => !sub.receiptNumber && existingIdSet.has(sub._id.toString())
     );
     for (const sub of subsWithoutReceipt) {
       try {
         const txn = await Transaction.findOne({
-          $or: [
-            { relatedId: sub._id, relatedModel: 'MembershipSubscription' },
-            { reference: sub.paymentReference }
-          ],
+          relatedId: sub._id,
+          relatedModel: 'MembershipSubscription',
           status: 'completed'
         });
         if (txn?.receiptNumber) {

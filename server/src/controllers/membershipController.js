@@ -112,8 +112,12 @@ export const confirmSubscriptionPayment = async (req, res) => {
       ? subscription.paymentReference
       : `CONFIRM-${subscription._id}-${Date.now()}`;
 
-    // Idempotency: check if Transaction already exists for this reference
-    let transaction = await Transaction.findOne({ reference: txnReference });
+    // Idempotency: check if Transaction already exists for this subscription
+    let transaction = await Transaction.findOne({
+      relatedId: subscription._id,
+      relatedModel: 'MembershipSubscription',
+      status: 'completed'
+    }) || await Transaction.findOne({ reference: txnReference });
     if (!transaction) {
       transaction = await Transaction.create({
         reference: txnReference,
@@ -1752,63 +1756,41 @@ export const recordManualPayment = async (req, res) => {
       await entity.save();
     }
 
-    // Create transaction record (handle duplicate references gracefully)
-    let transaction = await Transaction.findOne({ reference: subscription.paymentReference });
+    // Create transaction record with a guaranteed-unique reference
+    // Use subscription ID in reference to avoid duplicate key errors when
+    // admins reuse the same bank reference for multiple players
+    const txnReference = `MANUAL-${subscription._id}-${Date.now()}`;
+    let transaction = await Transaction.findOne({
+      relatedId: subscription._id,
+      relatedModel: 'MembershipSubscription',
+      status: 'completed'
+    });
     if (!transaction) {
-      try {
-        transaction = await Transaction.create({
-          reference: subscription.paymentReference,
-          type: 'membership',
-          amount: subscription.amount,
-          currency: subscription.currency,
-          payerName: subscription.payer?.name || entityName,
-          payerEmail: subscription.payer?.email || entityEmail || null,
-          status: 'completed',
-          paymentGateway: 'manual',
-          paymentMethod,
-          relatedId: subscription._id,
-          relatedModel: 'MembershipSubscription',
-          description: `${membershipType.name} - ${subscription.year} (Manual)`,
-          metadata: {
-            membershipType: membershipType.code,
-            membershipYear: subscription.year,
-            entityType,
-            recordedBy: req.user.id,
-            playerName: entityName,
-            zpin: subscription.zpin
-          },
-          paymentDate: new Date()
-        });
-      } catch (txnError) {
-        // If duplicate key, try with a unique fallback reference
-        if (txnError.code === 11000) {
-          transaction = await Transaction.create({
-            reference: `${subscription.paymentReference}-${subscription._id}`,
-            type: 'membership',
-            amount: subscription.amount,
-            currency: subscription.currency,
-            payerName: subscription.payer?.name || entityName,
-            payerEmail: subscription.payer?.email || entityEmail || null,
-            status: 'completed',
-            paymentGateway: 'manual',
-            paymentMethod,
-            relatedId: subscription._id,
-            relatedModel: 'MembershipSubscription',
-            description: `${membershipType.name} - ${subscription.year} (Manual)`,
-            metadata: {
-              membershipType: membershipType.code,
-              membershipYear: subscription.year,
-              entityType,
-              recordedBy: req.user.id,
-              playerName: entityName,
-              zpin: subscription.zpin
-            },
-            paymentDate: new Date()
-          });
-        } else {
-          throw txnError;
-        }
-      }
+      transaction = await Transaction.create({
+        reference: txnReference,
+        transactionId: transactionReference || null,
+        type: 'membership',
+        amount: subscription.amount,
+        currency: subscription.currency,
+        payerName: subscription.payer?.name || entityName,
+        payerEmail: subscription.payer?.email || entityEmail || null,
+        status: 'completed',
+        paymentGateway: 'manual',
+        paymentMethod,
+        relatedId: subscription._id,
+        relatedModel: 'MembershipSubscription',
+        description: `${membershipType.name} - ${subscription.year} (Manual)`,
+        metadata: {
+          membershipType: membershipType.code,
+          membershipYear: subscription.year,
+          entityType,
+          recordedBy: req.user.id,
+          playerName: entityName,
+          zpin: subscription.zpin,
+          bankReference: transactionReference || null
+        },
+        paymentDate: new Date()
+      });
     }
 
     subscription.receiptNumber = transaction.receiptNumber;
