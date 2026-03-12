@@ -754,9 +754,9 @@ export const getAvailablePlayers = async (req, res) => {
     if (league?.gender === 'men') filter.gender = 'male';
     else if (league?.gender === 'women') filter.gender = 'female';
 
-    // Filter by tennis age: 14+ years old
+    // Filter by tennis age: 13+ years old
     const cutoffDate = new Date();
-    cutoffDate.setFullYear(cutoffDate.getFullYear() - 14);
+    cutoffDate.setFullYear(cutoffDate.getFullYear() - 13);
     filter.dateOfBirth = { $lte: cutoffDate };
 
     const players = await User.find(filter)
