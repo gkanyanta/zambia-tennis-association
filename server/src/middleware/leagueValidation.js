@@ -34,7 +34,13 @@ export const validateRubberScores = (req, res, next) => {
       return res.status(400).json({ success: false, error: `Set ${i + 1}: scores must be numbers` });
     }
 
-    if (homeGames < 0 || awayGames < 0 || homeGames > 7 || awayGames > 7) {
+    if (homeGames < 0 || awayGames < 0) {
+      return res.status(400).json({ success: false, error: `Set ${i + 1}: scores cannot be negative` });
+    }
+
+    // Match tiebreak (super tiebreak) allows scores above 7
+    // Full validation (first to 10, win by 2) is done in the controller
+    if (!set.isMatchTiebreak && (homeGames > 7 || awayGames > 7)) {
       return res.status(400).json({ success: false, error: `Set ${i + 1}: games must be between 0 and 7` });
     }
   }

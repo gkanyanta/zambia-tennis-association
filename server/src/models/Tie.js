@@ -11,14 +11,12 @@ const setSchema = new mongoose.Schema({
   homeGames: {
     type: Number,
     required: true,
-    min: 0,
-    max: 7
+    min: 0
   },
   awayGames: {
     type: Number,
     required: true,
-    min: 0,
-    max: 7
+    min: 0
   },
   tiebreak: {
     played: { type: Boolean, default: false },
