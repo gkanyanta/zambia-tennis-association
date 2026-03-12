@@ -33,8 +33,8 @@ router.get('/receipt/:receiptNumber', downloadReceipt);
 router.post('/receipt/:receiptNumber/send', protect, authorize('admin', 'staff'), resendReceipt);
 
 // Admin routes for income tracking
-router.get('/income-statement', protect, authorize('admin'), getIncomeStatement);
-router.get('/transactions/export/excel', protect, authorize('admin'), exportTransactionsExcel);
-router.get('/transactions', protect, authorize('admin'), getTransactions);
+router.get('/income-statement', protect, authorize('admin', 'staff', 'finance'), getIncomeStatement);
+router.get('/transactions/export/excel', protect, authorize('admin', 'staff', 'finance'), exportTransactionsExcel);
+router.get('/transactions', protect, authorize('admin', 'staff', 'finance'), getTransactions);
 
 export default router;

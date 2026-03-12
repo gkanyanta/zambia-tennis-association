@@ -122,7 +122,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
         amount: subscription.amount,
         currency: subscription.currency || 'ZMW',
         payerName: subscription.payer?.name || subscription.entityName,
-        payerEmail: subscription.payer?.email || null,
+        payerEmail: subscription.payer?.email || entityEmail || null,
         status: 'completed',
         paymentGateway: isLencoRef ? 'lenco' : 'manual',
         paymentMethod: isLencoRef ? 'online' : paymentMethod,
@@ -1752,33 +1752,104 @@ export const recordManualPayment = async (req, res) => {
       await entity.save();
     }
 
-    // Create transaction record
-    const transaction = await Transaction.create({
-      reference: subscription.paymentReference,
-      type: 'membership',
-      amount: subscription.amount,
-      currency: subscription.currency,
-      payerName: subscription.payer?.name || entityName,
-      payerEmail: subscription.payer?.email || null,
-      status: 'completed',
-      paymentGateway: 'manual',
-      paymentMethod,
-      relatedId: subscription._id,
-      relatedModel: 'MembershipSubscription',
-      description: `${membershipType.name} - ${subscription.year} (Manual)`,
-      metadata: {
-        membershipType: membershipType.code,
-        membershipYear: subscription.year,
-        entityType,
-        recordedBy: req.user.id,
-        playerName: entityName,
-        zpin: subscription.zpin
-      },
-      paymentDate: new Date()
-    });
+    // Create transaction record (handle duplicate references gracefully)
+    let transaction = await Transaction.findOne({ reference: subscription.paymentReference });
+    if (!transaction) {
+      try {
+        transaction = await Transaction.create({
+          reference: subscription.paymentReference,
+          type: 'membership',
+          amount: subscription.amount,
+          currency: subscription.currency,
+          payerName: subscription.payer?.name || entityName,
+          payerEmail: subscription.payer?.email || entityEmail || null,
+          status: 'completed',
+          paymentGateway: 'manual',
+          paymentMethod,
+          relatedId: subscription._id,
+          relatedModel: 'MembershipSubscription',
+          description: `${membershipType.name} - ${subscription.year} (Manual)`,
+          metadata: {
+            membershipType: membershipType.code,
+            membershipYear: subscription.year,
+            entityType,
+            recordedBy: req.user.id,
+            playerName: entityName,
+            zpin: subscription.zpin
+          },
+          paymentDate: new Date()
+        });
+      } catch (txnError) {
+        // If duplicate key, try with a unique fallback reference
+        if (txnError.code === 11000) {
+          transaction = await Transaction.create({
+            reference: `${subscription.paymentReference}-${subscription._id}`,
+            type: 'membership',
+            amount: subscription.amount,
+            currency: subscription.currency,
+            payerName: subscription.payer?.name || entityName,
+            payerEmail: subscription.payer?.email || entityEmail || null,
+            status: 'completed',
+            paymentGateway: 'manual',
+            paymentMethod,
+            relatedId: subscription._id,
+            relatedModel: 'MembershipSubscription',
+            description: `${membershipType.name} - ${subscription.year} (Manual)`,
+            metadata: {
+              membershipType: membershipType.code,
+              membershipYear: subscription.year,
+              entityType,
+              recordedBy: req.user.id,
+              playerName: entityName,
+              zpin: subscription.zpin
+            },
+            paymentDate: new Date()
+          });
+        } else {
+          throw txnError;
+        }
+      }
+    }
 
     subscription.receiptNumber = transaction.receiptNumber;
     await subscription.save();
+
+    // Generate and send receipt email
+    const receiptEmail = entityEmail;
+    try {
+      const pdfBuffer = await generateReceipt(transaction);
+      if (receiptEmail) {
+        await sendEmail({
+          email: receiptEmail,
+          subject: `Membership Payment Receipt - ${transaction.receiptNumber} - ZTA`,
+          html: `
+            <h2>Membership Payment Receipt</h2>
+            <p>Dear ${entityName},</p>
+            <p>Your ${membershipType.name} payment has been recorded.</p>
+            <p><strong>Details:</strong></p>
+            <ul>
+              <li>Receipt Number: ${transaction.receiptNumber}</li>
+              <li>Membership: ${membershipType.name}</li>
+              <li>Amount: K${subscription.amount}</li>
+              <li>Valid Until: December 31, ${subscription.year}</li>
+              ${subscription.zpin ? `<li>ZPIN: ${subscription.zpin}</li>` : ''}
+            </ul>
+            <p>Please find your official receipt attached.</p>
+            <p>Thank you for being a member of the Zambia Tennis Association!</p>
+          `,
+          attachments: [{
+            filename: `ZTA-Receipt-${transaction.receiptNumber}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }]
+        });
+
+        transaction.receiptSentAt = new Date();
+        await transaction.save();
+      }
+    } catch (emailError) {
+      console.error('Failed to send manual payment receipt email:', emailError);
+    }
 
     res.status(201).json({
       success: true,

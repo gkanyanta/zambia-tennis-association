@@ -69,7 +69,8 @@ const STATUS_VARIANT: Record<string, string> = {
 
 export function IncomeAdmin() {
   const navigate = useNavigate()
-  const { isAdmin, isAuthenticated } = useAuth()
+  const { isAdmin, isFinance, isAuthenticated } = useAuth()
+  const canView = isAdmin || isFinance
 
   const [summary, setSummary] = useState<IncomeSummary | null>(null)
   const [transactions, setTransactions] = useState<IncomeTransaction[]>([])
@@ -90,10 +91,10 @@ export function IncomeAdmin() {
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login')
-    } else if (!isAdmin) {
+    } else if (!canView) {
       navigate('/')
     }
-  }, [isAuthenticated, isAdmin, navigate])
+  }, [isAuthenticated, canView, navigate])
 
   const loadSummary = useCallback(async () => {
     try {
@@ -131,11 +132,11 @@ export function IncomeAdmin() {
   }, [currentPage, filterType, filterStatus, paymentSource, startDate, endDate])
 
   useEffect(() => {
-    if (isAdmin) {
+    if (canView) {
       loadSummary()
       loadTransactions()
     }
-  }, [isAdmin, loadSummary, loadTransactions])
+  }, [canView, loadSummary, loadTransactions])
 
   const handleFilterChange = () => {
     setCurrentPage(1)
@@ -192,7 +193,7 @@ export function IncomeAdmin() {
     return entry || { totalAmount: 0, count: 0 }
   }
 
-  if (!isAdmin) return null
+  if (!canView) return null
 
   return (
     <div className="flex flex-col">

@@ -93,18 +93,18 @@ router.post('/verify-payment', verifyMembershipPayment);
 // ============================================
 
 // Export subscriptions to Excel
-router.get('/subscriptions/export/excel', protect, authorize('admin'), exportSubscriptionsExcel);
+router.get('/subscriptions/export/excel', protect, authorize('admin', 'staff', 'finance'), exportSubscriptionsExcel);
 
 // Get all subscriptions with filtering
-router.get('/subscriptions', protect, authorize('admin'), getSubscriptions);
+router.get('/subscriptions', protect, authorize('admin', 'staff', 'finance'), getSubscriptions);
 
 // Get subscription statistics
-router.get('/stats', protect, authorize('admin'), getSubscriptionStats);
+router.get('/stats', protect, authorize('admin', 'staff', 'finance'), getSubscriptionStats);
 
 // Record manual/offline payment
-router.post('/record-payment', protect, authorize('admin'), recordManualPayment);
+router.post('/record-payment', protect, authorize('admin', 'staff', 'finance'), recordManualPayment);
 
 // Confirm/activate a pending subscription
-router.put('/subscriptions/:id/confirm', protect, authorize('admin', 'finance'), confirmSubscriptionPayment);
+router.put('/subscriptions/:id/confirm', protect, authorize('admin', 'staff', 'finance'), confirmSubscriptionPayment);
 
 export default router;

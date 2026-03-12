@@ -173,6 +173,7 @@ export const lencoPaymentService = {
     status?: string;
     startDate?: string;
     endDate?: string;
+    paymentSource?: string;
   }): Promise<TransactionsResponse> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
@@ -181,6 +182,7 @@ export const lencoPaymentService = {
     if (params?.status) searchParams.set('status', params.status);
     if (params?.startDate) searchParams.set('startDate', params.startDate);
     if (params?.endDate) searchParams.set('endDate', params.endDate);
+    if (params?.paymentSource) searchParams.set('paymentSource', params.paymentSource);
     const qs = searchParams.toString();
     const response = await apiFetch(`/lenco/transactions${qs ? `?${qs}` : ''}`);
     return response.data;
