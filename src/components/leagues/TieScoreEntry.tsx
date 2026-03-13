@@ -18,7 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 const TieScoreEntry: React.FC = () => {
   const { leagueId, tieId } = useParams<{ leagueId: string; tieId: string }>();
   const navigate = useNavigate();
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
 
   // Access check: admin/staff only
   const canScore = isAdmin;

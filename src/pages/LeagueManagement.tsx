@@ -501,10 +501,10 @@ export function LeagueManagement() {
                                         </Button>
                                       </>
                                     )}
-                                    {tie.status === 'completed' && (
-                                      <Button size="sm" variant="ghost" className="h-6 px-1.5" title="Edit Scores"
+                                    {['completed', 'walkover'].includes(tie.status) && (
+                                      <Button size="sm" variant="outline" className="h-7 px-2 text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100" title="Edit Scores"
                                         onClick={() => navigate(`/leagues/${league._id}/ties/${tie._id}/score`)}>
-                                        <ClipboardEdit className="h-3 w-3 mr-1" /><span className="text-xs">Edit Scores</span>
+                                        <Pencil className="h-3 w-3 mr-1" /><span className="text-xs font-medium">Edit Scores</span>
                                       </Button>
                                     )}
                                   </div>

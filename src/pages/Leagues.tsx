@@ -423,7 +423,6 @@ export function Leagues() {
                                     : (rubber.awayPlayer && rubber.awayPlayer.firstName
                                         ? `${rubber.awayPlayer.firstName} ${rubber.awayPlayer.lastName}`
                                         : null)
-                                  const hasPlayerNames = homePlayerName || awayPlayerName
                                   return (
                                     <div key={idx} className="py-2 px-3 bg-muted/30 rounded">
                                       <div className="flex justify-between items-center">
@@ -435,13 +434,11 @@ export function Leagues() {
                                           </Badge>
                                         </div>
                                       </div>
-                                      {hasPlayerNames && (
-                                        <div className="flex justify-between mt-1">
-                                          <span className={rubber.winner === 'home' ? 'font-semibold' : ''}>{homePlayerName || tie.homeTeam.name}</span>
-                                          <span className="text-muted-foreground mx-2">vs</span>
-                                          <span className={rubber.winner === 'away' ? 'font-semibold' : ''}>{awayPlayerName || tie.awayTeam.name}</span>
-                                        </div>
-                                      )}
+                                      <div className="flex justify-between mt-1">
+                                        <span className={rubber.winner === 'home' ? 'font-semibold' : ''}>{homePlayerName || tie.homeTeam.name}</span>
+                                        <span className="text-muted-foreground mx-2">vs</span>
+                                        <span className={rubber.winner === 'away' ? 'font-semibold' : ''}>{awayPlayerName || tie.awayTeam.name}</span>
+                                      </div>
                                     </div>
                                   )
                                 })}
