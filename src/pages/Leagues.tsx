@@ -370,12 +370,19 @@ export function Leagues() {
                     ties.map(tie => (
                       <Card key={tie._id} className="card-elevated">
                         <CardContent className="pt-6">
-                          <div className="flex items-center gap-3 mb-4">
-                            <Badge>Round {tie.round}</Badge>
-                            <Badge variant="secondary">Completed</Badge>
-                            <span className="text-sm text-muted-foreground">
-                              {new Date(tie.scheduledDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                            </span>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <Badge>Round {tie.round}</Badge>
+                              <Badge variant="secondary">Completed</Badge>
+                              <span className="text-sm text-muted-foreground">
+                                {new Date(tie.scheduledDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                            {canScore && (
+                              <Button variant="outline" size="sm" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
+                                <Edit className="h-4 w-4 mr-2" /> Edit Scores
+                              </Button>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 items-center mb-6">
@@ -439,14 +446,6 @@ export function Leagues() {
                                   )
                                 })}
                               </div>
-                            </div>
-                          )}
-                          {canScore && (
-                            <div className="mt-4 border-t pt-4 flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
-                                <Edit className="h-4 w-4 mr-2" /> Edit Scores
-                              </Button>
-                              <span className="text-xs text-muted-foreground">Correct player assignments or scores</span>
                             </div>
                           )}
                         </CardContent>
