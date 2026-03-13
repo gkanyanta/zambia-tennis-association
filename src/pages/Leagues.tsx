@@ -442,10 +442,11 @@ export function Leagues() {
                             </div>
                           )}
                           {canScore && (
-                            <div className="mt-4 border-t pt-4">
+                            <div className="mt-4 border-t pt-4 flex items-center gap-2">
                               <Button variant="outline" size="sm" onClick={() => navigate(`/leagues/${currentLeague?._id}/ties/${tie._id}/score`)}>
                                 <Edit className="h-4 w-4 mr-2" /> Edit Scores
                               </Button>
+                              <span className="text-xs text-muted-foreground">Correct player assignments or scores</span>
                             </div>
                           )}
                         </CardContent>

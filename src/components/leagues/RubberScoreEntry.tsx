@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Trophy, AlertCircle, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Save, Trophy, AlertCircle, Plus, Trash2, Loader2, Pencil } from 'lucide-react';
 import { TieSet } from '../../services/leagueService';
 
 interface RubberScoreEntryProps {
@@ -133,23 +133,49 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
     await onSave(sets, isComplete ? 'completed' : 'in_progress');
   };
 
+  const [editing, setEditing] = useState(false);
+
   const { home: homeSetsWon, away: awaySetsWon } = calculateSetsWon();
   const rubberComplete = homeSetsWon >= 2 || awaySetsWon >= 2;
   const isAlreadyDone = ['completed', 'retired', 'walkover', 'defaulted'].includes(existingStatus);
+  const isLocked = isAlreadyDone && !editing;
 
   return (
-    <div className={`border rounded-lg p-6 ${isAlreadyDone ? 'bg-gray-50' : ''}`}>
+    <div className={`border rounded-lg p-6 ${isLocked ? 'bg-gray-50' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold">{title}</h3>
-        {(rubberComplete || isAlreadyDone) && (
-          <div className="flex items-center text-green-600">
-            <Trophy className="h-4 w-4 mr-1" />
-            <span className="text-sm font-semibold">
-              {winner === 'home' ? homeName.split(' / ')[0].split(' ').pop() : winner === 'away' ? awayName.split(' / ')[0].split(' ').pop() : ''} wins
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {isAlreadyDone && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Score
+            </button>
+          )}
+          {editing && (
+            <button
+              onClick={() => {
+                setEditing(false);
+                setSets(existingSets && existingSets.length > 0 ? existingSets : [{ setNumber: 1, homeGames: 0, awayGames: 0 }]);
+                setError('');
+              }}
+              className="px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+          )}
+          {(rubberComplete || isAlreadyDone) && (
+            <div className="flex items-center text-green-600">
+              <Trophy className="h-4 w-4 mr-1" />
+              <span className="text-sm font-semibold">
+                {winner === 'home' ? homeName.split(' / ')[0].split(' ').pop() : winner === 'away' ? awayName.split(' / ')[0].split(' ').pop() : ''} wins
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Players */}
@@ -194,7 +220,7 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
               <span className="text-sm font-semibold">
                 {set.isMatchTiebreak ? 'Match Tiebreak (first to 10)' : `Set ${set.setNumber}`}
               </span>
-              {sets.length > 1 && (
+              {sets.length > 1 && !isLocked && (
                 <button onClick={() => removeSet(idx)} className="text-red-400 hover:text-red-600 p-1">
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -204,14 +230,16 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
               <input
                 type="number" min="0" max={set.isMatchTiebreak ? undefined : 7} value={set.homeGames}
                 onChange={e => updateSetScore(idx, 'homeGames', parseInt(e.target.value) || 0)}
-                className="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold"
+                className={`w-full border rounded-lg px-3 py-2 text-center text-xl font-bold ${isLocked ? 'bg-gray-100 text-gray-500' : ''}`}
                 placeholder={set.isMatchTiebreak ? 'Pts' : undefined}
+                disabled={isLocked}
               />
               <input
                 type="number" min="0" max={set.isMatchTiebreak ? undefined : 7} value={set.awayGames}
                 onChange={e => updateSetScore(idx, 'awayGames', parseInt(e.target.value) || 0)}
-                className="w-full border rounded-lg px-3 py-2 text-center text-xl font-bold"
+                className={`w-full border rounded-lg px-3 py-2 text-center text-xl font-bold ${isLocked ? 'bg-gray-100 text-gray-500' : ''}`}
                 placeholder={set.isMatchTiebreak ? 'Pts' : undefined}
+                disabled={isLocked}
               />
             </div>
 
@@ -222,12 +250,14 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
                   <input
                     type="number" min="0" value={set.tiebreak.homePoints || 0}
                     onChange={e => updateTiebreak(idx, 'homePoints', parseInt(e.target.value) || 0)}
-                    className="w-full border rounded px-2 py-1 text-center text-sm font-semibold"
+                    className={`w-full border rounded px-2 py-1 text-center text-sm font-semibold ${isLocked ? 'bg-gray-100 text-gray-500' : ''}`}
+                    disabled={isLocked}
                   />
                   <input
                     type="number" min="0" value={set.tiebreak.awayPoints || 0}
                     onChange={e => updateTiebreak(idx, 'awayPoints', parseInt(e.target.value) || 0)}
-                    className="w-full border rounded px-2 py-1 text-center text-sm font-semibold"
+                    className={`w-full border rounded px-2 py-1 text-center text-sm font-semibold ${isLocked ? 'bg-gray-100 text-gray-500' : ''}`}
+                    disabled={isLocked}
                   />
                 </div>
               </div>
@@ -246,19 +276,21 @@ const RubberScoreEntry: React.FC<RubberScoreEntryProps> = ({
         ))}
       </div>
 
-      {!rubberComplete && sets.length < 3 && (
+      {!isLocked && !rubberComplete && sets.length < 3 && (
         <button onClick={addSet}
           className="w-full border-2 border-dashed border-gray-300 rounded-lg py-2 text-gray-500 hover:border-blue-500 hover:text-blue-500 flex items-center justify-center text-sm mb-4">
           <Plus className="h-4 w-4 mr-1" /> Add Set
         </button>
       )}
 
-      <button onClick={handleSave} disabled={saving}
-        className="w-full bg-blue-500 text-white py-2.5 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center font-medium">
-        {saving
-          ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
-          : <><Save className="h-4 w-4 mr-2" />Save Rubber Score</>}
-      </button>
+      {!isLocked && (
+        <button onClick={handleSave} disabled={saving}
+          className="w-full bg-blue-500 text-white py-2.5 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center font-medium">
+          {saving
+            ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
+            : <><Save className="h-4 w-4 mr-2" />{editing ? 'Update Rubber Score' : 'Save Rubber Score'}</>}
+        </button>
+      )}
     </div>
   );
 };
