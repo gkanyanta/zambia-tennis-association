@@ -398,7 +398,7 @@ export const bulkEntryAction = async (req, res) => {
       return res.status(400).json({ success: false, message: 'entryIds array is required' });
     }
 
-    const validActions = ['APPROVE', 'CONFIRM_PAYMENT', 'WAIVE_PAYMENT', 'WAIVE_SURCHARGE'];
+    const validActions = ['APPROVE', 'CONFIRM_PAYMENT', 'WAIVE_PAYMENT', 'WAIVE_SURCHARGE', 'WAIVE_PARTNER_SURCHARGE'];
     if (!validActions.includes(action)) {
       return res.status(400).json({ success: false, message: `action must be one of: ${validActions.join(', ')}` });
     }
@@ -467,8 +467,30 @@ export const bulkEntryAction = async (req, res) => {
               results.push({ entryId, success: false, error: 'Surcharge already waived for this entry' });
               continue;
             }
-            entry.entryFee = tournament.entryFee;
+            // Use per-category fee if set, otherwise fall back to tournament fee
+            entry.entryFee = category.entryFee ?? tournament.entryFee ?? 0;
             entry.surchargeWaived = true;
+            break;
+
+          case 'WAIVE_PARTNER_SURCHARGE':
+            if (entry.status !== 'pending_payment') {
+              results.push({ entryId, success: false, error: `Cannot waive partner surcharge for entry with status "${entry.status}"` });
+              continue;
+            }
+            if (!entry.partnerName) {
+              results.push({ entryId, success: false, error: 'Entry has no doubles partner' });
+              continue;
+            }
+            if (entry.partnerZpinPaidUp !== false) {
+              results.push({ entryId, success: false, error: 'Partner does not have a surcharge (partner ZPIN is paid up)' });
+              continue;
+            }
+            if (entry.partnerSurchargeWaived === true) {
+              results.push({ entryId, success: false, error: 'Partner surcharge already waived' });
+              continue;
+            }
+            entry.partnerEntryFee = category.entryFee ?? tournament.entryFee ?? 0;
+            entry.partnerSurchargeWaived = true;
             break;
         }
 
@@ -531,7 +553,7 @@ export const updateEntryStatus = async (req, res) => {
     // Handle waive surcharge
     if (waiveSurcharge) {
       if (entry.status === 'pending_payment' && entry.zpinPaidUp === false && entry.surchargeWaived !== true) {
-        entry.entryFee = tournament.entryFee;
+        entry.entryFee = category.entryFee ?? tournament.entryFee ?? 0;
         entry.surchargeWaived = true;
       }
     }
@@ -1283,12 +1305,11 @@ export const publicRegister = async (req, res) => {
 
     const results = [];
     const errors = [];
-    const baseFee = tournament.entryFee || 0;
     let totalFee = 0;
 
     // Process each entry
     for (const entry of entries) {
-      const { playerId, categoryId, isNewPlayer, newPlayerData } = entry;
+      const { playerId, categoryId, isNewPlayer, newPlayerData, partnerId, isNewPartner, newPartnerData } = entry;
 
       // Get the category first
       const category = tournament.categories.id(categoryId);
@@ -1382,10 +1403,79 @@ export const publicRegister = async (req, res) => {
       }
 
       // Check ZPIN paid-up status and calculate per-entry fee
+      // Per-category fee overrides tournament-level fee
+      const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
       const zpinPaidUp = !isNewPlayerEntry && playerData._id
         ? await MembershipSubscription.hasActiveSubscription(playerData._id, 'player')
         : false;
-      const entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+      let entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+
+      // Process doubles partner if this is a doubles/mixed_doubles category
+      let partnerInfo = {};
+      let partnerFee = 0;
+      const isDoublesCategory = category.format === 'doubles' || category.format === 'mixed_doubles';
+
+      if (isDoublesCategory) {
+        if (!partnerId && !isNewPartner) {
+          errors.push({
+            playerId,
+            playerName: `${playerData.firstName} ${playerData.lastName}`,
+            error: `A doubles partner is required for category "${category.name}"`
+          });
+          continue;
+        }
+
+        let partnerData;
+        let isNewPartnerEntry = false;
+
+        if (isNewPartner && newPartnerData) {
+          isNewPartnerEntry = true;
+          partnerData = {
+            firstName: newPartnerData.firstName,
+            lastName: newPartnerData.lastName,
+            dateOfBirth: new Date(newPartnerData.dateOfBirth),
+            gender: newPartnerData.gender,
+            club: newPartnerData.club || 'Independent',
+            zpin: 'PENDING'
+          };
+        } else if (partnerId) {
+          const partner = await User.findById(partnerId);
+          if (!partner) {
+            errors.push({ playerId, playerName: `${playerData.firstName} ${playerData.lastName}`, error: 'Doubles partner not found' });
+            continue;
+          }
+          partnerData = {
+            _id: partner._id,
+            firstName: partner.firstName,
+            lastName: partner.lastName,
+            dateOfBirth: partner.dateOfBirth,
+            gender: partner.gender,
+            club: partner.club || 'Independent',
+            zpin: partner.zpin
+          };
+        }
+
+        // Calculate partner fee with independent surcharge check
+        const partnerZpinPaidUp = !isNewPartnerEntry && partnerData._id
+          ? await MembershipSubscription.hasActiveSubscription(partnerData._id, 'player')
+          : false;
+        partnerFee = partnerZpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+
+        partnerInfo = {
+          partnerId: isNewPartnerEntry ? null : partnerData._id?.toString(),
+          partnerName: `${partnerData.firstName} ${partnerData.lastName}`,
+          partnerZpin: partnerData.zpin || 'PENDING',
+          partnerClubName: partnerData.club,
+          partnerDateOfBirth: partnerData.dateOfBirth,
+          partnerGender: partnerData.gender,
+          partnerEntryFee: partnerFee,
+          partnerZpinPaidUp,
+          partnerNewPlayerContact: isNewPartnerEntry ? {
+            phone: newPartnerData.phone,
+            email: newPartnerData.email
+          } : null
+        };
+      }
 
       // Validate eligibility for junior categories (skip for new players without full validation)
       let eligibilityCheck = { eligible: true, reason: isNewPlayerEntry ? 'Pending verification' : 'Eligible', warnings: [], errors: [] };
@@ -1444,21 +1534,27 @@ export const publicRegister = async (req, res) => {
           email: newPlayerData.email
         } : null,
         entryFee,
-        zpinPaidUp
+        zpinPaidUp,
+        ...partnerInfo
       };
 
       // Add entry
       category.entries.push(entryData);
       category.entryCount = category.entries.length;
-      totalFee += entryFee;
+      // For doubles, total = player fee + partner fee
+      const entryTotalFee = entryFee + partnerFee;
+      totalFee += entryTotalFee;
 
       results.push({
         playerId: isNewPlayerEntry ? 'new' : playerId,
         playerName: `${playerData.firstName} ${playerData.lastName}`,
+        partnerName: partnerInfo.partnerName || null,
         categoryName: category.name,
         status: isNewPlayerEntry ? 'pending_approval' : 'registered',
         isNewPlayer: isNewPlayerEntry,
         entryFee,
+        partnerFee: partnerFee || 0,
+        entryTotalFee,
         zpinPaidUp
       });
     }
@@ -1717,16 +1813,18 @@ export const getTournamentFinanceSummary = async (req, res) => {
     let totalEntryFeeUnpaid = 0;
     let totalSurchargeWaived = 0;
 
-    const baseFee = tournament.entryFee || 0;
-    const surchargeAmount = Math.ceil(baseFee * 1.5) - baseFee;
-
     for (const category of tournament.categories) {
+      const catBaseFee = category.entryFee ?? tournament.entryFee ?? 0;
+      const surchargeAmount = Math.ceil(catBaseFee * 1.5) - catBaseFee;
       const paid = { count: 0, amount: 0 };
       const waived = { count: 0, amount: 0 };
       const unpaid = { count: 0, amount: 0 };
 
       for (const entry of category.entries) {
-        const fee = entry.entryFee || tournament.entryFee || 0;
+        // Total fee for this entry = player fee + partner fee (for doubles)
+        const playerFee = entry.entryFee || catBaseFee || 0;
+        const partnerFee = entry.partnerEntryFee || 0;
+        const fee = playerFee + partnerFee;
         if (entry.paymentStatus === 'paid') {
           paid.count++;
           paid.amount += fee;
@@ -1739,6 +1837,9 @@ export const getTournamentFinanceSummary = async (req, res) => {
         }
 
         if (entry.surchargeWaived) {
+          totalSurchargeWaived += surchargeAmount;
+        }
+        if (entry.partnerSurchargeWaived) {
           totalSurchargeWaived += surchargeAmount;
         }
       }

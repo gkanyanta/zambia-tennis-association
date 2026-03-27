@@ -86,6 +86,29 @@ export const authService = {
     return !!this.getCurrentUser();
   },
 
+  async forgotPassword(email: string): Promise<string> {
+    const response = await apiFetch('/auth/forgotpassword', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response.message;
+  },
+
+  async resetPassword(token: string, password: string): Promise<User> {
+    const response = await apiFetch(`/auth/resetpassword/${token}`, {
+      method: 'PUT',
+      body: JSON.stringify({ password }),
+    });
+
+    if (response.data?.token) {
+      const userData = { ...response.data };
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', userData.token);
+    }
+
+    return response.data;
+  },
+
   isAdmin(): boolean {
     const user = this.getCurrentUser();
     return user?.role === 'admin' || user?.role === 'staff';

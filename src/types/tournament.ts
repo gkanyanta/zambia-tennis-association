@@ -14,6 +14,8 @@ export interface TournamentCategory {
   maxAge?: number
   ageCalculationDate?: string
   drawType: DrawType
+  entryFee?: number
+  format?: 'singles' | 'doubles' | 'mixed_doubles'
   maxEntries: number
   entries: TournamentEntry[]
   draw?: Draw
@@ -48,6 +50,14 @@ export interface TournamentEntry {
   entryFee?: number
   zpinPaidUp?: boolean
   surchargeWaived?: boolean
+  // Doubles partner fields
+  partnerId?: string
+  partnerName?: string
+  partnerZpin?: string
+  partnerClubName?: string
+  partnerEntryFee?: number
+  partnerZpinPaidUp?: boolean
+  partnerSurchargeWaived?: boolean
 }
 
 export interface Match {

@@ -358,7 +358,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
     }
   }
 
-  const handleBulkAction = async (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE') => {
+  const handleBulkAction = async (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE' | 'WAIVE_PARTNER_SURCHARGE') => {
     if (!selectedCategory) throw new Error('No category selected')
     const result = await tournamentService.bulkEntryAction(
       tournament._id,

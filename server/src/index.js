@@ -15,6 +15,7 @@ dotenv.config();
 
 // Import jobs
 import { initializeStatusUpdateJob } from './jobs/updateMembershipStatus.js';
+import { initializeReminderJob } from './jobs/membershipReminders.js';
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = process.env.UPLOAD_PATH || './uploads';
@@ -196,6 +197,13 @@ const server = httpServer.listen(PORT, async () => {
     await initializeStatusUpdateJob();
   } catch (error) {
     console.error('Failed to initialize status update job:', error);
+  }
+
+  // Initialize membership expiry reminder job
+  try {
+    initializeReminderJob();
+  } catch (error) {
+    console.error('Failed to initialize reminder job:', error);
   }
 });
 

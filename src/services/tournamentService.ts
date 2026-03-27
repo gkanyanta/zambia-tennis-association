@@ -44,6 +44,8 @@ export interface TournamentCategory {
   minAge?: number;
   ageCalculationDate?: string;
   drawType: 'single_elimination' | 'round_robin' | 'feed_in' | 'mixer';
+  entryFee?: number;
+  format?: 'singles' | 'doubles' | 'mixed_doubles';
   maxEntries: number;
   entryCount: number;
   entries: TournamentEntry[];
@@ -142,6 +144,14 @@ export interface TournamentEntry {
   entryFee?: number;
   zpinPaidUp?: boolean;
   surchargeWaived?: boolean;
+  // Doubles partner fields
+  partnerId?: string;
+  partnerName?: string;
+  partnerZpin?: string;
+  partnerClubName?: string;
+  partnerEntryFee?: number;
+  partnerZpinPaidUp?: boolean;
+  partnerSurchargeWaived?: boolean;
 }
 
 export interface JuniorCategory {
@@ -359,7 +369,7 @@ export const tournamentService = {
     tournamentId: string,
     categoryId: string,
     entryIds: string[],
-    action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE'
+    action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE' | 'WAIVE_PARTNER_SURCHARGE'
   ): Promise<{ results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }>; succeeded: number; failed: number }> {
     const response = await apiFetch(
       `/tournaments/${tournamentId}/entries/bulk`,

@@ -23,24 +23,24 @@ const JUNIOR_CATEGORIES = [
 
 // Senior categories (Open age)
 const SENIOR_CATEGORIES = [
-  { code: 'MS', name: "Men's Singles", gender: 'mens' as const, type: 'senior' as const },
-  { code: 'WS', name: "Women's Singles", gender: 'womens' as const, type: 'senior' as const },
-  { code: 'MD', name: "Men's Doubles", gender: 'mens' as const, type: 'senior' as const },
-  { code: 'WD', name: "Women's Doubles", gender: 'womens' as const, type: 'senior' as const },
-  { code: 'XD', name: "Mixed Doubles", gender: 'mixed' as const, type: 'senior' as const },
+  { code: 'MS', name: "Men's Singles", gender: 'mens' as const, type: 'senior' as const, format: 'singles' as const },
+  { code: 'WS', name: "Women's Singles", gender: 'womens' as const, type: 'senior' as const, format: 'singles' as const },
+  { code: 'MD', name: "Men's Doubles", gender: 'mens' as const, type: 'senior' as const, format: 'doubles' as const },
+  { code: 'WD', name: "Women's Doubles", gender: 'womens' as const, type: 'senior' as const, format: 'doubles' as const },
+  { code: 'XD', name: "Mixed Doubles", gender: 'mixed' as const, type: 'senior' as const, format: 'mixed_doubles' as const },
 ]
 
 // Madalas categories (Veterans 35+) — all mixed gender
 const MADALAS_CATEGORIES = [
-  { code: '35S', name: "35+ Singles", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
-  { code: '45S', name: "45+ Singles", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
-  { code: '55S', name: "55+ Singles", gender: 'mixed' as const, minAge: 55, type: 'madalas' as const },
-  { code: '65S', name: "65+ Singles", gender: 'mixed' as const, minAge: 65, type: 'madalas' as const },
-  { code: '35D', name: "35+ Doubles", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
-  { code: '45D', name: "45+ Doubles", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
-  { code: '55D', name: "55+ Doubles", gender: 'mixed' as const, minAge: 55, type: 'madalas' as const },
-  { code: 'XD35', name: "Mixed Doubles 35+", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const },
-  { code: 'XD45', name: "Mixed Doubles 45+", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const },
+  { code: '35S', name: "35+ Singles", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const, format: 'singles' as const },
+  { code: '45S', name: "45+ Singles", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const, format: 'singles' as const },
+  { code: '55S', name: "55+ Singles", gender: 'mixed' as const, minAge: 55, type: 'madalas' as const, format: 'singles' as const },
+  { code: '65S', name: "65+ Singles", gender: 'mixed' as const, minAge: 65, type: 'madalas' as const, format: 'singles' as const },
+  { code: '35D', name: "35+ Doubles", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const, format: 'doubles' as const },
+  { code: '45D', name: "45+ Doubles", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const, format: 'doubles' as const },
+  { code: '55D', name: "55+ Doubles", gender: 'mixed' as const, minAge: 55, type: 'madalas' as const, format: 'doubles' as const },
+  { code: 'XD35', name: "Mixed Doubles 35+", gender: 'mixed' as const, minAge: 35, type: 'madalas' as const, format: 'mixed_doubles' as const },
+  { code: 'XD45', name: "Mixed Doubles 45+", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const, format: 'mixed_doubles' as const },
 ]
 
 type TournamentType = 'junior' | 'senior' | 'madalas' | 'mixed'
@@ -73,6 +73,9 @@ export function TournamentCreate() {
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
+
+  // Per-category entry fees (code -> fee)
+  const [categoryFees, setCategoryFees] = useState<Record<string, string>>({})
 
   // Registration settings
   const [tournamentLevel, setTournamentLevel] = useState<'club' | 'regional' | 'national' | 'international'>('regional')
@@ -115,6 +118,15 @@ export function TournamentCreate() {
             const type = t.categories[0].type as TournamentType
             setTournamentType(type || 'junior')
           }
+
+          // Load per-category fees
+          const fees: Record<string, string> = {}
+          t.categories.forEach((c: any) => {
+            if (c.entryFee != null && c.entryFee !== undefined) {
+              fees[c.categoryCode] = String(c.entryFee)
+            }
+          })
+          setCategoryFees(fees)
 
           // Pre-select categories by matching codes
           const allCats = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
@@ -224,14 +236,17 @@ export function TournamentCreate() {
         const cat = allCategories.find(c => c.code === code)!
 
         // Build category object based on type
+        const catFee = categoryFees[cat.code]
         const categoryData: any = {
           categoryCode: cat.code,
           name: cat.name,
           type: cat.type,
           gender: cat.gender,
+          format: ('format' in cat) ? cat.format : 'singles',
           drawType,
           maxEntries,
-          entries: []
+          entries: [],
+          ...(catFee !== undefined && catFee !== '' ? { entryFee: Number(catFee) } : {})
         }
 
         // Add age-specific fields based on category type
@@ -490,7 +505,7 @@ export function TournamentCreate() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Entry Fee (K)
+                    Default Entry Fee (K)
                   </label>
                   <Input
                     type="number"
@@ -498,6 +513,9 @@ export function TournamentCreate() {
                     value={entryFee}
                     onChange={(e) => setEntryFee(Number(e.target.value))}
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Per player. Can be overridden per category below.
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -728,6 +746,40 @@ export function TournamentCreate() {
                   <span className="font-medium text-green-900 dark:text-green-100">
                     {selectedCategories.size} {selectedCategories.size === 1 ? 'category' : 'categories'} selected
                   </span>
+                </div>
+              )}
+
+              {/* Per-Category Entry Fees */}
+              {selectedCategories.size > 0 && (
+                <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+                  <h4 className="font-semibold">Entry Fees per Category (optional)</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Override the default entry fee (K{entryFee}) for specific categories. Fee is per player — doubles partners each pay separately.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {Array.from(selectedCategories).map(code => {
+                      const allCats = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+                      const cat = allCats.find(c => c.code === code)
+                      if (!cat) return null
+                      const isDoubles = 'format' in cat && (cat.format === 'doubles' || cat.format === 'mixed_doubles')
+                      return (
+                        <div key={code} className="flex flex-col gap-1">
+                          <label className="text-xs font-medium">
+                            {cat.name}
+                            {isDoubles && <span className="text-purple-600 ml-1">(Doubles)</span>}
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder={`K${entryFee}`}
+                            value={categoryFees[code] || ''}
+                            onChange={(e) => setCategoryFees({ ...categoryFees, [code]: e.target.value })}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 

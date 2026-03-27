@@ -84,7 +84,21 @@ const entrySchema = new mongoose.Schema({
   // Whether player had a paid-up ZPIN at time of entry
   zpinPaidUp: { type: Boolean, default: false },
   // Whether the 50% surcharge for non-ZPIN players was waived by admin
-  surchargeWaived: { type: Boolean, default: false }
+  surchargeWaived: { type: Boolean, default: false },
+  // Doubles partner information
+  partnerId: { type: String },
+  partnerName: { type: String },
+  partnerZpin: { type: String },
+  partnerClubName: { type: String },
+  partnerDateOfBirth: { type: Date },
+  partnerGender: { type: String, enum: ['male', 'female'] },
+  partnerEntryFee: { type: Number },
+  partnerZpinPaidUp: { type: Boolean },
+  partnerSurchargeWaived: { type: Boolean, default: false },
+  partnerNewPlayerContact: {
+    phone: String,
+    email: String
+  }
 });
 
 // Match schema
@@ -236,6 +250,14 @@ const categorySchema = new mongoose.Schema({
   },
   entries: [entrySchema],
   draw: drawSchema,
+  // Per-category entry fee (overrides tournament-level entryFee if set)
+  entryFee: { type: Number },
+  // Category format: singles, doubles, or mixed doubles
+  format: {
+    type: String,
+    enum: ['singles', 'doubles', 'mixed_doubles'],
+    default: 'singles'
+  },
   specialRules: [String],
   entryCount: {
     type: Number,

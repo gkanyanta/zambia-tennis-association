@@ -11,7 +11,7 @@ interface EntryManagementProps {
   tournamentId: string
   onUpdateEntry: (entryId: string, data: { status: string; seed?: number; rejectionReason?: string; paymentStatus?: string; paymentReference?: string; waiveSurcharge?: boolean }) => Promise<void>
   onAutoSeed: () => Promise<void>
-  onBulkAction?: (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE') => Promise<{ succeeded: number; failed: number; results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }> }>
+  onBulkAction?: (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE' | 'WAIVE_PARTNER_SURCHARGE') => Promise<{ succeeded: number; failed: number; results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }> }>
   onBulkUpdateSeeds?: (seeds: Array<{ entryId: string; seedNumber: number }>) => Promise<void>
 }
 
@@ -478,6 +478,9 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                         </td>
                         <td className="px-4 py-3">
                           <div className="font-medium">{entry.playerName}</div>
+                          {(entry as any).partnerName && (
+                            <div className="text-sm text-purple-600 font-medium">& {(entry as any).partnerName}</div>
+                          )}
                           <div className="text-xs text-muted-foreground">{entry.gender}</div>
                         </td>
                         <td className="px-4 py-3 text-sm font-mono">{entry.playerZpin}</td>

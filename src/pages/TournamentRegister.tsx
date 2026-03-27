@@ -44,6 +44,11 @@ interface SelectedEntry {
   isNewPlayer?: boolean
   fee: number
   zpinPaidUp: boolean
+  // Doubles partner
+  partner?: PlayerSearchResult | NewPlayerData
+  isNewPartner?: boolean
+  partnerFee?: number
+  partnerZpinPaidUp?: boolean
 }
 
 interface NewPlayerData {
@@ -208,11 +213,63 @@ export function TournamentRegister() {
     setSearchResults([])
   }
 
+  // Doubles partner state
+  const [selectedPartner, setSelectedPartner] = useState<PlayerSearchResult | null>(null)
+  const [partnerSearchQuery, setPartnerSearchQuery] = useState('')
+  const [partnerSearchResults, setPartnerSearchResults] = useState<PlayerSearchResult[]>([])
+  const [searchingPartner, setSearchingPartner] = useState(false)
+  const [showNewPartnerForm, setShowNewPartnerForm] = useState(false)
+  const [newPartner, setNewPartner] = useState({
+    firstName: '', lastName: '', dateOfBirth: '', gender: '', club: '', phone: '', email: ''
+  })
+
+  // Debounced partner search
+  const debouncedPartnerSearch = useCallback(
+    debounce(async (query: string) => {
+      if (!query || query.length < 2) {
+        setPartnerSearchResults([])
+        setSearchingPartner(false)
+        return
+      }
+      try {
+        setSearchingPartner(true)
+        const results = await membershipService.searchPlayers(query)
+        setPartnerSearchResults(results)
+      } catch (err: any) {
+        console.error('Partner search failed:', err)
+      } finally {
+        setSearchingPartner(false)
+      }
+    }, 300),
+    []
+  )
+
+  useEffect(() => {
+    debouncedPartnerSearch(partnerSearchQuery)
+    return () => { debouncedPartnerSearch.cancel() }
+  }, [partnerSearchQuery, debouncedPartnerSearch])
+
+  const getCategoryBaseFee = (category: any) => {
+    return category.entryFee ?? tournament?.entryFee ?? 0
+  }
+
+  const isDoublesCategory = (category: any) => {
+    return category.format === 'doubles' || category.format === 'mixed_doubles'
+  }
+
   const handleAddEntry = () => {
     if (!selectedPlayer || !selectedCategory || !tournament) return
 
     const category = tournament.categories.find(c => c._id === selectedCategory)
     if (!category) return
+
+    const doublesCategory = isDoublesCategory(category)
+
+    // Check partner requirement for doubles
+    if (doublesCategory && !selectedPartner && !showNewPartnerForm) {
+      setError('Please select a doubles partner for this category')
+      return
+    }
 
     // Check if player already entered this category
     const alreadyEntered = selectedEntries.some(
@@ -231,8 +288,18 @@ export function TournamentRegister() {
     }
 
     const zpinPaidUp = !!(selectedPlayer as PlayerSearchResult).hasActiveSubscription
-    const baseFee = tournament.entryFee || 0
+    const baseFee = getCategoryBaseFee(category)
     const fee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5)
+
+    let partnerData: Partial<SelectedEntry> = {}
+    if (doublesCategory && selectedPartner) {
+      const partnerZpinPaidUp = !!(selectedPartner as PlayerSearchResult).hasActiveSubscription
+      partnerData = {
+        partner: selectedPartner,
+        partnerFee: partnerZpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5),
+        partnerZpinPaidUp
+      }
+    }
 
     setSelectedEntries([
       ...selectedEntries,
@@ -241,12 +308,16 @@ export function TournamentRegister() {
         categoryId: selectedCategory,
         categoryName: category.name,
         fee,
-        zpinPaidUp
+        zpinPaidUp,
+        ...partnerData
       }
     ])
 
     setSelectedPlayer(null)
+    setSelectedPartner(null)
     setSelectedCategory('')
+    setPartnerSearchQuery('')
+    setPartnerSearchResults([])
     setError(null)
   }
 
@@ -274,7 +345,7 @@ export function TournamentRegister() {
       isNew: true
     }
 
-    const baseFee = tournament.entryFee || 0
+    const baseFee = getCategoryBaseFee(category)
     const fee = Math.ceil(baseFee * 1.5) // New players always pay surcharge
 
     setSelectedEntries([
@@ -355,7 +426,7 @@ export function TournamentRegister() {
       }
 
       const zpinPaidUp = !!player.hasActiveSubscription
-      const clubBaseFee = tournament.entryFee || 0
+      const clubBaseFee = getCategoryBaseFee(category)
       const fee = zpinPaidUp ? clubBaseFee : Math.ceil(clubBaseFee * 1.5)
 
       newEntries.push({
@@ -422,7 +493,7 @@ export function TournamentRegister() {
 
   const calculateTotalFee = () => {
     if (!tournament) return 0
-    return selectedEntries.reduce((sum, e) => sum + e.fee, 0)
+    return selectedEntries.reduce((sum, e) => sum + e.fee + (e.partnerFee || 0), 0)
   }
 
   const handleProceedToPayment = () => {
@@ -469,7 +540,19 @@ export function TournamentRegister() {
               club: (e.player as NewPlayerData).club,
               phone: (e.player as NewPlayerData).phone,
               email: (e.player as NewPlayerData).email
-            } : null
+            } : null,
+            // Doubles partner data
+            partnerId: e.partner && !(e.partner as any).isNew ? e.partner._id : undefined,
+            isNewPartner: e.isNewPartner || false,
+            newPartnerData: e.isNewPartner && e.partner ? {
+              firstName: (e.partner as NewPlayerData).firstName,
+              lastName: (e.partner as NewPlayerData).lastName,
+              dateOfBirth: (e.partner as NewPlayerData).dateOfBirth,
+              gender: (e.partner as NewPlayerData).gender,
+              club: (e.partner as NewPlayerData).club,
+              phone: (e.partner as NewPlayerData).phone,
+              email: (e.partner as NewPlayerData).email
+            } : undefined
           })),
           payer: {
             name: payerName.trim(),
@@ -644,7 +727,7 @@ export function TournamentRegister() {
                   <CreditCard className="h-4 w-4 text-primary" />
                   <div>
                     <div className="text-muted-foreground">Entry Fee</div>
-                    <div className="font-medium">K{tournament.entryFee} per entry</div>
+                    <div className="font-medium">K{tournament.entryFee} per player</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1105,9 +1188,178 @@ export function TournamentRegister() {
                       )}
                     </div>
 
+                    {/* Doubles Partner Selection */}
+                    {selectedCategory && (() => {
+                      const cat = tournament.categories.find(c => c._id === selectedCategory)
+                      return cat && isDoublesCategory(cat)
+                    })() && (
+                      <div className="p-4 border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 rounded-lg space-y-3">
+                        <Label className="text-purple-700 dark:text-purple-300 font-semibold">
+                          <Users className="h-4 w-4 inline mr-1" />
+                          Select Doubles Partner
+                        </Label>
+
+                        {!selectedPartner && !showNewPartnerForm && (
+                          <>
+                            <div className="relative">
+                              <Input
+                                type="text"
+                                placeholder="Search partner by name or ZPIN..."
+                                value={partnerSearchQuery}
+                                onChange={(e) => setPartnerSearchQuery(e.target.value)}
+                                className="pr-10"
+                              />
+                              {searchingPartner && (
+                                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                              )}
+                            </div>
+
+                            {partnerSearchResults.length > 0 && (
+                              <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                                {partnerSearchResults.map((p) => (
+                                  <div
+                                    key={p._id}
+                                    className="p-2 hover:bg-muted/50 cursor-pointer flex items-center justify-between text-sm"
+                                    onClick={() => {
+                                      setSelectedPartner(p)
+                                      setPartnerSearchQuery('')
+                                      setPartnerSearchResults([])
+                                    }}
+                                  >
+                                    <div>
+                                      <span className="font-medium">{p.firstName} {p.lastName}</span>
+                                      <span className="text-muted-foreground ml-2">{p.zpin} - {p.club || 'No club'}</span>
+                                    </div>
+                                    <Badge variant={p.hasActiveSubscription ? 'default' : 'outline'} className="text-xs">
+                                      {p.hasActiveSubscription ? 'ZPIN Active' : 'No ZPIN'}
+                                    </Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowNewPartnerForm(true)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              New Partner (No ZPIN)
+                            </Button>
+                          </>
+                        )}
+
+                        {/* New partner form */}
+                        {showNewPartnerForm && !selectedPartner && (
+                          <div className="space-y-3 p-3 border rounded-lg bg-background">
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="First Name *"
+                                value={newPartner.firstName}
+                                onChange={(e) => setNewPartner({ ...newPartner, firstName: e.target.value })}
+                              />
+                              <Input
+                                placeholder="Last Name *"
+                                value={newPartner.lastName}
+                                onChange={(e) => setNewPartner({ ...newPartner, lastName: e.target.value })}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                type="date"
+                                placeholder="Date of Birth *"
+                                value={newPartner.dateOfBirth}
+                                onChange={(e) => setNewPartner({ ...newPartner, dateOfBirth: e.target.value })}
+                              />
+                              <select
+                                value={newPartner.gender}
+                                onChange={(e) => setNewPartner({ ...newPartner, gender: e.target.value })}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              >
+                                <option value="">Gender *</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                              </select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                placeholder="Phone"
+                                value={newPartner.phone}
+                                onChange={(e) => setNewPartner({ ...newPartner, phone: e.target.value })}
+                              />
+                              <Input
+                                placeholder="Email"
+                                value={newPartner.email}
+                                onChange={(e) => setNewPartner({ ...newPartner, email: e.target.value })}
+                              />
+                            </div>
+                            <Input
+                              placeholder="Club"
+                              value={newPartner.club}
+                              onChange={(e) => setNewPartner({ ...newPartner, club: e.target.value })}
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => {
+                                  if (!newPartner.firstName || !newPartner.lastName || !newPartner.dateOfBirth || !newPartner.gender) {
+                                    setError('Please fill in all required partner fields')
+                                    return
+                                  }
+                                  const tempId = `new_${Date.now()}_partner`
+                                  const partnerPlayerData: NewPlayerData = {
+                                    _id: tempId,
+                                    firstName: newPartner.firstName.trim(),
+                                    lastName: newPartner.lastName.trim(),
+                                    dateOfBirth: newPartner.dateOfBirth,
+                                    gender: newPartner.gender,
+                                    club: newPartner.club.trim() || null,
+                                    phone: newPartner.phone.trim(),
+                                    email: newPartner.email.trim(),
+                                    isNew: true
+                                  }
+                                  setSelectedPartner(partnerPlayerData as any)
+                                  setShowNewPartnerForm(false)
+                                  setNewPartner({ firstName: '', lastName: '', dateOfBirth: '', gender: '', club: '', phone: '', email: '' })
+                                }}
+                              >
+                                Confirm Partner
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => setShowNewPartnerForm(false)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Selected partner display */}
+                        {selectedPartner && (
+                          <div className="flex items-center justify-between p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                            <div className="text-sm">
+                              <span className="font-medium">{selectedPartner.firstName} {selectedPartner.lastName}</span>
+                              {(selectedPartner as any).zpin && (
+                                <span className="text-muted-foreground ml-2">({(selectedPartner as any).zpin})</span>
+                              )}
+                              {(selectedPartner as any).isNew && (
+                                <Badge variant="outline" className="ml-2 text-xs">New Player</Badge>
+                              )}
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedPartner(null)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <Button
                       onClick={handleAddEntry}
-                      disabled={!selectedCategory}
+                      disabled={!selectedCategory || ((() => {
+                        const cat = tournament.categories.find(c => c._id === selectedCategory)
+                        return cat && isDoublesCategory(cat) && !selectedPartner
+                      })())}
                       className="w-full"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -1140,17 +1392,32 @@ export function TournamentRegister() {
                             <div>
                               <div className="font-medium">
                                 {entry.player.firstName} {entry.player.lastName}
+                                {entry.partner && (
+                                  <span className="text-purple-600"> & {entry.partner.firstName} {entry.partner.lastName}</span>
+                                )}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 {entry.categoryName} • {entry.player.club || 'No club'}
+                                {entry.partner && <Badge variant="outline" className="ml-2 text-xs">Doubles</Badge>}
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <span className="font-medium">K{entry.fee}</span>
-                              {!entry.zpinPaidUp && tournament.entryFee > 0 && (
-                                <div className="text-xs text-amber-600">+50% surcharge</div>
+                              {entry.partner ? (
+                                <>
+                                  <span className="font-medium">K{entry.fee + (entry.partnerFee || 0)}</span>
+                                  <div className="text-xs text-muted-foreground">
+                                    K{entry.fee}{!entry.zpinPaidUp && ' +surcharge'} + K{entry.partnerFee || 0}{entry.partnerZpinPaidUp === false && ' +surcharge'}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="font-medium">K{entry.fee}</span>
+                                  {!entry.zpinPaidUp && entry.fee > 0 && (
+                                    <div className="text-xs text-amber-600">+50% surcharge</div>
+                                  )}
+                                </>
                               )}
                             </div>
                             <Button
