@@ -1847,7 +1847,7 @@ export const repairMissingTransactions = async (req, res) => {
         continue;
       }
 
-      // No Transaction — create one
+      // No Transaction — create one (with retry for receiptNumber collisions)
       results.missingFound++;
       const isBulk = subs.length > 1;
       const firstSub = subs[0];
@@ -1863,34 +1863,50 @@ export const repairMissingTransactions = async (req, res) => {
       const txnReference = `REPAIR-${firstSub._id}-${Date.now()}`;
 
       try {
-        const newTxn = await Transaction.create({
-          reference: txnReference,
-          transactionId: firstSub.transactionId || null,
-          type: 'membership',
-          amount: totalAmount,
-          currency: firstSub.currency || 'ZMW',
-          payerName: firstSub.payer?.name || firstSub.entityName,
-          payerEmail: firstSub.payer?.email || null,
-          status: 'completed',
-          paymentGateway: firstSub.paymentMethod === 'online' ? 'lenco' : 'manual',
-          paymentMethod: txnPaymentMethod,
-          relatedId: firstSub._id,
-          relatedModel: 'MembershipSubscription',
-          description: isBulk
-            ? `Bulk ZPIN Registration - ${subs.length} player(s)`
-            : `${firstSub.membershipTypeName} - ${firstSub.year}`,
-          metadata: {
-            membershipType: firstSub.membershipTypeCode,
-            membershipYear: firstSub.year,
-            entityType: firstSub.entityType,
-            playerName: firstSub.entityName,
-            zpin: firstSub.zpin,
-            bankReference: firstSub.paymentReference,
-            repaired: true,
-            ...(isBulk ? { playerCount: subs.length, players } : {})
-          },
-          paymentDate: firstSub.paymentDate || firstSub.createdAt || new Date()
-        });
+        // Retry up to 5 times to handle receiptNumber duplicate key collisions
+        let newTxn = null;
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            const txnDoc = new Transaction({
+              reference: txnReference,
+              transactionId: firstSub.transactionId || null,
+              type: 'membership',
+              amount: totalAmount,
+              currency: firstSub.currency || 'ZMW',
+              payerName: firstSub.payer?.name || firstSub.entityName,
+              payerEmail: firstSub.payer?.email || null,
+              status: 'completed',
+              paymentGateway: firstSub.paymentMethod === 'online' ? 'lenco' : 'manual',
+              paymentMethod: txnPaymentMethod,
+              relatedId: firstSub._id,
+              relatedModel: 'MembershipSubscription',
+              description: isBulk
+                ? `Bulk ZPIN Registration - ${subs.length} player(s)`
+                : `${firstSub.membershipTypeName} - ${firstSub.year}`,
+              metadata: {
+                membershipType: firstSub.membershipTypeCode,
+                membershipYear: firstSub.year,
+                entityType: firstSub.entityType,
+                playerName: firstSub.entityName,
+                zpin: firstSub.zpin,
+                bankReference: firstSub.paymentReference,
+                repaired: true,
+                ...(isBulk ? { playerCount: subs.length, players } : {})
+              },
+              paymentDate: firstSub.paymentDate || firstSub.createdAt || new Date()
+            });
+            await txnDoc.save();
+            newTxn = txnDoc;
+            break;
+          } catch (saveErr) {
+            if (saveErr.code === 11000 && saveErr.message.includes('receiptNumber')) {
+              // Duplicate receiptNumber — retry (pre-save hook will regenerate)
+              continue;
+            }
+            throw saveErr;
+          }
+        }
+        if (!newTxn) throw new Error('Failed after 5 retries due to receiptNumber collisions');
 
         // Backfill receiptNumber
         if (newTxn.receiptNumber) {
