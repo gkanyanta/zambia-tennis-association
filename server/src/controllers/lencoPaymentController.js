@@ -1805,6 +1805,151 @@ const syncMissingTransactions = async () => {
   }
 };
 
+// @desc    Repair missing transactions for active subscriptions
+// @route   POST /api/lenco/repair-transactions
+// @access  Private (Admin)
+export const repairMissingTransactions = async (req, res) => {
+  try {
+    const activeSubscriptions = await MembershipSubscription.find({ status: 'active' });
+    const results = { total: activeSubscriptions.length, missingFound: 0, created: 0, receiptBackfilled: 0, emailsSent: 0, errors: [] };
+
+    // Group by paymentReference
+    const subsByRef = new Map();
+    for (const sub of activeSubscriptions) {
+      const ref = sub.paymentReference;
+      if (!ref) continue;
+      if (!subsByRef.has(ref)) subsByRef.set(ref, []);
+      subsByRef.get(ref).push(sub);
+    }
+
+    for (const [paymentRef, subs] of subsByRef) {
+      // Check if Transaction exists by reference or relatedId
+      let txn = await Transaction.findOne({ reference: paymentRef });
+      if (!txn) {
+        txn = await Transaction.findOne({
+          relatedId: { $in: subs.map(s => s._id) },
+          relatedModel: 'MembershipSubscription',
+          status: 'completed'
+        });
+      }
+
+      if (txn) {
+        // Backfill receiptNumber on subs missing it
+        if (txn.receiptNumber) {
+          for (const s of subs) {
+            if (!s.receiptNumber) {
+              s.receiptNumber = txn.receiptNumber;
+              await s.save();
+              results.receiptBackfilled++;
+            }
+          }
+        }
+        continue;
+      }
+
+      // No Transaction — create one
+      results.missingFound++;
+      const isBulk = subs.length > 1;
+      const firstSub = subs[0];
+      let totalAmount = 0;
+      const players = [];
+      for (const s of subs) {
+        totalAmount += s.amount;
+        players.push({ id: s.entityId, name: s.entityName, zpin: s.zpin });
+      }
+
+      const methodMap = { online: 'card', cash: 'cash', cheque: 'cheque' };
+      const txnPaymentMethod = methodMap[firstSub.paymentMethod] || firstSub.paymentMethod || 'other';
+      const txnReference = `REPAIR-${firstSub._id}-${Date.now()}`;
+
+      try {
+        const newTxn = await Transaction.create({
+          reference: txnReference,
+          transactionId: firstSub.transactionId || null,
+          type: 'membership',
+          amount: totalAmount,
+          currency: firstSub.currency || 'ZMW',
+          payerName: firstSub.payer?.name || firstSub.entityName,
+          payerEmail: firstSub.payer?.email || null,
+          status: 'completed',
+          paymentGateway: firstSub.paymentMethod === 'online' ? 'lenco' : 'manual',
+          paymentMethod: txnPaymentMethod,
+          relatedId: firstSub._id,
+          relatedModel: 'MembershipSubscription',
+          description: isBulk
+            ? `Bulk ZPIN Registration - ${subs.length} player(s)`
+            : `${firstSub.membershipTypeName} - ${firstSub.year}`,
+          metadata: {
+            membershipType: firstSub.membershipTypeCode,
+            membershipYear: firstSub.year,
+            entityType: firstSub.entityType,
+            playerName: firstSub.entityName,
+            zpin: firstSub.zpin,
+            bankReference: firstSub.paymentReference,
+            repaired: true,
+            ...(isBulk ? { playerCount: subs.length, players } : {})
+          },
+          paymentDate: firstSub.paymentDate || firstSub.createdAt || new Date()
+        });
+
+        // Backfill receiptNumber
+        if (newTxn.receiptNumber) {
+          for (const s of subs) {
+            s.receiptNumber = newTxn.receiptNumber;
+            await s.save();
+            results.receiptBackfilled++;
+          }
+        }
+
+        // Send receipt email
+        const recipientEmail = firstSub.payer?.email;
+        if (recipientEmail && newTxn.receiptNumber) {
+          try {
+            const pdfBuffer = await generateReceipt(newTxn);
+            await sendEmail({
+              email: recipientEmail,
+              subject: `Payment Receipt - ${newTxn.receiptNumber} - ZTA`,
+              html: `
+                <h2>Payment Receipt</h2>
+                <p>Dear ${newTxn.payerName},</p>
+                <p>Thank you for your payment to the Zambia Tennis Association.</p>
+                <p><strong>Receipt Details:</strong></p>
+                <ul>
+                  <li>Receipt Number: ${newTxn.receiptNumber}</li>
+                  <li>Amount: K${parseFloat(newTxn.amount).toFixed(2)}</li>
+                  <li>Date: ${new Date(newTxn.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</li>
+                </ul>
+                ${isBulk ? `<h3>Players:</h3><ul>${players.map(p => `<li>${p.name} (ZPIN: ${p.zpin})</li>`).join('')}</ul>` : ''}
+                <p>Please find your official receipt attached.</p>
+                <p>Best regards,<br>Zambia Tennis Association</p>
+              `,
+              attachments: [{
+                filename: `ZTA-Receipt-${newTxn.receiptNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: 'application/pdf'
+              }]
+            });
+            newTxn.receiptSentAt = new Date();
+            await newTxn.save();
+            results.emailsSent++;
+          } catch (emailErr) {
+            results.errors.push(`Email failed for ${recipientEmail}: ${emailErr.message}`);
+          }
+        }
+
+        results.created++;
+      } catch (err) {
+        results.errors.push(`Transaction creation failed for ref ${paymentRef}: ${err.message}`);
+      }
+    }
+
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error('Repair transactions error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get income statement/summary
 // @route   GET /api/lenco/income-statement
 // @access  Private (Admin)

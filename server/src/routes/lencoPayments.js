@@ -10,7 +10,8 @@ import {
   resendReceipt,
   getIncomeStatement,
   getTransactions,
-  exportTransactionsExcel
+  exportTransactionsExcel,
+  repairMissingTransactions
 } from '../controllers/lencoPaymentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -36,5 +37,8 @@ router.post('/receipt/:receiptNumber/send', protect, authorize('admin', 'staff')
 router.get('/income-statement', protect, authorize('admin', 'staff', 'finance'), getIncomeStatement);
 router.get('/transactions/export/excel', protect, authorize('admin', 'staff', 'finance'), exportTransactionsExcel);
 router.get('/transactions', protect, authorize('admin', 'staff', 'finance'), getTransactions);
+
+// Temporary repair endpoint - fix missing transactions and receipts
+router.post('/repair-transactions', protect, authorize('admin'), repairMissingTransactions);
 
 export default router;
