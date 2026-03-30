@@ -1646,10 +1646,9 @@ const syncMissingTransactions = async () => {
     });
     const existingRefSet = new Set(existingReferences);
 
-    // Find active subscriptions with payment dates
+    // Find active subscriptions (don't require paymentDate — some may be missing it)
     const activeSubscriptions = await MembershipSubscription.find({
-      status: 'active',
-      paymentDate: { $exists: true, $ne: null }
+      status: 'active'
     });
 
     // Group subscriptions by paymentReference to handle bulk payments correctly
@@ -1741,7 +1740,7 @@ const syncMissingTransactions = async () => {
             synced: true,
             ...(isBulk ? { playerCount: subs.length, players } : {})
           },
-          paymentDate: firstSub.paymentDate
+          paymentDate: firstSub.paymentDate || firstSub.createdAt || new Date()
         });
 
         // Backfill receiptNumber onto all subscriptions in the group
