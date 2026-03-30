@@ -411,7 +411,49 @@ export const verifyPayment = async (req, res) => {
         const allActive = subscriptions.every(s => s.status === 'active');
         if (allActive) {
           // Ensure Transaction + receipt exist even if previous run failed after activation
-          const existingTxn = await Transaction.findOne({ reference });
+          let existingTxn = await Transaction.findOne({ reference });
+
+          if (!existingTxn) {
+            // Transaction was never created (race condition or prior failure) — create it now
+            let totalAmount = 0;
+            const activatedPlayers = [];
+            for (const s of subscriptions) {
+              totalAmount += s.amount;
+              activatedPlayers.push({ id: s.entityId, name: s.entityName, zpin: s.zpin });
+            }
+            const firstSub = subscriptions[0];
+            try {
+              existingTxn = await createTransactionAndSendReceipt({
+                reference,
+                transactionId,
+                type: 'membership',
+                amount: totalAmount,
+                payerName: firstSub?.payer?.name || firstSub?.entityName || 'Bulk Payer',
+                payerEmail: firstSub?.payer?.email || null,
+                relatedId: firstSub?._id,
+                relatedModel: 'MembershipSubscription',
+                description: `Bulk ZPIN Registration - ${subscriptions.length} player(s)`,
+                metadata: {
+                  playerCount: subscriptions.length,
+                  players: activatedPlayers
+                }
+              });
+            } catch (txnErr) {
+              console.error('verifyPayment: Failed to backfill bulk transaction:', txnErr);
+            }
+          }
+
+          // Backfill receiptNumber on subscriptions that are missing it
+          if (existingTxn?.receiptNumber) {
+            const subsToUpdate = subscriptions.filter(s => !s.receiptNumber);
+            if (subsToUpdate.length > 0) {
+              await MembershipSubscription.updateMany(
+                { paymentReference: reference, $or: [{ receiptNumber: { $exists: false } }, { receiptNumber: null }, { receiptNumber: '' }] },
+                { $set: { receiptNumber: existingTxn.receiptNumber } }
+              );
+            }
+          }
+
           const receiptNumber = existingTxn?.receiptNumber || subscriptions[0]?.receiptNumber;
 
           return res.status(200).json({
@@ -476,23 +518,29 @@ export const verifyPayment = async (req, res) => {
           totalAmount += subscription.amount;
         }
 
-        // Create transaction record
+        // Create transaction record (with race condition protection)
         const firstSub = subscriptions[0];
-        const transaction = await createTransactionAndSendReceipt({
-          reference,
-          transactionId,
-          type: 'membership',
-          amount: totalAmount,
-          payerName: firstSub?.payer?.name || firstSub?.notes?.match(/payment by ([^(]+)\(/i)?.[1]?.trim() || 'Bulk Payer',
-          payerEmail: firstSub?.payer?.email || null,
-          relatedId: subscriptions[0]?._id,
-          relatedModel: 'MembershipSubscription',
-          description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
-          metadata: {
-            playerCount: activatedPlayers.length,
-            players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
-          }
-        });
+        let transaction;
+        try {
+          transaction = await createTransactionAndSendReceipt({
+            reference,
+            transactionId,
+            type: 'membership',
+            amount: totalAmount,
+            payerName: firstSub?.payer?.name || firstSub?.notes?.match(/payment by ([^(]+)\(/i)?.[1]?.trim() || 'Bulk Payer',
+            payerEmail: firstSub?.payer?.email || null,
+            relatedId: subscriptions[0]?._id,
+            relatedModel: 'MembershipSubscription',
+            description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
+            metadata: {
+              playerCount: activatedPlayers.length,
+              players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
+            }
+          });
+        } catch (txnErr) {
+          console.error('verifyPayment: Bulk transaction creation failed, attempting to find existing:', txnErr.message);
+          transaction = await Transaction.findOne({ reference });
+        }
 
         // Write receipt number back to all subscriptions in the bulk
         if (transaction?.receiptNumber) {
@@ -524,15 +572,47 @@ export const verifyPayment = async (req, res) => {
       if (subscription) {
         // New subscription system - activate subscription
         if (subscription.status === 'active') {
-          // Already activated (perhaps via webhook) — ensure receipt exists
-          let receiptNumber = subscription.receiptNumber;
-          if (!receiptNumber) {
-            const existingTxn = await Transaction.findOne({ reference });
-            if (existingTxn) {
-              receiptNumber = existingTxn.receiptNumber;
-              subscription.receiptNumber = receiptNumber;
-              await subscription.save();
+          // Already activated (perhaps via webhook) — ensure Transaction + receipt exist
+          let existingTxn = await Transaction.findOne({ reference });
+
+          if (!existingTxn) {
+            // Transaction was never created — create it now
+            let entityEmail = null;
+            if (subscription.entityType === 'player') {
+              entityEmail = (await User.findById(subscription.entityId))?.email || null;
+            } else if (subscription.entityType === 'club') {
+              entityEmail = (await Club.findById(subscription.entityId))?.email || null;
             }
+            try {
+              existingTxn = await createTransactionAndSendReceipt({
+                reference,
+                transactionId,
+                type: 'membership',
+                amount: amountPaid,
+                payerName: subscription.payer?.name || subscription.entityName,
+                payerEmail: subscription.payer?.email || entityEmail || null,
+                relatedId: subscription._id,
+                relatedModel: 'MembershipSubscription',
+                description: `${subscription.membershipTypeName} - ${subscription.year}`,
+                metadata: {
+                  membershipType: subscription.membershipTypeCode,
+                  membershipYear: subscription.year,
+                  entityType: subscription.entityType,
+                  playerName: subscription.entityName,
+                  zpin: subscription.zpin
+                }
+              });
+            } catch (txnErr) {
+              console.error('verifyPayment: Failed to backfill single transaction:', txnErr);
+            }
+          }
+
+          // Backfill receiptNumber on subscription if missing
+          let receiptNumber = subscription.receiptNumber;
+          if (!receiptNumber && existingTxn?.receiptNumber) {
+            receiptNumber = existingTxn.receiptNumber;
+            subscription.receiptNumber = receiptNumber;
+            await subscription.save();
           }
 
           return res.status(200).json({
@@ -584,6 +664,11 @@ export const verifyPayment = async (req, res) => {
           }
         }
 
+        // Save subscription activation before attempting Transaction creation
+        // so that even if Transaction creation fails (e.g. race condition with webhook),
+        // the subscription is still active
+        await subscription.save();
+
         // Create transaction record
         let entityEmail = null;
         if (subscription.entityType === 'player') {
@@ -592,27 +677,36 @@ export const verifyPayment = async (req, res) => {
           entityEmail = (await Club.findById(subscription.entityId))?.email || null;
         }
 
-        const transaction = await createTransactionAndSendReceipt({
-          reference,
-          transactionId,
-          type: 'membership',
-          amount: amountPaid,
-          payerName: subscription.payer?.name || subscription.entityName,
-          payerEmail: subscription.payer?.email || null,
-          relatedId: subscription._id,
-          relatedModel: 'MembershipSubscription',
-          description: `${subscription.membershipTypeName} - ${subscription.year}`,
-          metadata: {
-            membershipType: subscription.membershipTypeCode,
-            membershipYear: subscription.year,
-            entityType: subscription.entityType,
-            playerName: subscription.entityName,
-            zpin: subscription.zpin
-          }
-        });
+        let transaction;
+        try {
+          transaction = await createTransactionAndSendReceipt({
+            reference,
+            transactionId,
+            type: 'membership',
+            amount: amountPaid,
+            payerName: subscription.payer?.name || subscription.entityName,
+            payerEmail: subscription.payer?.email || entityEmail || null,
+            relatedId: subscription._id,
+            relatedModel: 'MembershipSubscription',
+            description: `${subscription.membershipTypeName} - ${subscription.year}`,
+            metadata: {
+              membershipType: subscription.membershipTypeCode,
+              membershipYear: subscription.year,
+              entityType: subscription.entityType,
+              playerName: subscription.entityName,
+              zpin: subscription.zpin
+            }
+          });
+        } catch (txnErr) {
+          console.error('verifyPayment: Transaction creation failed, attempting to find existing:', txnErr.message);
+          // Race condition: webhook may have created the Transaction — try to find it
+          transaction = await Transaction.findOne({ reference });
+        }
 
-        subscription.receiptNumber = transaction.receiptNumber;
-        await subscription.save();
+        if (transaction?.receiptNumber) {
+          subscription.receiptNumber = transaction.receiptNumber;
+          await subscription.save();
+        }
 
         return res.status(200).json({
           success: true,
@@ -1012,20 +1106,42 @@ export const handleWebhook = async (req, res) => {
             console.log(`Webhook: No subscriptions found for bulk reference ${reference}`);
           } else if (subscriptions.every(s => s.status === 'active')) {
             console.log(`Webhook: Bulk subscriptions already active for ${reference}`);
-            // Backfill receipt if missing
-            const anyMissingReceipt = subscriptions.some(s => !s.receiptNumber);
-            if (anyMissingReceipt) {
-              const existingTxn = await Transaction.findOne({ reference });
-              if (existingTxn?.receiptNumber) {
-                await MembershipSubscription.updateMany(
-                  { paymentReference: reference, receiptNumber: { $exists: false } },
-                  { $set: { receiptNumber: existingTxn.receiptNumber } }
-                );
-                await MembershipSubscription.updateMany(
-                  { paymentReference: reference, receiptNumber: null },
-                  { $set: { receiptNumber: existingTxn.receiptNumber } }
-                );
+            // Ensure Transaction exists (may have been lost in a race condition)
+            let existingTxn = await Transaction.findOne({ reference });
+            if (!existingTxn) {
+              let totalAmount = 0;
+              const activatedPlayers = [];
+              for (const s of subscriptions) {
+                totalAmount += s.amount;
+                activatedPlayers.push({ id: s.entityId, name: s.entityName, zpin: s.zpin });
               }
+              const firstSub = subscriptions[0];
+              try {
+                existingTxn = await createTransactionAndSendReceipt({
+                  reference,
+                  transactionId: transaction_id,
+                  type: 'membership',
+                  amount: totalAmount,
+                  payerName: firstSub?.payer?.name || firstSub?.entityName || 'Bulk Payer',
+                  payerEmail: firstSub?.payer?.email || null,
+                  relatedId: firstSub?._id,
+                  relatedModel: 'MembershipSubscription',
+                  description: `Bulk ZPIN Registration - ${subscriptions.length} player(s)`,
+                  metadata: {
+                    playerCount: subscriptions.length,
+                    players: activatedPlayers
+                  }
+                });
+              } catch (txnErr) {
+                console.error('Webhook: Failed to backfill bulk transaction:', txnErr);
+              }
+            }
+            // Backfill receipt if missing
+            if (existingTxn?.receiptNumber) {
+              await MembershipSubscription.updateMany(
+                { paymentReference: reference, $or: [{ receiptNumber: { $exists: false } }, { receiptNumber: null }, { receiptNumber: '' }] },
+                { $set: { receiptNumber: existingTxn.receiptNumber } }
+              );
             }
           } else {
             const activatedPlayers = [];
@@ -1112,14 +1228,42 @@ export const handleWebhook = async (req, res) => {
             console.log(`Webhook: No subscription found for reference ${reference}`);
           } else if (subscription.status === 'active') {
             console.log(`Webhook: Subscription already active for ${reference}`);
-            // Ensure Transaction + receipt exist even if verify created the subscription
-            // but failed to create the Transaction
-            if (!subscription.receiptNumber) {
-              const existingTxn = await Transaction.findOne({ reference });
-              if (existingTxn?.receiptNumber) {
-                subscription.receiptNumber = existingTxn.receiptNumber;
-                await subscription.save();
+            // Ensure Transaction exists (may have been lost in a race condition)
+            let existingTxn = await Transaction.findOne({ reference });
+            if (!existingTxn) {
+              let entityEmail = null;
+              if (subscription.entityType === 'player') {
+                entityEmail = (await User.findById(subscription.entityId))?.email || null;
+              } else if (subscription.entityType === 'club') {
+                entityEmail = (await Club.findById(subscription.entityId))?.email || null;
               }
+              try {
+                existingTxn = await createTransactionAndSendReceipt({
+                  reference,
+                  transactionId: transaction_id,
+                  type: 'membership',
+                  amount,
+                  payerName: subscription.payer?.name || subscription.entityName,
+                  payerEmail: subscription.payer?.email || entityEmail || null,
+                  relatedId: subscription._id,
+                  relatedModel: 'MembershipSubscription',
+                  description: `${subscription.membershipTypeName} - ${subscription.year}`,
+                  metadata: {
+                    membershipType: subscription.membershipTypeCode,
+                    membershipYear: subscription.year,
+                    entityType: subscription.entityType,
+                    playerName: subscription.entityName,
+                    zpin: subscription.zpin
+                  }
+                });
+              } catch (txnErr) {
+                console.error('Webhook: Failed to backfill single transaction:', txnErr);
+              }
+            }
+            // Backfill receiptNumber if missing
+            if (!subscription.receiptNumber && existingTxn?.receiptNumber) {
+              subscription.receiptNumber = existingTxn.receiptNumber;
+              await subscription.save();
             }
           } else {
             // Activate the subscription
@@ -1489,88 +1633,166 @@ export const resendReceipt = async (req, res) => {
 // Also backfills receiptNumber on subscriptions that are active but missing it.
 const syncMissingTransactions = async () => {
   try {
-    // Get IDs of subscriptions that already have Transaction records (by relatedId)
+    // Get all existing Transaction references for membership subscriptions
     const existingRelatedIds = await Transaction.distinct('relatedId', {
       relatedModel: 'MembershipSubscription'
     });
-
     const existingIdSet = new Set(existingRelatedIds.map(id => id.toString()));
 
-    // Find active subscriptions with payment dates that have no Transaction by relatedId
+    // Also get all references that already have Transaction records
+    const existingReferences = await Transaction.distinct('reference', {
+      type: 'membership',
+      status: 'completed'
+    });
+    const existingRefSet = new Set(existingReferences);
+
+    // Find active subscriptions with payment dates
     const activeSubscriptions = await MembershipSubscription.find({
       status: 'active',
       paymentDate: { $exists: true, $ne: null }
     });
 
-    const missing = activeSubscriptions.filter(
-      sub => !existingIdSet.has(sub._id.toString())
-    );
+    // Group subscriptions by paymentReference to handle bulk payments correctly
+    const subsByRef = new Map();
+    for (const sub of activeSubscriptions) {
+      const ref = sub.paymentReference;
+      if (!ref) continue;
+      if (!subsByRef.has(ref)) subsByRef.set(ref, []);
+      subsByRef.get(ref).push(sub);
+    }
 
     let created = 0;
-    for (const sub of missing) {
-      try {
-        // Map subscription paymentMethod to Transaction paymentMethod
-        const methodMap = { online: 'card', cash: 'cash', cheque: 'cheque' };
-        const txnPaymentMethod = methodMap[sub.paymentMethod] || sub.paymentMethod || 'other';
 
-        // Always use a unique reference that includes subscription ID
-        // to avoid duplicate key errors from shared bank references
-        const txnReference = `SYNC-${sub._id}-${Date.now()}`;
+    for (const [paymentRef, subs] of subsByRef) {
+      // Check if a Transaction already exists for this paymentReference
+      if (existingRefSet.has(paymentRef)) {
+        // Transaction exists — just backfill receiptNumber on subs that are missing it
+        const subsNeedingReceipt = subs.filter(s => !s.receiptNumber);
+        if (subsNeedingReceipt.length > 0) {
+          const txn = await Transaction.findOne({ reference: paymentRef, status: 'completed' });
+          if (txn?.receiptNumber) {
+            await MembershipSubscription.updateMany(
+              { paymentReference: paymentRef, $or: [{ receiptNumber: { $exists: false } }, { receiptNumber: null }, { receiptNumber: '' }] },
+              { $set: { receiptNumber: txn.receiptNumber } }
+            );
+          }
+        }
+        continue;
+      }
+
+      // Check if any sub in this group already has a Transaction by relatedId
+      // (e.g. from a SYNC-* reference created previously)
+      const hasAnyTxn = subs.some(s => existingIdSet.has(s._id.toString()));
+      if (hasAnyTxn) {
+        // A partial sync exists — backfill receiptNumber from existing Transaction
+        const subWithTxn = subs.find(s => existingIdSet.has(s._id.toString()));
+        if (subWithTxn) {
+          const txn = await Transaction.findOne({ relatedId: subWithTxn._id, status: 'completed' });
+          if (txn?.receiptNumber) {
+            for (const s of subs) {
+              if (!s.receiptNumber) {
+                s.receiptNumber = txn.receiptNumber;
+                await s.save();
+              }
+            }
+          }
+        }
+        continue;
+      }
+
+      // No Transaction exists at all — create one
+      try {
+        const isBulk = subs.length > 1;
+        const firstSub = subs[0];
+        let totalAmount = 0;
+        const players = [];
+        for (const s of subs) {
+          totalAmount += s.amount;
+          players.push({ id: s.entityId, name: s.entityName, zpin: s.zpin });
+        }
+
+        const methodMap = { online: 'card', cash: 'cash', cheque: 'cheque' };
+        const txnPaymentMethod = methodMap[firstSub.paymentMethod] || firstSub.paymentMethod || 'other';
+        const txnReference = `SYNC-${firstSub._id}-${Date.now()}`;
 
         const txn = await Transaction.create({
           reference: txnReference,
-          transactionId: sub.transactionId || null,
+          transactionId: firstSub.transactionId || null,
           type: 'membership',
-          amount: sub.amount,
-          currency: sub.currency || 'ZMW',
-          payerName: sub.entityName,
+          amount: totalAmount,
+          currency: firstSub.currency || 'ZMW',
+          payerName: firstSub.payer?.name || firstSub.entityName,
+          payerEmail: firstSub.payer?.email || null,
           status: 'completed',
-          paymentGateway: sub.paymentMethod === 'online' ? 'lenco' : 'manual',
+          paymentGateway: firstSub.paymentMethod === 'online' ? 'lenco' : 'manual',
           paymentMethod: txnPaymentMethod,
-          relatedId: sub._id,
+          relatedId: firstSub._id,
           relatedModel: 'MembershipSubscription',
-          description: `${sub.membershipTypeName} - ${sub.year}${sub.paymentMethod !== 'online' ? ' (Manual)' : ''}`,
+          description: isBulk
+            ? `Bulk ZPIN Registration - ${subs.length} player(s)`
+            : `${firstSub.membershipTypeName} - ${firstSub.year}${firstSub.paymentMethod !== 'online' ? ' (Manual)' : ''}`,
           metadata: {
-            membershipType: sub.membershipTypeCode,
-            membershipYear: sub.year,
-            entityType: sub.entityType,
-            playerName: sub.entityName,
-            zpin: sub.zpin,
-            bankReference: sub.paymentReference,
-            synced: true
+            membershipType: firstSub.membershipTypeCode,
+            membershipYear: firstSub.year,
+            entityType: firstSub.entityType,
+            playerName: firstSub.entityName,
+            zpin: firstSub.zpin,
+            bankReference: firstSub.paymentReference,
+            synced: true,
+            ...(isBulk ? { playerCount: subs.length, players } : {})
           },
-          paymentDate: sub.paymentDate
+          paymentDate: firstSub.paymentDate
         });
 
-        // Backfill receiptNumber onto the subscription
-        if (txn.receiptNumber && !sub.receiptNumber) {
-          sub.receiptNumber = txn.receiptNumber;
-          await sub.save();
+        // Backfill receiptNumber onto all subscriptions in the group
+        if (txn.receiptNumber) {
+          for (const s of subs) {
+            if (!s.receiptNumber) {
+              s.receiptNumber = txn.receiptNumber;
+              await s.save();
+            }
+          }
+        }
+
+        // Send receipt email for synced transactions
+        const recipientEmail = firstSub.payer?.email;
+        if (recipientEmail && txn.receiptNumber) {
+          try {
+            const pdfBuffer = await generateReceipt(txn);
+            await sendEmail({
+              email: recipientEmail,
+              subject: `Payment Receipt - ${txn.receiptNumber} - ZTA`,
+              html: `
+                <h2>Payment Receipt</h2>
+                <p>Dear ${txn.payerName},</p>
+                <p>Thank you for your payment to the Zambia Tennis Association.</p>
+                <p><strong>Receipt Details:</strong></p>
+                <ul>
+                  <li>Receipt Number: ${txn.receiptNumber}</li>
+                  <li>Amount: K${parseFloat(txn.amount).toFixed(2)}</li>
+                  <li>Date: ${new Date(txn.paymentDate).toLocaleDateString('en-GB', {
+                    day: 'numeric', month: 'long', year: 'numeric'
+                  })}</li>
+                </ul>
+                <p>Please find your official receipt attached.</p>
+                <p>Best regards,<br>Zambia Tennis Association</p>
+              `,
+              attachments: [{
+                filename: `ZTA-Receipt-${txn.receiptNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: 'application/pdf'
+              }]
+            });
+            txn.receiptSentAt = new Date();
+            await txn.save();
+          } catch (emailErr) {
+            console.error(`Failed to send receipt email for synced transaction ${txn.receiptNumber}:`, emailErr.message);
+          }
         }
 
         created++;
       } catch (err) {
-        console.error(`Failed to sync transaction for subscription ${sub._id}:`, err.message);
-      }
-    }
-
-    // Backfill receiptNumber for active subscriptions that have a Transaction but missing receiptNumber
-    const subsWithoutReceipt = activeSubscriptions.filter(
-      sub => !sub.receiptNumber && existingIdSet.has(sub._id.toString())
-    );
-    for (const sub of subsWithoutReceipt) {
-      try {
-        const txn = await Transaction.findOne({
-          relatedId: sub._id,
-          relatedModel: 'MembershipSubscription',
-          status: 'completed'
-        });
-        if (txn?.receiptNumber) {
-          sub.receiptNumber = txn.receiptNumber;
-          await sub.save();
-        }
-      } catch (err) {
-        console.error(`Failed to backfill receipt for subscription ${sub._id}:`, err.message);
+        console.error(`Failed to sync transaction for paymentReference ${paymentRef}:`, err.message);
       }
     }
 

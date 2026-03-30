@@ -641,36 +641,53 @@ export const verifyBulkPayment = async (req, res) => {
       totalAmount += subscription.amount;
     }
 
-    // Create transaction record
-    const transaction = new Transaction({
-      reference,
-      transactionId,
-      type: 'membership',
-      amount: totalAmount,
-      currency: 'ZMW',
-      payerName: subscriptions[0]?.payer?.name || subscriptions[0]?.notes?.match(/Bulk payment by ([^(]+)/)?.[1]?.trim() || 'Bulk Payer',
-      payerEmail: subscriptions[0]?.payer?.email || payerEmail,
-      status: 'completed',
-      paymentGateway: 'lenco',
-      paymentMethod: 'online',
-      relatedId: subscriptions[0]?._id,
-      relatedModel: 'MembershipSubscription',
-      description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
-      metadata: {
-        playerCount: activatedPlayers.length,
-        players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
-      },
-      paymentDate: new Date()
-    });
-    await transaction.save();
+    // Create transaction record (idempotent — use findOne first to handle race with webhook)
+    let transaction = await Transaction.findOne({ reference });
+    if (!transaction) {
+      try {
+        transaction = new Transaction({
+          reference,
+          transactionId,
+          type: 'membership',
+          amount: totalAmount,
+          currency: 'ZMW',
+          payerName: subscriptions[0]?.payer?.name || subscriptions[0]?.notes?.match(/Bulk payment by ([^(]+)/)?.[1]?.trim() || 'Bulk Payer',
+          payerEmail: subscriptions[0]?.payer?.email || payerEmail,
+          status: 'completed',
+          paymentGateway: 'lenco',
+          paymentMethod: 'online',
+          relatedId: subscriptions[0]?._id,
+          relatedModel: 'MembershipSubscription',
+          description: `Bulk ZPIN Registration - ${activatedPlayers.length} player(s)`,
+          metadata: {
+            playerCount: activatedPlayers.length,
+            players: activatedPlayers.map(p => ({ id: p.playerId, name: p.playerName, zpin: p.zpin }))
+          },
+          paymentDate: new Date()
+        });
+        await transaction.save();
+      } catch (txnErr) {
+        console.error('verifyBulkPayment: Transaction creation failed, attempting to find existing:', txnErr.message);
+        transaction = await Transaction.findOne({ reference });
+      }
+    }
+
+    // Write receipt number back to all subscriptions in the bulk
+    if (transaction?.receiptNumber) {
+      await MembershipSubscription.updateMany(
+        { paymentReference: reference },
+        { $set: { receiptNumber: transaction.receiptNumber } }
+      );
+    }
 
     // Generate and send receipt
     try {
       const pdfBuffer = await generateReceipt(transaction);
+      const recipientEmail = subscriptions[0]?.payer?.email || payerEmail;
 
-      if (payerEmail) {
+      if (recipientEmail) {
         await sendEmail({
-          email: payerEmail,
+          email: recipientEmail,
           subject: `ZPIN Registration Receipt - ${transaction.receiptNumber} - ZTA`,
           html: `
             <h2>ZPIN Registration Successful!</h2>
@@ -696,6 +713,9 @@ export const verifyBulkPayment = async (req, res) => {
             contentType: 'application/pdf'
           }]
         });
+
+        transaction.receiptSentAt = new Date();
+        await transaction.save();
       }
     } catch (emailError) {
       console.error('Failed to send receipt email:', emailError);
