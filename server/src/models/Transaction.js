@@ -115,14 +115,24 @@ transactionSchema.pre('save', async function(next) {
     };
     const prefix = prefixMap[this.type] || 'TXN';
     const year = new Date().getFullYear();
-    const count = await mongoose.model('Transaction').countDocuments({
-      status: 'completed',
-      createdAt: {
-        $gte: new Date(year, 0, 1),
-        $lt: new Date(year + 1, 0, 1)
-      }
-    });
-    this.receiptNumber = `ZTA-${prefix}-${year}-${String(count + 1).padStart(5, '0')}`;
+
+    // Find the highest existing receipt number for this year to avoid collisions.
+    // Receipt numbers are formatted as ZTA-{PREFIX}-{YEAR}-{NNNNN}.
+    // We search across all prefixes for this year to get a globally unique sequence.
+    const pattern = `ZTA-`;
+    const yearStr = String(year);
+    const lastTxn = await mongoose.model('Transaction').findOne({
+      receiptNumber: { $regex: `^ZTA-\\w+-${yearStr}-` }
+    }).sort({ receiptNumber: -1 }).select('receiptNumber').lean();
+
+    let nextNum = 1;
+    if (lastTxn?.receiptNumber) {
+      const parts = lastTxn.receiptNumber.split('-');
+      const lastNum = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastNum)) nextNum = lastNum + 1;
+    }
+
+    this.receiptNumber = `ZTA-${prefix}-${year}-${String(nextNum).padStart(5, '0')}`;
   }
   next();
 });
