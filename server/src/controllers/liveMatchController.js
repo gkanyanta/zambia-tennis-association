@@ -469,7 +469,21 @@ export const getLiveMatches = async (req, res) => {
       status: { $in: ['warmup', 'live', 'suspended'] }
     }).sort({ startedAt: -1 });
 
-    res.status(200).json({ success: true, data: matches });
+    // Filter out matches whose tournament no longer exists (deleted)
+    const validMatches = [];
+    for (const match of matches) {
+      const tournament = await Tournament.findById(match.tournamentId);
+      if (tournament) {
+        validMatches.push(match);
+      } else {
+        // Clean up orphaned live match from deleted tournament
+        match.status = 'completed';
+        match.completedAt = new Date();
+        await match.save();
+      }
+    }
+
+    res.status(200).json({ success: true, data: validMatches });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
