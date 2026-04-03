@@ -592,7 +592,7 @@ function renderRoundRobin(doc, tournament, category) {
 
       const p1Name = match.player1?.name || 'TBD';
       const p2Name = match.player2?.name || 'TBD';
-      const scoreText = match.status === 'completed' ? ` ${match.score || ''}` : '';
+      const scoreText = (match.winner || match.score) ? ` ${match.score || ''}` : '';
       const winnerMark = match.winner
         ? (match.player1?.id === match.winner ? '> ' : '  ')
         : '  ';
