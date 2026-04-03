@@ -37,6 +37,18 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   const seededEntries = acceptedEntries.filter(e => e.seed).length
   const canGenerateDraw = acceptedEntries.length >= 4
 
+  // Check if any matches have results — prevent accidental regeneration
+  const hasPlayedMatches = (() => {
+    if (!category.draw) return false
+    const drawMatches = (category.draw as any).matches || []
+    const rrGroups = (category.draw as any).roundRobinGroups || []
+    const mixerRounds = (category.draw as any).mixerRounds || []
+    const hasDrawResults = drawMatches.some((m: any) => m.winner || m.score)
+    const hasRRResults = rrGroups.some((g: any) => (g.matches || []).some((m: any) => m.winner || m.score))
+    const hasMixerResults = mixerRounds.some((r: any) => (r.courts || []).some((c: any) => c.status === 'completed'))
+    return hasDrawResults || hasRRResults || hasMixerResults
+  })()
+
   const mixerRatings = (category as any).mixerRatings as MixerRating[] | undefined
   const hasMixerRatings = mixerRatings && mixerRatings.length > 0
   const isMixer = category.drawType === 'mixer'
@@ -130,7 +142,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                     {' '}&bull; {category.draw.mixerRounds?.length || 0} rounds
                   </p>
                 </div>
-                <Button variant="outline" onClick={handleRegenerateDraw}>
+                <Button variant="outline" onClick={handleRegenerateDraw} disabled={hasPlayedMatches} title={hasPlayedMatches ? 'Cannot regenerate — matches have been played' : ''}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Draw
                 </Button>
@@ -172,7 +184,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                     Export PDF
                   </Button>
                 )}
-                <Button variant="outline" onClick={handleRegenerateDraw}>
+                <Button variant="outline" onClick={handleRegenerateDraw} disabled={hasPlayedMatches} title={hasPlayedMatches ? 'Cannot regenerate — matches have been played' : ''}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Draw
                 </Button>
