@@ -645,6 +645,122 @@ function advanceWinnerInBracket(category, match) {
   }
 }
 
+// @desc    Re-sync all completed live match results back into tournament draws
+// @route   POST /api/live-matches/resync
+// @access  Private (Admin)
+export const resyncCompletedResults = async (req, res) => {
+  try {
+    const liveMatches = await LiveMatch.find({ status: 'completed' }).sort({ completedAt: -1 });
+
+    const results = [];
+    let synced = 0;
+    let alreadySynced = 0;
+    let notFound = 0;
+
+    // Group by tournament to batch saves
+    const tournamentCache = {};
+
+    for (const lm of liveMatches) {
+      const tid = lm.tournamentId.toString();
+      if (!tournamentCache[tid]) {
+        tournamentCache[tid] = await Tournament.findById(tid);
+      }
+      const tournament = tournamentCache[tid];
+      if (!tournament) continue;
+
+      const state = lm.matchState;
+      const scoreString = getScoreString(state);
+      const winnerIndex = state.winner;
+      if (winnerIndex === null || winnerIndex === undefined) continue;
+
+      const winnerId = winnerIndex === 0 ? lm.player1.id : lm.player2.id;
+      const winnerName = winnerIndex === 0 ? lm.player1.name : lm.player2.name;
+
+      const category = tournament.categories.id(lm.categoryId);
+      if (!category || !category.draw) continue;
+
+      // Search draw.matches and roundRobinGroups
+      let match = category.draw.matches.id(lm.matchId);
+      let matchGroup = null;
+      if (!match && category.draw.roundRobinGroups) {
+        for (const group of category.draw.roundRobinGroups) {
+          match = group.matches.id(lm.matchId);
+          if (match) { matchGroup = group; break; }
+        }
+      }
+
+      if (!match) {
+        notFound++;
+        continue;
+      }
+
+      const entry = {
+        tournament: lm.tournamentName,
+        category: lm.categoryName,
+        round: lm.roundName,
+        player1: lm.player1.name,
+        player2: lm.player2.name,
+        score: scoreString,
+        winner: winnerName,
+        status: (match.winner && match.score) ? 'already_synced' : 'synced'
+      };
+      results.push(entry);
+
+      if (match.winner && match.score) {
+        alreadySynced++;
+        continue;
+      }
+
+      match.winner = winnerId;
+      match.score = scoreString;
+      match.status = 'completed';
+      match.completedTime = lm.completedAt || new Date();
+
+      // Advance winner in single elimination bracket
+      if (category.draw.type === 'single_elimination') {
+        const nextRound = match.round + 1;
+        const currentRoundMatches = category.draw.matches
+          .filter(m => m.round === match.round)
+          .sort((a, b) => a.matchNumber - b.matchNumber);
+        const positionInRound = currentRoundMatches.findIndex(
+          m => m._id.toString() === match._id.toString()
+        );
+        const nextMatchIndex = Math.floor(positionInRound / 2);
+        const isFirstPlayer = positionInRound % 2 === 0;
+        const nextMatches = category.draw.matches
+          .filter(m => m.round === nextRound)
+          .sort((a, b) => a.matchNumber - b.matchNumber);
+        if (nextMatches[nextMatchIndex]) {
+          const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
+          if (isFirstPlayer) nextMatches[nextMatchIndex].player1 = winnerPlayer;
+          else nextMatches[nextMatchIndex].player2 = winnerPlayer;
+        }
+      }
+
+      // Recompute round-robin standings
+      if (matchGroup) {
+        recomputeRoundRobinStandings(matchGroup);
+      }
+
+      synced++;
+    }
+
+    // Save all modified tournaments
+    for (const tournament of Object.values(tournamentCache)) {
+      if (tournament) await tournament.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Synced ${synced} results, ${alreadySynced} already synced, ${notFound} matches not found in draw`,
+      data: { synced, alreadySynced, notFound, results }
+    });
+  } catch (error) {
+    console.error('Resync error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 /**
  * Format live match data for socket emission
  */

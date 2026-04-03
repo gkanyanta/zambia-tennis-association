@@ -10,7 +10,8 @@ import {
   getLiveMatches,
   getLiveMatch,
   getLiveMatchesByTournament,
-  getMyMatches
+  getMyMatches,
+  resyncCompletedResults
 } from '../controllers/liveMatchController.js';
 import { protect, authorize, authorizeUmpire } from '../middleware/auth.js';
 
@@ -26,6 +27,7 @@ router.get('/:id', getLiveMatch);
 
 // Protected routes (admin/staff only for match creation)
 router.post('/', protect, authorize('admin', 'staff'), startLiveMatch);
+router.post('/resync', protect, authorize('admin', 'staff'), resyncCompletedResults);
 
 // Protected routes (admin/staff or assigned umpire for scoring actions)
 router.put('/:id/first-server', protect, authorizeUmpire, setFirstServer);
