@@ -26,7 +26,14 @@ export const startLiveMatch = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Draw not generated yet' });
     }
 
-    const match = category.draw.matches.id(matchId);
+    // Search draw.matches first, then roundRobinGroups
+    let match = category.draw.matches.id(matchId);
+    if (!match && category.draw.roundRobinGroups) {
+      for (const group of category.draw.roundRobinGroups) {
+        match = group.matches.id(matchId);
+        if (match) break;
+      }
+    }
     if (!match) {
       return res.status(404).json({ success: false, message: 'Match not found' });
     }
@@ -409,7 +416,14 @@ export const endMatch = async (req, res) => {
     if (tournament) {
       const category = tournament.categories.id(liveMatch.categoryId);
       if (category && category.draw) {
-        const match = category.draw.matches.id(liveMatch.matchId);
+        let match = category.draw.matches.id(liveMatch.matchId);
+        let matchGroup = null;
+        if (!match && category.draw.roundRobinGroups) {
+          for (const group of category.draw.roundRobinGroups) {
+            match = group.matches.id(liveMatch.matchId);
+            if (match) { matchGroup = group; break; }
+          }
+        }
         if (match) {
           match.winner = winnerId;
           match.score = scoreString;
@@ -418,6 +432,8 @@ export const endMatch = async (req, res) => {
 
           // Advance winner in bracket
           advanceWinnerInBracket(category, match);
+          // Recompute round-robin standings
+          if (matchGroup) recomputeRoundRobinStandings(matchGroup);
           await tournament.save();
         }
       }
@@ -532,7 +548,20 @@ async function updateTournamentDraw(liveMatch, matchState) {
     const category = tournament.categories.id(liveMatch.categoryId);
     if (!category || !category.draw) return;
 
-    const match = category.draw.matches.id(liveMatch.matchId);
+    // Search draw.matches first, then roundRobinGroups
+    let match = category.draw.matches.id(liveMatch.matchId);
+    let matchGroup = null;
+
+    if (!match && category.draw.roundRobinGroups) {
+      for (const group of category.draw.roundRobinGroups) {
+        match = group.matches.id(liveMatch.matchId);
+        if (match) {
+          matchGroup = group;
+          break;
+        }
+      }
+    }
+
     if (!match) return;
 
     const winnerId = matchState.winner === 0 ? liveMatch.player1.id : liveMatch.player2.id;
@@ -542,13 +571,43 @@ async function updateTournamentDraw(liveMatch, matchState) {
     match.status = 'completed';
     match.completedTime = new Date();
 
-    // Advance winner in bracket
+    // Advance winner in bracket (single elimination only)
     advanceWinnerInBracket(category, match);
+
+    // Recompute round-robin standings
+    if (matchGroup) {
+      recomputeRoundRobinStandings(matchGroup);
+    }
 
     await tournament.save();
   } catch (error) {
     console.error('Error updating tournament draw:', error);
   }
+}
+
+/**
+ * Recompute round-robin group standings from match results.
+ */
+function recomputeRoundRobinStandings(group) {
+  const standings = {};
+  group.players.forEach(p => {
+    standings[p.id] = { playerId: p.id, playerName: p.name, played: 0, won: 0, lost: 0, points: 0 };
+  });
+
+  group.matches.forEach(m => {
+    if (m.winner && m.player1 && m.player2) {
+      if (standings[m.player1.id]) { standings[m.player1.id].played++; }
+      if (standings[m.player2.id]) { standings[m.player2.id].played++; }
+      if (standings[m.winner]) {
+        standings[m.winner].won++;
+        standings[m.winner].points += 2;
+      }
+      const loserId = m.player1.id === m.winner ? m.player2.id : m.player1.id;
+      if (standings[loserId]) { standings[loserId].lost++; }
+    }
+  });
+
+  group.standings = Object.values(standings).sort((a, b) => b.points - a.points || b.won - a.won);
 }
 
 /**
