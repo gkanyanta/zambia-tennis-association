@@ -157,6 +157,7 @@ function AppRoutes() {
             <Route path="/donate" element={<Donate />} />
             <Route path="/donate/verify" element={<DonateVerify />} />
             <Route path="/pay/complete" element={<PayLaterComplete />} />
+            <Route path="/pay/tournament" element={<PayLaterComplete />} />
             <Route path="/payment/verify" element={<PaymentVerify />} />
             <Route path="/partnerships" element={<Sponsors />} />
             <Route path="/sponsors" element={<Sponsors />} />

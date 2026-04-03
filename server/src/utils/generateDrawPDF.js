@@ -341,7 +341,7 @@ function renderMatchBox(doc, match, x, y, boxWidth, boxHeight, playerLineH) {
   const plH = playerLineH || PLAYER_LINE_HEIGHT;
   const p1 = match.player1 || {};
   const p2 = match.player2 || {};
-  const isCompleted = match.status === 'completed';
+  const hasResult = !!(match.winner && match.score);
   const winnerId = match.winner;
 
   // Box background
@@ -350,7 +350,7 @@ function renderMatchBox(doc, match, x, y, boxWidth, boxHeight, playerLineH) {
   // Player 1 line
   const p1IsWinner = winnerId && p1.id === winnerId;
   const p1IsBye = p1.isBye;
-  renderPlayerLine(doc, p1, x, y, p1IsWinner, p1IsBye, isCompleted, match.score, true, w, plH);
+  renderPlayerLine(doc, p1, x, y, p1IsWinner, p1IsBye, hasResult, match.score, true, w, plH);
 
   // Divider line
   doc
@@ -363,7 +363,7 @@ function renderMatchBox(doc, match, x, y, boxWidth, boxHeight, playerLineH) {
   // Player 2 line
   const p2IsWinner = winnerId && p2.id === winnerId;
   const p2IsBye = p2.isBye;
-  renderPlayerLine(doc, p2, x, y + plH, p2IsWinner, p2IsBye, isCompleted, match.score, false, w, plH);
+  renderPlayerLine(doc, p2, x, y + plH, p2IsWinner, p2IsBye, hasResult, match.score, false, w, plH);
 }
 
 /**

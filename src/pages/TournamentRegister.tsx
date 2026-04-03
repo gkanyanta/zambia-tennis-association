@@ -585,7 +585,9 @@ export function TournamentRegister() {
           onClose: () => {
             setSubmitting(false)
             // Still show success since entries are submitted
-            alert('Entries submitted! You can pay later from your confirmation email.')
+            const refNum = data.data?.entryReferenceNumber
+            const refMsg = refNum ? ` Your reference number is: ${refNum}` : ''
+            alert(`Entries submitted! You can pay later from your confirmation email.${refMsg}`)
             navigate(`/tournaments/${id}`)
           },
           onConfirmationPending: () => {
@@ -593,8 +595,10 @@ export function TournamentRegister() {
           }
         })
       } else {
-        // Pay later - show success
-        alert(`${selectedEntries.length} entries submitted successfully! Payment can be made later. A confirmation email has been sent to ${payerEmail}.`)
+        // Pay later - show success with reference number
+        const refNum = data.data?.entryReferenceNumber
+        const refMsg = refNum ? `\n\nYour reference number is: ${refNum}\nYou can use this to pay later at any time.` : ''
+        alert(`${selectedEntries.length} entries submitted successfully! A confirmation email has been sent to ${payerEmail}.${refMsg}`)
         navigate(`/tournaments/${id}`)
       }
     } catch (err: any) {

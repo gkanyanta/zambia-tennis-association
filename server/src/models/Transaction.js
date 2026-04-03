@@ -115,24 +115,27 @@ transactionSchema.pre('save', async function(next) {
     };
     const prefix = prefixMap[this.type] || 'TXN';
     const year = new Date().getFullYear();
-
-    // Find the highest existing receipt number for this year to avoid collisions.
-    // Receipt numbers are formatted as ZTA-{PREFIX}-{YEAR}-{NNNNN}.
-    // We search across all prefixes for this year to get a globally unique sequence.
-    const pattern = `ZTA-`;
     const yearStr = String(year);
-    const lastTxn = await mongoose.model('Transaction').findOne({
-      receiptNumber: { $regex: `^ZTA-\\w+-${yearStr}-` }
-    }).sort({ receiptNumber: -1 }).select('receiptNumber').lean();
+    const yearPattern = `-${yearStr}-`;
 
-    let nextNum = 1;
-    if (lastTxn?.receiptNumber) {
-      const parts = lastTxn.receiptNumber.split('-');
-      const lastNum = parseInt(parts[parts.length - 1], 10);
-      if (!isNaN(lastNum)) nextNum = lastNum + 1;
+    // Find the highest numeric suffix across ALL receipt prefixes for this year.
+    // We must iterate and parse rather than relying on string sort, because
+    // string sort orders by prefix (COA < DON < MEM < REG < TRN) before the
+    // numeric suffix, which returns the wrong "max" when multiple prefixes exist.
+    const allTxns = await mongoose.model('Transaction').find({
+      receiptNumber: { $regex: `^ZTA-\\w+-${yearStr}-` }
+    }).select('receiptNumber').lean();
+
+    let maxNum = 0;
+    for (const t of allTxns) {
+      if (t.receiptNumber && t.receiptNumber.includes(yearPattern)) {
+        const parts = t.receiptNumber.split('-');
+        const num = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
     }
 
-    this.receiptNumber = `ZTA-${prefix}-${year}-${String(nextNum).padStart(5, '0')}`;
+    this.receiptNumber = `ZTA-${prefix}-${year}-${String(maxNum + 1).padStart(5, '0')}`;
   }
   next();
 });

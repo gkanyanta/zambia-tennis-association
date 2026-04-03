@@ -19,6 +19,7 @@ import {
   getJuniorCategories,
   publicRegister,
   verifyPayLaterToken,
+  lookupPendingEntries,
   downloadDrawPDF,
   updateMixerRatings,
   updateMixerCourtResult,
@@ -46,8 +47,9 @@ const router = express.Router();
 // Category information routes
 router.get('/junior-categories', getJuniorCategories);
 
-// Pay-later verification (must be before /:id route)
+// Pay-later routes (must be before /:id route)
 router.get('/pay-later/verify', verifyPayLaterToken);
+router.get('/pay-later/lookup', lookupPendingEntries);
 
 // Basic tournament routes
 router.get('/', getTournaments);

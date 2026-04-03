@@ -57,6 +57,10 @@ const entrySchema = new mongoose.Schema({
     default: 'unpaid'
   },
   paymentReference: String,
+  entryReferenceNumber: {
+    type: String,
+    index: true
+  },
   paymentDate: Date,
   paymentMethod: {
     type: String,

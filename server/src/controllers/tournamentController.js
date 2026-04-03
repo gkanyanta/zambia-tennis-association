@@ -16,6 +16,7 @@ import { generateDrawPDF } from '../utils/generateDrawPDF.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
 import { generateOrderOfPlayPDF } from '../utils/generateOrderOfPlayPDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
+import { generateEntryReference } from '../utils/generateEntryReference.js';
 
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
@@ -94,10 +95,7 @@ export const createTournament = async (req, res) => {
 // @access  Private/Admin
 export const updateTournament = async (req, res) => {
   try {
-    const tournament = await Tournament.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    });
+    const tournament = await Tournament.findById(req.params.id);
 
     if (!tournament) {
       return res.status(404).json({
@@ -105,6 +103,49 @@ export const updateTournament = async (req, res) => {
         message: 'Tournament not found'
       });
     }
+
+    // If the request includes categories, merge them carefully so that
+    // existing entries, draws, seeds, and match results are preserved.
+    if (req.body.categories && tournament.categories?.length > 0) {
+      const existingByCode = new Map();
+      for (const cat of tournament.categories) {
+        if (cat.categoryCode) existingByCode.set(cat.categoryCode, cat);
+      }
+
+      const hasAnyEntries = tournament.categories.some(c => c.entries?.length > 0);
+
+      if (hasAnyEntries) {
+        // Merge: preserve existing categories that have entries/draws,
+        // update metadata (name, fees, etc.) from incoming data
+        const mergedCategories = req.body.categories.map((incoming) => {
+          const existing = existingByCode.get(incoming.categoryCode);
+          if (existing && existing.entries?.length > 0) {
+            // Keep all existing data (entries, draw, seeds, matches),
+            // only update safe metadata fields
+            existing.name = incoming.name || existing.name;
+            existing.drawType = incoming.drawType || existing.drawType;
+            existing.maxEntries = incoming.maxEntries ?? existing.maxEntries;
+            if (incoming.entryFee !== undefined) existing.entryFee = incoming.entryFee;
+            return existing;
+          }
+          // New category or empty existing — use incoming as-is
+          return incoming;
+        });
+
+        // Also keep any existing categories not in the incoming list that have entries
+        for (const [code, existing] of existingByCode) {
+          if (existing.entries?.length > 0 && !req.body.categories.find(c => c.categoryCode === code)) {
+            mergedCategories.push(existing);
+          }
+        }
+
+        req.body.categories = mergedCategories;
+      }
+    }
+
+    // Apply all fields from req.body
+    Object.assign(tournament, req.body);
+    await tournament.save();
 
     res.status(200).json({
       success: true,
@@ -1307,6 +1348,9 @@ export const publicRegister = async (req, res) => {
     const errors = [];
     let totalFee = 0;
 
+    // Generate a single reference number for this registration batch
+    const entryReferenceNumber = generateEntryReference();
+
     // Process each entry
     for (const entry of entries) {
       const { playerId, categoryId, isNewPlayer, newPlayerData, partnerId, isNewPartner, newPartnerData } = entry;
@@ -1535,6 +1579,7 @@ export const publicRegister = async (req, res) => {
         } : null,
         entryFee,
         zpinPaidUp,
+        entryReferenceNumber,
         ...partnerInfo
       };
 
@@ -1577,7 +1622,7 @@ export const publicRegister = async (req, res) => {
       const payLaterToken = jwt.sign(
         { tournamentId: tournament._id, purpose: 'PAY_LATER', payerEmail: payer.email, amount: totalFee },
         process.env.JWT_SECRET,
-        { expiresIn: '72h' }
+        { expiresIn: '30d' }
       );
       const webBaseUrl = process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com';
       payLaterLink = `${webBaseUrl}/pay/complete?token=${payLaterToken}`;
@@ -1606,11 +1651,12 @@ export const publicRegister = async (req, res) => {
             ${totalFee > 0 ? `
             <p><strong>Payment:</strong></p>
             <p>Total Entry Fee: K${totalFee}</p>
+            <p><strong>Reference Number: ${entryReferenceNumber}</strong></p>
             ${payNow
               ? '<p>Status: Payment Pending</p>'
               : `<p>Status: Pay Later — Entry will be confirmed upon payment</p>
                  <p><a href="${payLaterLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Complete Payment Now</a></p>
-                 <p style="font-size:12px;color:#666;">This link expires in 72 hours.</p>`
+                 <p style="font-size:12px;color:#666;">You can also pay later by visiting <a href="${process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com'}/pay/tournament">zambiatennisassociation.com/pay/tournament</a> and entering your reference number: <strong>${entryReferenceNumber}</strong></p>`
             }
             ` : ''}
             ${errors.length > 0 ? `
@@ -1635,7 +1681,8 @@ export const publicRegister = async (req, res) => {
         errors: errors,
         totalFee,
         paymentInfo,
-        tournamentName: tournament.name
+        tournamentName: tournament.name,
+        entryReferenceNumber
       }
     });
   } catch (error) {
@@ -2301,8 +2348,12 @@ export const verifyPayLaterToken = async (req, res) => {
             categoryId: category._id,
             categoryName: category.name,
             playerName: entry.playerName,
+            entryFee: entry.entryFee,
+            partnerName: entry.partnerName,
+            partnerFee: entry.partnerEntryFee,
             status: entry.status,
-            paymentStatus: entry.paymentStatus
+            paymentStatus: entry.paymentStatus,
+            entryReferenceNumber: entry.entryReferenceNumber
           });
         }
       }
@@ -2323,10 +2374,82 @@ export const verifyPayLaterToken = async (req, res) => {
         amount: decoded.amount,
         payerEmail: decoded.payerEmail,
         entries: pendingEntries,
-        entryFee: tournament.entryFee
+        entryFee: tournament.entryFee,
+        entryReferenceNumber: pendingEntries[0]?.entryReferenceNumber || null
       }
     });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Look up pending tournament entries by reference number or payer email
+// @route   GET /api/tournaments/pay-later/lookup
+// @access  Public
+export const lookupPendingEntries = async (req, res) => {
+  try {
+    const { ref, email } = req.query;
+
+    if (!ref && !email) {
+      return res.status(400).json({ success: false, message: 'Reference number or email is required' });
+    }
+
+    // Build the entry match criteria
+    const entryMatch = { status: 'pending_payment', paymentStatus: 'unpaid' };
+    if (ref) entryMatch.entryReferenceNumber = ref.toUpperCase().trim();
+    if (email) entryMatch['payer.email'] = email.toLowerCase().trim();
+
+    // Search across all tournaments for matching pending_payment entries
+    const matchQuery = { 'categories.entries': { $elemMatch: entryMatch } };
+    const tournaments = await Tournament.find(matchQuery).select('name startDate endDate venue city entryFee categories');
+
+    // Collect matching entries grouped by tournament + reference number
+    const groups = {};
+    for (const tournament of tournaments) {
+      for (const category of tournament.categories) {
+        for (const entry of category.entries) {
+          if (entry.status !== 'pending_payment' || entry.paymentStatus !== 'unpaid') continue;
+          if (ref && entry.entryReferenceNumber !== ref.toUpperCase().trim()) continue;
+          if (email && entry.payer?.email?.toLowerCase() !== email.toLowerCase().trim()) continue;
+
+          const key = `${tournament._id}-${entry.entryReferenceNumber || entry.payer?.email}`;
+          if (!groups[key]) {
+            groups[key] = {
+              tournamentId: tournament._id,
+              tournamentName: tournament.name,
+              tournamentStartDate: tournament.startDate,
+              tournamentVenue: tournament.venue,
+              tournamentCity: tournament.city,
+              entryReferenceNumber: entry.entryReferenceNumber,
+              payerEmail: entry.payer?.email,
+              payerName: entry.payer?.name,
+              entries: [],
+              totalAmount: 0
+            };
+          }
+          const entryTotalFee = (entry.entryFee || 0) + (entry.partnerEntryFee || 0);
+          groups[key].entries.push({
+            entryId: entry._id,
+            categoryId: category._id,
+            categoryName: category.name,
+            playerName: entry.playerName,
+            entryFee: entry.entryFee,
+            partnerName: entry.partnerName,
+            partnerFee: entry.partnerEntryFee
+          });
+          groups[key].totalAmount += entryTotalFee;
+        }
+      }
+    }
+
+    const results = Object.values(groups);
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, message: 'No pending entries found for this reference or email' });
+    }
+
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.error('Lookup pending entries error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

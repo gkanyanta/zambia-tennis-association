@@ -578,7 +578,7 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
       bestOf: 3,
       shortSets: isU10,
       superTiebreak: true,
-      noAd: false,
+      noAd: isU10,
       court: match.court || '',
       umpireId: ''
     })

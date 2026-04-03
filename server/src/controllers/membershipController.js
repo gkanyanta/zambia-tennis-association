@@ -583,24 +583,97 @@ export const verifyBulkPayment = async (req, res) => {
       });
     }
 
-    // Find all subscriptions with this reference
+    // Find all subscriptions with this reference (pending OR already active via webhook)
     const subscriptions = await MembershipSubscription.find({
       paymentReference: reference,
-      status: 'pending'
+      status: { $in: ['pending', 'active'] }
     });
 
     if (subscriptions.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'No pending subscriptions found for this reference'
+        message: 'No subscriptions found for this reference'
+      });
+    }
+
+    // If all already active (webhook beat us), ensure Transaction + receipt exist
+    const allActive = subscriptions.every(s => s.status === 'active');
+    if (allActive) {
+      let existingTxn = await Transaction.findOne({ reference });
+
+      if (!existingTxn) {
+        let totalAmount = 0;
+        const activatedPlayers = [];
+        for (const s of subscriptions) {
+          totalAmount += s.amount;
+          activatedPlayers.push({ id: s.entityId, name: s.entityName, zpin: s.zpin });
+        }
+        const firstSub = subscriptions[0];
+        try {
+          existingTxn = new Transaction({
+            reference,
+            transactionId,
+            type: 'membership',
+            amount: totalAmount,
+            currency: 'ZMW',
+            payerName: firstSub?.payer?.name || firstSub?.entityName || 'Bulk Payer',
+            payerEmail: firstSub?.payer?.email || payerEmail,
+            status: 'completed',
+            paymentGateway: 'lenco',
+            paymentMethod: 'online',
+            relatedId: firstSub?._id,
+            relatedModel: 'MembershipSubscription',
+            description: `Bulk ZPIN Registration - ${subscriptions.length} player(s)`,
+            metadata: {
+              playerCount: subscriptions.length,
+              players: activatedPlayers
+            },
+            paymentDate: new Date()
+          });
+          await existingTxn.save();
+        } catch (txnErr) {
+          console.error('verifyBulkPayment: Backfill transaction creation failed:', txnErr.message);
+          existingTxn = await Transaction.findOne({ reference });
+        }
+      }
+
+      // Backfill receipt number on subscriptions missing it
+      if (existingTxn?.receiptNumber) {
+        await MembershipSubscription.updateMany(
+          { paymentReference: reference, $or: [{ receiptNumber: { $exists: false } }, { receiptNumber: null }, { receiptNumber: '' }] },
+          { $set: { receiptNumber: existingTxn.receiptNumber } }
+        );
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Memberships already active',
+        data: {
+          reference,
+          transactionId,
+          receiptNumber: existingTxn?.receiptNumber,
+          totalAmount: subscriptions.reduce((sum, s) => sum + s.amount, 0),
+          playerCount: subscriptions.length,
+          players: subscriptions.map(s => ({
+            playerId: s.entityId,
+            playerName: s.entityName,
+            zpin: s.zpin,
+            membershipType: s.membershipTypeName,
+            amount: s.amount,
+            expiryDate: s.endDate
+          })),
+          year: new Date().getFullYear(),
+          expiryDate: MembershipSubscription.getYearEndDate()
+        }
       });
     }
 
     const activatedPlayers = [];
     let totalAmount = 0;
 
-    // Activate each subscription
+    // Activate each pending subscription (skip already-active ones)
     for (const subscription of subscriptions) {
+      if (subscription.status === 'active') continue;
       subscription.status = 'active';
       subscription.transactionId = transactionId;
       subscription.paymentDate = new Date();
