@@ -610,11 +610,31 @@ function renderCrossTable(doc, group, startY) {
     matchMap[m.player2.id][m.player1.id] = { score: m.score || '', won: !p1Won };
   }
 
-  // Build standings lookup
+  // Compute standings directly from matches (reliable regardless of stored data)
+  const computedStandings = {};
+  players.forEach(p => {
+    computedStandings[p.id] = { won: 0, lost: 0, played: 0, points: 0 };
+  });
+  matches.forEach(m => {
+    if (!m.winner || !m.player1?.id || !m.player2?.id) return;
+    const p1id = m.player1.id.toString ? m.player1.id.toString() : m.player1.id;
+    const p2id = m.player2.id.toString ? m.player2.id.toString() : m.player2.id;
+    const wid = m.winner.toString ? m.winner.toString() : m.winner;
+    if (computedStandings[p1id]) computedStandings[p1id].played++;
+    if (computedStandings[p2id]) computedStandings[p2id].played++;
+    if (computedStandings[wid]) { computedStandings[wid].won++; computedStandings[wid].points += 2; }
+    const lid = wid === p1id ? p2id : p1id;
+    if (computedStandings[lid]) computedStandings[lid].lost++;
+  });
+
+  // Sort by points desc, then wins desc to determine position
+  const sortedIds = Object.keys(computedStandings).sort((a, b) =>
+    computedStandings[b].points - computedStandings[a].points ||
+    computedStandings[b].won - computedStandings[a].won
+  );
   const standingsMap = {};
-  standings.forEach((s, i) => {
-    const plain = s.toObject ? s.toObject() : s;
-    standingsMap[plain.playerId] = { ...plain, position: i + 1 };
+  sortedIds.forEach((id, i) => {
+    standingsMap[id] = { ...computedStandings[id], position: i + 1 };
   });
 
   // Layout: fill ALL available page space with safe bottom margin
