@@ -571,45 +571,8 @@ function renderRoundRobin(doc, tournament, category) {
       .text(group.groupName || 'Group', MARGIN, currentY);
     currentY += 20;
 
-    // Standings table
-    currentY = renderStandingsTable(doc, group, currentY);
-
-    // Match results
-    currentY += 15;
-    doc
-      .fontSize(10)
-      .font('Helvetica-Bold')
-      .fillColor(COLORS.primary)
-      .text('Match Results', MARGIN, currentY);
-    currentY += 15;
-
-    const groupMatches = group.matches || [];
-    for (const match of groupMatches) {
-      if (currentY > PAGE_HEIGHT - MARGIN - 20) {
-        doc.addPage({ layout: 'landscape' });
-        currentY = renderHeader(doc, tournament, category, `Round Robin - ${group.groupName}`) + 10;
-      }
-
-      const p1Name = match.player1?.name || 'TBD';
-      const p2Name = match.player2?.name || 'TBD';
-      const scoreText = (match.winner || match.score) ? ` ${match.score || ''}` : '';
-      const winnerMark = match.winner
-        ? (match.player1?.id === match.winner ? '> ' : '  ')
-        : '  ';
-      const loserMark = match.winner
-        ? (match.player2?.id === match.winner ? ' <' : '')
-        : '';
-
-      doc
-        .fontSize(8)
-        .font('Helvetica')
-        .fillColor(COLORS.primary)
-        .text(
-          `${winnerMark}${p1Name}  vs  ${p2Name}${loserMark}${scoreText}`,
-          MARGIN + 10, currentY, { lineBreak: false }
-        );
-      currentY += 14;
-    }
+    // ITF cross-table
+    currentY = renderCrossTable(doc, group, currentY);
   }
 
   // Render knockout stage if present
@@ -631,57 +594,143 @@ function renderRoundRobin(doc, tournament, category) {
 }
 
 /**
- * Render standings table for a round robin group
+ * Render ITF-standard round-robin cross-table
+ * Players as rows and columns, match results at intersections,
+ * with W/L/Pts/Pos summary columns on the right.
  */
-function renderStandingsTable(doc, group, startY) {
+function renderCrossTable(doc, group, startY) {
   const players = group.players || [];
+  const matches = group.matches || [];
   const standings = group.standings || [];
-  const hasStandings = standings.length > 0;
+  const n = players.length;
 
-  // Table headers
-  const cols = [
-    { label: 'Pos', x: MARGIN, width: 30 },
-    { label: 'Player', x: MARGIN + 30, width: 200 },
-    { label: 'P', x: MARGIN + 230, width: 30 },
-    { label: 'W', x: MARGIN + 260, width: 30 },
-    { label: 'L', x: MARGIN + 290, width: 30 },
-    { label: 'Pts', x: MARGIN + 320, width: 35 }
-  ];
+  if (n === 0) return startY;
 
-  // Header row
-  doc.rect(MARGIN, startY, 355, 16).fill(COLORS.headerBg);
-  doc.fontSize(8).font('Helvetica-Bold').fillColor(COLORS.headerText);
-  for (const col of cols) {
-    doc.text(col.label, col.x + 3, startY + 4, { width: col.width - 6, align: col.label === 'Player' ? 'left' : 'center', lineBreak: false });
+  // Build a match result lookup: matchMap[rowPlayerId][colPlayerId] = { score, won }
+  const matchMap = {};
+  for (const m of matches) {
+    if (!m.player1?.id || !m.player2?.id) continue;
+    if (!m.winner && !m.score) continue;
+    const p1Won = m.winner === m.player1.id;
+    if (!matchMap[m.player1.id]) matchMap[m.player1.id] = {};
+    if (!matchMap[m.player2.id]) matchMap[m.player2.id] = {};
+    matchMap[m.player1.id][m.player2.id] = { score: m.score || '', won: p1Won };
+    matchMap[m.player2.id][m.player1.id] = { score: m.score || '', won: !p1Won };
   }
 
-  let y = startY + 16;
+  // Build standings lookup
+  const standingsMap = {};
+  standings.forEach((s, i) => {
+    standingsMap[s.playerId] = { ...s, position: i + 1 };
+  });
 
-  const rows = hasStandings ? standings : players.map((p, i) => ({
-    playerName: p.name,
-    played: 0,
-    won: 0,
-    lost: 0,
-    points: 0,
-    _pos: i + 1
-  }));
+  // Layout dimensions
+  const nameColWidth = 120;
+  const numColWidth = 22;
+  const resultColWidth = Math.min(75, (CONTENT_WIDTH - nameColWidth - numColWidth - 4 * 28) / n);
+  const summaryColWidth = 28;
+  const rowHeight = Math.max(22, Math.min(30, (PAGE_HEIGHT - startY - MARGIN - 20) / (n + 1)));
+  const fontSize = Math.min(7.5, rowHeight * 0.3);
+  const smallFontSize = Math.max(5, fontSize - 1);
+  const tableWidth = numColWidth + nameColWidth + n * resultColWidth + 4 * summaryColWidth;
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+  let y = startY;
+
+  // ── Header row ──
+  doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.headerBg);
+  doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.headerText);
+
+  // # column
+  doc.text('#', MARGIN + 2, y + (rowHeight - fontSize) / 2, { width: numColWidth - 4, align: 'center', lineBreak: false });
+
+  // Player name column
+  doc.text('Player', MARGIN + numColWidth + 4, y + (rowHeight - fontSize) / 2, { width: nameColWidth - 8, lineBreak: false });
+
+  // Player number columns (1, 2, 3...)
+  for (let j = 0; j < n; j++) {
+    const colX = MARGIN + numColWidth + nameColWidth + j * resultColWidth;
+    doc.text(`${j + 1}`, colX, y + (rowHeight - fontSize) / 2, { width: resultColWidth, align: 'center', lineBreak: false });
+  }
+
+  // Summary header columns
+  const summaryX = MARGIN + numColWidth + nameColWidth + n * resultColWidth;
+  const summaryLabels = ['W', 'L', 'Pts', 'Pos'];
+  for (let s = 0; s < summaryLabels.length; s++) {
+    doc.text(summaryLabels[s], summaryX + s * summaryColWidth, y + (rowHeight - fontSize) / 2, {
+      width: summaryColWidth, align: 'center', lineBreak: false
+    });
+  }
+
+  y += rowHeight;
+
+  // ── Data rows ──
+  for (let i = 0; i < n; i++) {
+    const player = players[i];
     const isEven = i % 2 === 0;
 
+    // Row background
     if (isEven) {
-      doc.rect(MARGIN, y, 355, 14).fill(COLORS.lightBg);
+      doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.lightBg);
     }
 
-    doc.fontSize(8).font('Helvetica').fillColor(COLORS.primary);
-    doc.text(`${i + 1}`, cols[0].x + 3, y + 3, { width: cols[0].width - 6, align: 'center', lineBreak: false });
-    doc.text(row.playerName || row.name || 'Unknown', cols[1].x + 3, y + 3, { width: cols[1].width - 6, lineBreak: false });
-    doc.text(`${row.played || 0}`, cols[2].x + 3, y + 3, { width: cols[2].width - 6, align: 'center', lineBreak: false });
-    doc.text(`${row.won || 0}`, cols[3].x + 3, y + 3, { width: cols[3].width - 6, align: 'center', lineBreak: false });
-    doc.text(`${row.lost || 0}`, cols[4].x + 3, y + 3, { width: cols[4].width - 6, align: 'center', lineBreak: false });
-    doc.text(`${row.points || 0}`, cols[5].x + 3, y + 3, { width: cols[5].width - 6, align: 'center', lineBreak: false });
-    y += 14;
+    // Row border
+    doc.rect(MARGIN, y, tableWidth, rowHeight).lineWidth(0.3).strokeColor(COLORS.border).stroke();
+
+    const textY = y + (rowHeight - fontSize) / 2;
+
+    // Player number
+    doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.primary);
+    doc.text(`${i + 1}`, MARGIN + 2, textY, { width: numColWidth - 4, align: 'center', lineBreak: false });
+
+    // Player name
+    const displayName = truncateName(player.name, Math.floor(nameColWidth / 5.5));
+    doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
+    doc.text(displayName, MARGIN + numColWidth + 4, textY, { width: nameColWidth - 8, lineBreak: false });
+
+    // Result cells
+    for (let j = 0; j < n; j++) {
+      const colX = MARGIN + numColWidth + nameColWidth + j * resultColWidth;
+
+      // Draw cell border
+      doc.rect(colX, y, resultColWidth, rowHeight).lineWidth(0.3).strokeColor(COLORS.border).stroke();
+
+      if (i === j) {
+        // Diagonal — shade dark
+        doc.rect(colX + 0.5, y + 0.5, resultColWidth - 1, rowHeight - 1).fill('#E5E7EB');
+      } else {
+        const opponent = players[j];
+        const result = matchMap[player.id]?.[opponent.id];
+
+        if (result) {
+          // Show score — winner in bold green, loser in regular
+          const cellFont = result.won ? 'Helvetica-Bold' : 'Helvetica';
+          const cellColor = result.won ? '#059669' : COLORS.secondary;
+
+          doc.fontSize(smallFontSize).font(cellFont).fillColor(cellColor);
+          doc.text(result.score, colX + 2, y + (rowHeight - smallFontSize) / 2, {
+            width: resultColWidth - 4, align: 'center', lineBreak: false
+          });
+        }
+      }
+    }
+
+    // Summary columns: W, L, Pts, Pos
+    const pStanding = standingsMap[player.id] || { won: 0, lost: 0, points: 0, position: '-' };
+    const summaryValues = [
+      pStanding.won || 0,
+      pStanding.lost || 0,
+      pStanding.points || 0,
+      pStanding.position || '-'
+    ];
+
+    doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
+    for (let s = 0; s < summaryValues.length; s++) {
+      const sx = summaryX + s * summaryColWidth;
+      doc.rect(sx, y, summaryColWidth, rowHeight).lineWidth(0.3).strokeColor(COLORS.border).stroke();
+      doc.text(`${summaryValues[s]}`, sx, textY, { width: summaryColWidth, align: 'center', lineBreak: false });
+    }
+
+    y += rowHeight;
   }
 
   return y;

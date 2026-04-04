@@ -1,6 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo, forwardRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import type { Draw, Match } from '@/types/tournament'
 
 interface DrawBracketProps {
@@ -231,82 +230,85 @@ function BracketPlayer({
 
 // ─── Round Robin View (unchanged) ───────────────────────────────────────────
 
-function RoundRobinMatchCard({
-  match,
-  onClick,
-}: {
-  match: Match & { _id?: string }
-  onClick?: () => void
-}) {
-  const isClickable =
-    match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye
+function RoundRobinCrossTable({ group, onMatchClick }: { group: any; onMatchClick?: (match: Match) => void }) {
+  const players = group.players || []
+  const matches = group.matches || []
+  const standings = group.standings || []
 
-  return (
-    <Card
-      className={`${isClickable ? 'cursor-pointer hover:border-primary' : ''} ${
-        match.status === 'completed' ? 'bg-muted/50' : ''
-      }`}
-      onClick={isClickable ? onClick : undefined}
-    >
-      <CardContent className="p-3">
-        <div className="space-y-2">
-          <RoundRobinPlayerLine
-            player={match.player1}
-            isWinner={match.winner === match.player1?.id}
-            score={match.score}
-          />
-          <div className="border-t" />
-          <RoundRobinPlayerLine
-            player={match.player2}
-            isWinner={match.winner === match.player2?.id}
-            score={match.score}
-          />
-        </div>
-        {match.status === 'completed' && match.score && (
-          <div className="mt-2 text-xs text-muted-foreground text-center">{match.score}</div>
-        )}
-        {match.court && (
-          <div className="mt-2 text-xs text-muted-foreground text-center">
-            Court {match.court}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function RoundRobinPlayerLine({
-  player,
-  isWinner,
-  score,
-}: {
-  player?: { id: string; name: string; seed?: number; isBye?: boolean }
-  isWinner: boolean
-  score?: string
-}) {
-  if (!player) {
-    return <div className="text-sm text-muted-foreground italic py-1">TBD</div>
+  // Build result lookup: matchMap[rowId][colId] = { score, won, match }
+  const matchMap: Record<string, Record<string, { score: string; won: boolean; match: any }>> = {}
+  for (const m of matches) {
+    if (!m.player1?.id || !m.player2?.id) continue
+    if (!m.winner && !m.score) continue
+    const p1Won = m.winner === m.player1.id
+    if (!matchMap[m.player1.id]) matchMap[m.player1.id] = {}
+    if (!matchMap[m.player2.id]) matchMap[m.player2.id] = {}
+    matchMap[m.player1.id][m.player2.id] = { score: m.score || '', won: p1Won, match: m }
+    matchMap[m.player2.id][m.player1.id] = { score: m.score || '', won: !p1Won, match: m }
   }
 
-  if (player.isBye) {
-    return <div className="text-sm text-muted-foreground italic py-1">BYE</div>
+  // Standings lookup
+  const standingsMap: Record<string, any> = {}
+  standings.forEach((s: any, i: number) => { standingsMap[s.playerId] = { ...s, position: i + 1 } })
+
+  // Find unplayed matches for click handling
+  const findMatch = (p1Id: string, p2Id: string) => {
+    return matches.find((m: any) =>
+      (m.player1?.id === p1Id && m.player2?.id === p2Id) ||
+      (m.player1?.id === p2Id && m.player2?.id === p1Id)
+    )
   }
 
   return (
-    <div className={`flex items-center justify-between py-1 ${isWinner ? 'font-bold' : ''}`}>
-      <div className="flex items-center gap-2">
-        {player.seed && (
-          <Badge variant="outline" className="text-xs px-1.5">
-            {player.seed}
-          </Badge>
-        )}
-        <span className="text-sm">{player.name}</span>
-      </div>
-      {isWinner && score && (
-        <Badge variant="default" className="ml-2">
-          W
-        </Badge>
-      )}
+    <div className="overflow-x-auto">
+      <table className="text-sm border-collapse">
+        <thead>
+          <tr className="bg-slate-800 text-white">
+            <th className="border border-slate-600 px-2 py-2 text-center w-8">#</th>
+            <th className="border border-slate-600 px-3 py-2 text-left min-w-[120px]">Player</th>
+            {players.map((_: any, j: number) => (
+              <th key={j} className="border border-slate-600 px-2 py-2 text-center min-w-[80px]">{j + 1}</th>
+            ))}
+            <th className="border border-slate-600 px-2 py-2 text-center w-8">W</th>
+            <th className="border border-slate-600 px-2 py-2 text-center w-8">L</th>
+            <th className="border border-slate-600 px-2 py-2 text-center w-10">Pts</th>
+            <th className="border border-slate-600 px-2 py-2 text-center w-10">Pos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player: any, i: number) => {
+            const st = standingsMap[player.id] || { won: 0, lost: 0, points: 0, position: '-' }
+            return (
+              <tr key={player.id} className={i % 2 === 0 ? 'bg-slate-50 dark:bg-slate-900/30' : ''}>
+                <td className="border px-2 py-2 text-center font-bold">{i + 1}</td>
+                <td className="border px-3 py-2 font-medium">{player.name}</td>
+                {players.map((opponent: any, j: number) => {
+                  if (i === j) {
+                    return <td key={j} className="border px-2 py-2 bg-slate-200 dark:bg-slate-700" />
+                  }
+                  const result = matchMap[player.id]?.[opponent.id]
+                  const match = findMatch(player.id, opponent.id)
+                  return (
+                    <td
+                      key={j}
+                      className={`border px-2 py-2 text-center text-xs ${
+                        result ? (result.won ? 'text-green-700 dark:text-green-400 font-bold' : 'text-slate-500') : ''
+                      } ${match && onMatchClick ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950' : ''}`}
+                      onClick={() => match && onMatchClick?.(match)}
+                    >
+                      {result ? result.score : ''}
+                    </td>
+                  )
+                })}
+                <td className="border px-2 py-2 text-center">{st.won}</td>
+                <td className="border px-2 py-2 text-center">{st.lost}</td>
+                <td className="border px-2 py-2 text-center font-bold">{st.points}</td>
+                <td className="border px-2 py-2 text-center font-bold">{st.position}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -338,64 +340,7 @@ function RoundRobinView({ draw, onMatchClick }: DrawBracketProps) {
         <Card key={group.groupName}>
           <CardContent className="p-6">
             <h3 className="text-lg font-bold mb-4">{group.groupName}</h3>
-
-            {/* Players in group */}
-            <div className="mb-4">
-              <h4 className="text-sm font-semibold mb-2">Players:</h4>
-              <div className="flex flex-wrap gap-2">
-                {group.players.map((player) => (
-                  <Badge key={player.id} variant="outline">
-                    {player.seed && `(${player.seed}) `}
-                    {player.name}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            {/* Matches */}
-            <div>
-              <h4 className="text-sm font-semibold mb-2">Matches:</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {group.matches.map((match) => (
-                  <RoundRobinMatchCard
-                    key={(match as any)._id || match.id}
-                    match={match}
-                    onClick={() => onMatchClick?.(match)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Standings if available */}
-            {group.standings && (
-              <div className="mt-6">
-                <h4 className="text-sm font-semibold mb-2">Standings:</h4>
-                <table className="w-full text-sm">
-                  <thead className="border-b">
-                    <tr>
-                      <th className="text-left py-2">Pos</th>
-                      <th className="text-left py-2">Player</th>
-                      <th className="text-center py-2">P</th>
-                      <th className="text-center py-2">W</th>
-                      <th className="text-center py-2">L</th>
-                      <th className="text-center py-2">Pts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.standings.map((standing, index) => (
-                      <tr key={standing.playerId} className="border-b">
-                        <td className="py-2">{index + 1}</td>
-                        <td className="py-2">{standing.playerName}</td>
-                        <td className="text-center py-2">{standing.played}</td>
-                        <td className="text-center py-2">{standing.won}</td>
-                        <td className="text-center py-2">{standing.lost}</td>
-                        <td className="text-center py-2 font-bold">{standing.points}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <RoundRobinCrossTable group={group} onMatchClick={onMatchClick} />
           </CardContent>
         </Card>
       ))}
