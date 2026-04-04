@@ -624,73 +624,77 @@ function renderCrossTable(doc, group, startY) {
     standingsMap[s.playerId] = { ...s, position: i + 1 };
   });
 
-  // Layout: fill the full available page area, then derive font sizes
-  const totalCols = 1 + 1 + n + 4; // #, Name, n result cols, W/L/Pts/Pos
+  // Layout: fill ALL available page space, then scale fonts to fit
   const availableHeight = PAGE_HEIGHT - MARGIN - startY;
-  const rowHeight = availableHeight / (n + 1); // +1 for header row
+  const availableWidth = CONTENT_WIDTH;
+  const rowHeight = availableHeight / (n + 1); // +1 for header
 
-  // Distribute full page width across columns
-  // Give name column ~22% of width, # column ~4%, summary cols ~4% each, rest to result cells
-  const numColWidth = Math.round(CONTENT_WIDTH * 0.035);
-  const summaryColWidth = Math.round(CONTENT_WIDTH * 0.045);
-  const nameColWidth = Math.round(CONTENT_WIDTH * 0.22);
-  const resultColWidth = (CONTENT_WIDTH - numColWidth - nameColWidth - 4 * summaryColWidth) / n;
-  const tableWidth = CONTENT_WIDTH;
+  // Column widths: # | Player Name | 1..n result columns | W | L | Pts | Pos
+  // Fixed-ratio columns that scale to page width
+  const numColWidth = 30;
+  const summaryColWidth = 38;
+  const fixedWidth = numColWidth + 4 * summaryColWidth; // 30 + 152 = 182
+  const flexWidth = availableWidth - fixedWidth;         // ~600 on A4 landscape
+  // Name gets 25% of flex space, results share the rest equally
+  const nameColWidth = Math.round(flexWidth * 0.25);
+  const resultColWidth = (flexWidth - nameColWidth) / n;
+  const tableWidth = availableWidth;
 
-  // Scale fonts to row height — large enough to be readable when printed
-  const fontSize = Math.min(14, Math.max(9, rowHeight * 0.38));
-  const smallFontSize = Math.min(12, Math.max(8, rowHeight * 0.32));
+  // Font sizes scale with row height for maximum readability
+  const fontSize = Math.min(16, Math.max(10, Math.round(rowHeight * 0.36)));
+  const smallFontSize = Math.min(14, Math.max(9, Math.round(rowHeight * 0.30)));
 
-  let y = startY;
+  // Center table vertically if there's excess space (cap row height for small groups)
+  const maxRowHeight = 80;
+  const actualRowHeight = Math.min(rowHeight, maxRowHeight);
+  const tableHeight = actualRowHeight * (n + 1);
+  const tableStartY = startY + Math.max(0, (availableHeight - tableHeight) / 2);
+
+  const rh = actualRowHeight; // shorthand
+  let y = tableStartY;
 
   // ── Header row ──
-  doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.headerBg);
+  doc.rect(MARGIN, y, tableWidth, rh).fill(COLORS.headerBg);
   doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.headerText);
 
-  // # column
-  doc.text('#', MARGIN + 2, y + (rowHeight - fontSize) / 2, { width: numColWidth - 4, align: 'center', lineBreak: false });
+  const hTextY = y + (rh - fontSize) / 2;
+  doc.text('#', MARGIN + 2, hTextY, { width: numColWidth - 4, align: 'center', lineBreak: false });
+  doc.text('Player', MARGIN + numColWidth + 4, hTextY, { width: nameColWidth - 8, lineBreak: false });
 
-  // Player name column
-  doc.text('Player', MARGIN + numColWidth + 4, y + (rowHeight - fontSize) / 2, { width: nameColWidth - 8, lineBreak: false });
-
-  // Player number columns (1, 2, 3...)
   for (let j = 0; j < n; j++) {
     const colX = MARGIN + numColWidth + nameColWidth + j * resultColWidth;
-    doc.text(`${j + 1}`, colX, y + (rowHeight - fontSize) / 2, { width: resultColWidth, align: 'center', lineBreak: false });
+    doc.text(`${j + 1}`, colX, hTextY, { width: resultColWidth, align: 'center', lineBreak: false });
   }
 
-  // Summary header columns
   const summaryX = MARGIN + numColWidth + nameColWidth + n * resultColWidth;
   const summaryLabels = ['W', 'L', 'Pts', 'Pos'];
   for (let s = 0; s < summaryLabels.length; s++) {
-    doc.text(summaryLabels[s], summaryX + s * summaryColWidth, y + (rowHeight - fontSize) / 2, {
+    doc.text(summaryLabels[s], summaryX + s * summaryColWidth, hTextY, {
       width: summaryColWidth, align: 'center', lineBreak: false
     });
   }
 
-  y += rowHeight;
+  y += rh;
 
   // ── Data rows ──
   for (let i = 0; i < n; i++) {
     const player = players[i];
     const isEven = i % 2 === 0;
 
-    // Row background
     if (isEven) {
-      doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.lightBg);
+      doc.rect(MARGIN, y, tableWidth, rh).fill(COLORS.lightBg);
     }
 
-    // Row border
-    doc.rect(MARGIN, y, tableWidth, rowHeight).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+    doc.rect(MARGIN, y, tableWidth, rh).lineWidth(0.5).strokeColor(COLORS.border).stroke();
 
-    const textY = y + (rowHeight - fontSize) / 2;
+    const textY = y + (rh - fontSize) / 2;
 
     // Player number
     doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.primary);
     doc.text(`${i + 1}`, MARGIN + 2, textY, { width: numColWidth - 4, align: 'center', lineBreak: false });
 
     // Player name
-    const displayName = truncateName(player.name, Math.floor(nameColWidth / 6));
+    const displayName = truncateName(player.name, Math.floor(nameColWidth / (fontSize * 0.6)));
     doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
     doc.text(displayName, MARGIN + numColWidth + 4, textY, { width: nameColWidth - 8, lineBreak: false });
 
@@ -698,46 +702,38 @@ function renderCrossTable(doc, group, startY) {
     for (let j = 0; j < n; j++) {
       const colX = MARGIN + numColWidth + nameColWidth + j * resultColWidth;
 
-      // Draw cell border
-      doc.rect(colX, y, resultColWidth, rowHeight).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+      doc.rect(colX, y, resultColWidth, rh).lineWidth(0.5).strokeColor(COLORS.border).stroke();
 
       if (i === j) {
-        // Diagonal — shade dark
-        doc.rect(colX + 0.5, y + 0.5, resultColWidth - 1, rowHeight - 1).fill('#E5E7EB');
+        doc.rect(colX + 0.5, y + 0.5, resultColWidth - 1, rh - 1).fill('#E5E7EB');
       } else {
         const opponent = players[j];
         const result = matchMap[player.id]?.[opponent.id];
 
         if (result) {
-          // Show score — winner in bold green, loser in regular
           const cellFont = result.won ? 'Helvetica-Bold' : 'Helvetica';
           const cellColor = result.won ? '#059669' : COLORS.secondary;
 
           doc.fontSize(smallFontSize).font(cellFont).fillColor(cellColor);
-          doc.text(result.score, colX + 2, y + (rowHeight - smallFontSize) / 2, {
+          doc.text(result.score, colX + 2, y + (rh - smallFontSize) / 2, {
             width: resultColWidth - 4, align: 'center', lineBreak: false
           });
         }
       }
     }
 
-    // Summary columns: W, L, Pts, Pos
+    // Summary columns
     const pStanding = standingsMap[player.id] || { won: 0, lost: 0, points: 0, position: '-' };
-    const summaryValues = [
-      pStanding.won || 0,
-      pStanding.lost || 0,
-      pStanding.points || 0,
-      pStanding.position || '-'
-    ];
+    const summaryValues = [pStanding.won || 0, pStanding.lost || 0, pStanding.points || 0, pStanding.position || '-'];
 
-    doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
+    doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.primary);
     for (let s = 0; s < summaryValues.length; s++) {
       const sx = summaryX + s * summaryColWidth;
-      doc.rect(sx, y, summaryColWidth, rowHeight).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+      doc.rect(sx, y, summaryColWidth, rh).lineWidth(0.5).strokeColor(COLORS.border).stroke();
       doc.text(`${summaryValues[s]}`, sx, textY, { width: summaryColWidth, align: 'center', lineBreak: false });
     }
 
-    y += rowHeight;
+    y += rh;
   }
 
   return y;
