@@ -624,17 +624,22 @@ function renderCrossTable(doc, group, startY) {
     standingsMap[s.playerId] = { ...s, position: i + 1 };
   });
 
-  // Layout dimensions — sized for readability when printed
-  const summaryColWidth = 32;
-  const numColWidth = 26;
-  // Use available width to size name and result columns generously
-  const availableForResults = CONTENT_WIDTH - numColWidth - 4 * summaryColWidth;
-  const nameColWidth = Math.min(160, Math.max(120, availableForResults * 0.3));
-  const resultColWidth = Math.min(100, (availableForResults - nameColWidth) / n);
-  const rowHeight = Math.max(28, Math.min(40, (PAGE_HEIGHT - startY - MARGIN - 20) / (n + 1)));
-  const fontSize = 10;
-  const smallFontSize = 9;
-  const tableWidth = numColWidth + nameColWidth + n * resultColWidth + 4 * summaryColWidth;
+  // Layout: fill the full available page area, then derive font sizes
+  const totalCols = 1 + 1 + n + 4; // #, Name, n result cols, W/L/Pts/Pos
+  const availableHeight = PAGE_HEIGHT - MARGIN - startY;
+  const rowHeight = availableHeight / (n + 1); // +1 for header row
+
+  // Distribute full page width across columns
+  // Give name column ~22% of width, # column ~4%, summary cols ~4% each, rest to result cells
+  const numColWidth = Math.round(CONTENT_WIDTH * 0.035);
+  const summaryColWidth = Math.round(CONTENT_WIDTH * 0.045);
+  const nameColWidth = Math.round(CONTENT_WIDTH * 0.22);
+  const resultColWidth = (CONTENT_WIDTH - numColWidth - nameColWidth - 4 * summaryColWidth) / n;
+  const tableWidth = CONTENT_WIDTH;
+
+  // Scale fonts to row height — large enough to be readable when printed
+  const fontSize = Math.min(14, Math.max(9, rowHeight * 0.38));
+  const smallFontSize = Math.min(12, Math.max(8, rowHeight * 0.32));
 
   let y = startY;
 
