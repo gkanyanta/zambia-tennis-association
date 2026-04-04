@@ -70,14 +70,20 @@ export function useLiveScoreboard(tournamentId?: string): UseLiveScoreboardRetur
       }, 30000)
     }
 
+    const handleHidden = (payload: any) => {
+      setMatches(prev => prev.filter(m => m._id !== payload.liveMatchId))
+    }
+
     socket.on('match:started', handleStarted)
     socket.on('match:scoreUpdate', handleScoreUpdate)
     socket.on('match:completed', handleCompleted)
+    socket.on('match:hidden', handleHidden)
 
     return () => {
       socket.off('match:started', handleStarted)
       socket.off('match:scoreUpdate', handleScoreUpdate)
       socket.off('match:completed', handleCompleted)
+      socket.off('match:hidden', handleHidden)
     }
   }, [socket, tournamentId])
 

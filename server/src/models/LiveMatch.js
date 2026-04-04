@@ -55,6 +55,10 @@ const liveMatchSchema = new mongoose.Schema({
     enum: ['warmup', 'live', 'suspended', 'completed'],
     default: 'warmup'
   },
+  hiddenFromScoreboard: {
+    type: Boolean,
+    default: false
+  },
   startedAt: Date,
   completedAt: Date
 }, {

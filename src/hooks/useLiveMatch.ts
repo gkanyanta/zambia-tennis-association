@@ -13,6 +13,7 @@ interface UseLiveMatchReturn {
   suspendMatch: () => Promise<void>
   resumeMatch: () => Promise<void>
   endMatch: (winnerId: string, reason?: string) => Promise<void>
+  toggleVisibility: () => Promise<void>
 }
 
 export function useLiveMatch(liveMatchId: string | undefined): UseLiveMatchReturn {
@@ -155,5 +156,17 @@ export function useLiveMatch(liveMatchId: string | undefined): UseLiveMatchRetur
     }
   }, [liveMatchId])
 
-  return { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch }
+  const toggleVisibility = useCallback(async () => {
+    if (!liveMatchId) return
+    try {
+      const data = await apiFetch(`/live-matches/${liveMatchId}/toggle-visibility`, {
+        method: 'PUT'
+      })
+      setMatch(data.data)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }, [liveMatchId])
+
+  return { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch, toggleVisibility }
 }

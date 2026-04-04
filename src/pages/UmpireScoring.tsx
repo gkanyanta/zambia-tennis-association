@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Undo2, MoreVertical, Pause, Play, XCircle, Trophy, Clock } from 'lucide-react'
+import { ArrowLeft, Undo2, MoreVertical, Pause, Play, XCircle, Trophy, Clock, EyeOff, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -19,7 +19,7 @@ import { getScoreString } from '@/utils/tennisScoring'
 export function UmpireScoring() {
   const { liveMatchId } = useParams()
   const navigate = useNavigate()
-  const { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch } = useLiveMatch(liveMatchId)
+  const { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch, toggleVisibility } = useLiveMatch(liveMatchId)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [firstServerConfirmed, setFirstServerConfirmed] = useState(false)
@@ -144,6 +144,11 @@ export function UmpireScoring() {
           </Badge>
         </div>
         <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground mt-1">
+          {(match as any).hiddenFromScoreboard && (
+            <Badge variant="outline" className="text-orange-600 border-orange-600">
+              <EyeOff className="h-3 w-3 mr-1" /> Hidden from Scoreboard
+            </Badge>
+          )}
           {match.court && <span>Court {match.court}</span>}
           {(match.startedAt || match.createdAt) && (
             <span className="flex items-center gap-1">
@@ -303,6 +308,15 @@ export function UmpireScoring() {
                         className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
                       >
                         <Pause className="h-4 w-4 inline mr-2" /> Suspend Match
+                      </button>
+                      <button
+                        onClick={async () => { setMenuOpen(false); await toggleVisibility() }}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                      >
+                        {(match as any)?.hiddenFromScoreboard
+                          ? <><Eye className="h-4 w-4 inline mr-2" /> Show on Scoreboard</>
+                          : <><EyeOff className="h-4 w-4 inline mr-2" /> Hide from Scoreboard</>
+                        }
                       </button>
                       <button
                         onClick={() => { setMenuOpen(false); setEndDialogOpen(true) }}

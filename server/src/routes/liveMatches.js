@@ -7,6 +7,7 @@ import {
   suspendMatch,
   resumeMatch,
   endMatch,
+  toggleVisibility,
   getLiveMatches,
   getLiveMatch,
   getLiveMatchesByTournament,
@@ -35,6 +36,7 @@ router.post('/:id/point', protect, authorizeUmpire, awardPointHandler);
 router.post('/:id/undo', protect, authorizeUmpire, undoPointHandler);
 router.put('/:id/suspend', protect, authorizeUmpire, suspendMatch);
 router.put('/:id/resume', protect, authorizeUmpire, resumeMatch);
+router.put('/:id/toggle-visibility', protect, authorizeUmpire, toggleVisibility);
 router.put('/:id/end', protect, authorizeUmpire, endMatch);
 
 export default router;

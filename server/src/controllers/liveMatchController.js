@@ -226,16 +226,22 @@ export const awardPointHandler = async (req, res) => {
         status: liveMatch.status
       };
 
-      io.to('scoreboard').emit('match:scoreUpdate', payload);
+      // Only broadcast to public scoreboard if not hidden
+      if (!liveMatch.hiddenFromScoreboard) {
+        io.to('scoreboard').emit('match:scoreUpdate', payload);
+      }
+      // Always send to the specific match room (umpire/admin views)
       io.to(`match:${liveMatch._id}`).emit('match:scoreUpdate', payload);
 
       if (newState.status === 'completed') {
         const scoreString = getScoreString(newState);
-        io.to('scoreboard').emit('match:completed', {
-          liveMatchId: liveMatch._id,
-          liveMatch: formatLiveMatchForClient(liveMatch),
-          scoreString
-        });
+        if (!liveMatch.hiddenFromScoreboard) {
+          io.to('scoreboard').emit('match:completed', {
+            liveMatchId: liveMatch._id,
+            liveMatch: formatLiveMatchForClient(liveMatch),
+            scoreString
+          });
+        }
         io.to(`match:${liveMatch._id}`).emit('match:completed', {
           liveMatchId: liveMatch._id,
           liveMatch: formatLiveMatchForClient(liveMatch),
@@ -372,6 +378,42 @@ export const resumeMatch = async (req, res) => {
   }
 };
 
+// @desc    Toggle match visibility on the public scoreboard
+// @route   PUT /api/live-matches/:id/toggle-visibility
+// @access  Private (Admin/Staff/Umpire)
+export const toggleVisibility = async (req, res) => {
+  try {
+    const liveMatch = await LiveMatch.findById(req.params.id);
+    if (!liveMatch) {
+      return res.status(404).json({ success: false, message: 'Live match not found' });
+    }
+
+    liveMatch.hiddenFromScoreboard = !liveMatch.hiddenFromScoreboard;
+    await liveMatch.save();
+
+    const io = req.app.locals.io;
+    if (io) {
+      if (liveMatch.hiddenFromScoreboard) {
+        // Tell scoreboard clients to remove this match
+        io.to('scoreboard').emit('match:hidden', { liveMatchId: liveMatch._id });
+      } else {
+        // Tell scoreboard clients to add this match back
+        io.to('scoreboard').emit('match:started', {
+          liveMatch: formatLiveMatchForClient(liveMatch)
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: liveMatch.hiddenFromScoreboard ? 'Match hidden from scoreboard' : 'Match visible on scoreboard',
+      data: liveMatch
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    End a match (retirement/walkover/manual completion)
 // @route   PUT /api/live-matches/:id/end
 // @access  Private (Admin/Staff)
@@ -494,7 +536,8 @@ export const getMyMatches = async (req, res) => {
 export const getLiveMatches = async (req, res) => {
   try {
     const matches = await LiveMatch.find({
-      status: { $in: ['warmup', 'live', 'suspended'] }
+      status: { $in: ['warmup', 'live', 'suspended'] },
+      hiddenFromScoreboard: { $ne: true }
     }).sort({ startedAt: -1 });
 
     // Filter out matches whose tournament no longer exists (deleted)
@@ -540,7 +583,8 @@ export const getLiveMatchesByTournament = async (req, res) => {
   try {
     const matches = await LiveMatch.find({
       tournamentId: req.params.tournamentId,
-      status: { $in: ['warmup', 'live', 'suspended'] }
+      status: { $in: ['warmup', 'live', 'suspended'] },
+      hiddenFromScoreboard: { $ne: true }
     }).sort({ startedAt: -1 });
 
     res.status(200).json({ success: true, data: matches });
