@@ -2535,6 +2535,62 @@ export const downloadDrawPDF = async (req, res) => {
   }
 };
 
+// @desc    Diagnostic: dump raw draw data for a category (debug PDF issues)
+// @route   GET /api/tournaments/:tournamentId/categories/:categoryId/draw/debug
+// @access  Public (temporary)
+export const debugDrawData = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+    if (!category.draw) return res.status(400).json({ success: false, message: 'No draw' });
+
+    const draw = category.draw;
+    const summary = {
+      type: draw.type,
+      finalized: draw.finalized,
+      numberOfRounds: draw.numberOfRounds,
+      bracketSize: draw.bracketSize,
+      matchesCount: (draw.matches || []).length,
+      matchesWithResults: (draw.matches || []).filter(m => m.winner || m.score).length,
+      roundRobinGroupsCount: (draw.roundRobinGroups || []).length,
+      roundRobinGroups: (draw.roundRobinGroups || []).map(g => ({
+        groupName: g.groupName,
+        playersCount: (g.players || []).length,
+        players: (g.players || []).map(p => ({ id: p.id, name: p.name })),
+        matchesCount: (g.matches || []).length,
+        matchesWithResults: (g.matches || []).filter(m => m.winner || m.score).length,
+        matches: (g.matches || []).map(m => ({
+          _id: m._id,
+          player1: m.player1?.name,
+          player2: m.player2?.name,
+          winner: m.winner,
+          score: m.score,
+          status: m.status
+        })),
+        standings: g.standings
+      })),
+      drawMatches: (draw.matches || []).map(m => ({
+        _id: m._id,
+        round: m.round,
+        matchNumber: m.matchNumber,
+        player1: m.player1?.name,
+        player2: m.player2?.name,
+        winner: m.winner,
+        score: m.score,
+        status: m.status
+      }))
+    };
+
+    res.status(200).json({ success: true, data: summary });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Update tournament umpire pool
 // @route   PUT /api/tournaments/:tournamentId/umpire-pool
 // @access  Private (Admin/Staff)

@@ -21,6 +21,7 @@ import {
   verifyPayLaterToken,
   lookupPendingEntries,
   downloadDrawPDF,
+  debugDrawData,
   updateMixerRatings,
   updateMixerCourtResult,
   getTournamentFinanceSummary,
@@ -73,6 +74,7 @@ router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authoriz
 
 // Draw management routes
 router.get('/:tournamentId/categories/:categoryId/draw/pdf', downloadDrawPDF);
+router.get('/:tournamentId/categories/:categoryId/draw/debug', debugDrawData);
 router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('admin', 'staff'), generateDraw);
 
 // Umpire pool
