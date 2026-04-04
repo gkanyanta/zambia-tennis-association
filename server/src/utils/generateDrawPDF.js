@@ -244,7 +244,7 @@ function renderMultiPageBracket(doc, tournament, category, roundMatches, numberO
   const firstRoundMatches = roundMatches[1] || [];
 
   for (let page = 0; page < pageCount; page++) {
-    if (page > 0) doc.addPage({ layout: 'landscape' });
+    if (page > 0) doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
 
     const pageLabel = pageCount > 1 ? ` (Page ${page + 1}/${pageCount})` : '';
     const headerBottom = renderHeader(doc, tournament, category, 'Draw' + pageLabel);
@@ -557,27 +557,19 @@ function renderRoundRobin(doc, tournament, category) {
   let isFirstPage = true;
 
   for (const group of groups) {
-    if (!isFirstPage) doc.addPage({ layout: 'landscape' });
+    if (!isFirstPage) doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
     isFirstPage = false;
 
-    const headerBottom = renderHeader(doc, tournament, category, 'Round Robin');
-    let currentY = headerBottom + 10;
-
-    // Group name
-    doc
-      .fontSize(12)
-      .font('Helvetica-Bold')
-      .fillColor(COLORS.primary)
-      .text(group.groupName || 'Group', MARGIN, currentY);
-    currentY += 20;
+    const headerBottom = renderHeader(doc, tournament, category, `Round Robin — ${group.groupName || 'Group'}`);
+    const currentY = headerBottom + 8;
 
     // ITF cross-table
-    currentY = renderCrossTable(doc, group, currentY);
+    renderCrossTable(doc, group, currentY);
   }
 
   // Render knockout stage if present
   if (draw.knockoutStage && draw.knockoutStage.matches && draw.knockoutStage.matches.length > 0) {
-    doc.addPage({ layout: 'landscape' });
+    doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
     const koMatches = draw.knockoutStage.matches;
     const koRounds = draw.knockoutStage.numberOfRounds || 1;
 
@@ -624,8 +616,9 @@ function renderCrossTable(doc, group, startY) {
     standingsMap[s.playerId] = { ...s, position: i + 1 };
   });
 
-  // Layout: fill ALL available page space, then scale fonts to fit
-  const availableHeight = PAGE_HEIGHT - MARGIN - startY;
+  // Layout: fill ALL available page space with safe bottom margin
+  const bottomMargin = MARGIN + 5; // extra 5pt safety buffer
+  const availableHeight = PAGE_HEIGHT - bottomMargin - startY;
   const availableWidth = CONTENT_WIDTH;
   const rowHeight = availableHeight / (n + 1); // +1 for header
 
@@ -754,13 +747,13 @@ function renderFeedIn(doc, tournament, category) {
   // Consolation rounds could be indicated by negative round numbers or separate array.
   const consolationMatches = matches.filter(m => m.roundName && m.roundName.toLowerCase().includes('consolation'));
   if (consolationMatches.length > 0) {
-    doc.addPage({ layout: 'landscape' });
+    doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
     const headerBottom = renderHeader(doc, tournament, category, 'Consolation Draw');
     let currentY = headerBottom + 15;
 
     for (const match of consolationMatches) {
       if (currentY > PAGE_HEIGHT - MARGIN - 40) {
-        doc.addPage({ layout: 'landscape' });
+        doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
         currentY = renderHeader(doc, tournament, category, 'Consolation Draw') + 15;
       }
       renderMatchBox(doc, match, MARGIN + 20, currentY);
