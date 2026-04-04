@@ -26,13 +26,16 @@ export const startLiveMatch = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Draw not generated yet' });
     }
 
-    // Search draw.matches first, then roundRobinGroups
+    // Search draw.matches, roundRobinGroups, then knockoutStage
     let match = category.draw.matches.id(matchId);
     if (!match && category.draw.roundRobinGroups) {
       for (const group of category.draw.roundRobinGroups) {
         match = group.matches.id(matchId);
         if (match) break;
       }
+    }
+    if (!match && category.draw.knockoutStage?.matches) {
+      match = category.draw.knockoutStage.matches.id(matchId);
     }
     if (!match) {
       return res.status(404).json({ success: false, message: 'Match not found' });
@@ -418,11 +421,16 @@ export const endMatch = async (req, res) => {
       if (category && category.draw) {
         let match = category.draw.matches.id(liveMatch.matchId);
         let matchGroup = null;
+        let isKnockout = false;
         if (!match && category.draw.roundRobinGroups) {
           for (const group of category.draw.roundRobinGroups) {
             match = group.matches.id(liveMatch.matchId);
             if (match) { matchGroup = group; break; }
           }
+        }
+        if (!match && category.draw.knockoutStage?.matches) {
+          match = category.draw.knockoutStage.matches.id(liveMatch.matchId);
+          if (match) isKnockout = true;
         }
         if (match) {
           match.winner = winnerId;
@@ -431,7 +439,11 @@ export const endMatch = async (req, res) => {
           match.completedTime = new Date();
 
           // Advance winner in bracket
-          advanceWinnerInBracket(category, match);
+          if (isKnockout) {
+            advanceKnockoutWinner(category.draw.knockoutStage, match);
+          } else {
+            advanceWinnerInBracket(category, match);
+          }
           // Recompute round-robin standings
           if (matchGroup) recomputeRoundRobinStandings(matchGroup);
           await tournament.save();
@@ -548,9 +560,10 @@ async function updateTournamentDraw(liveMatch, matchState) {
     const category = tournament.categories.id(liveMatch.categoryId);
     if (!category || !category.draw) return;
 
-    // Search draw.matches first, then roundRobinGroups
+    // Search draw.matches, roundRobinGroups, then knockoutStage
     let match = category.draw.matches.id(liveMatch.matchId);
     let matchGroup = null;
+    let isKnockout = false;
 
     if (!match && category.draw.roundRobinGroups) {
       for (const group of category.draw.roundRobinGroups) {
@@ -562,6 +575,11 @@ async function updateTournamentDraw(liveMatch, matchState) {
       }
     }
 
+    if (!match && category.draw.knockoutStage?.matches) {
+      match = category.draw.knockoutStage.matches.id(liveMatch.matchId);
+      if (match) isKnockout = true;
+    }
+
     if (!match) return;
 
     const winnerId = matchState.winner === 0 ? liveMatch.player1.id : liveMatch.player2.id;
@@ -571,8 +589,12 @@ async function updateTournamentDraw(liveMatch, matchState) {
     match.status = 'completed';
     match.completedTime = new Date();
 
-    // Advance winner in bracket (single elimination only)
-    advanceWinnerInBracket(category, match);
+    // Advance winner in bracket
+    if (isKnockout) {
+      advanceKnockoutWinner(category.draw.knockoutStage, match);
+    } else {
+      advanceWinnerInBracket(category, match);
+    }
 
     // Recompute round-robin standings
     if (matchGroup) {
@@ -608,6 +630,31 @@ function recomputeRoundRobinStandings(group) {
   });
 
   group.standings = Object.values(standings).sort((a, b) => b.points - a.points || b.won - a.won);
+}
+
+/**
+ * Advance winner to next round in knockout stage bracket
+ */
+function advanceKnockoutWinner(knockoutStage, match) {
+  if (!knockoutStage?.matches) return;
+  const koMatches = knockoutStage.matches;
+  const nextRound = match.round + 1;
+  const currentRoundMatches = koMatches
+    .filter(m => m.round === match.round)
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+  const positionInRound = currentRoundMatches.findIndex(
+    m => m._id.toString() === match._id.toString()
+  );
+  const nextMatchIndex = Math.floor(positionInRound / 2);
+  const isFirstPlayer = positionInRound % 2 === 0;
+  const nextMatches = koMatches
+    .filter(m => m.round === nextRound)
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+  if (nextMatches[nextMatchIndex]) {
+    const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
+    if (isFirstPlayer) nextMatches[nextMatchIndex].player1 = winnerPlayer;
+    else nextMatches[nextMatchIndex].player2 = winnerPlayer;
+  }
 }
 
 /**

@@ -427,6 +427,14 @@ export const tournamentService = {
     return response.data;
   },
 
+  async generateKnockoutStage(tournamentId: string, categoryId: string): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/draw/knockout`,
+      { method: 'POST' }
+    );
+    return response.data;
+  },
+
   // Match Results
   async updateMatchResult(
     tournamentId: string,

@@ -167,8 +167,8 @@ function renderSingleElimination(doc, tournament, category) {
 /**
  * Render bracket that fits on a single page
  */
-function renderSinglePageBracket(doc, tournament, category, roundMatches, numberOfRounds) {
-  const headerBottom = renderHeader(doc, tournament, category, 'Draw');
+function renderSinglePageBracket(doc, tournament, category, roundMatches, numberOfRounds, subtitle) {
+  const headerBottom = renderHeader(doc, tournament, category, subtitle || 'Draw');
   const bracketTop = headerBottom + 5;
   const bracketBottom = PAGE_HEIGHT - MARGIN;
   const bracketHeight = bracketBottom - bracketTop;
@@ -610,6 +610,23 @@ function renderRoundRobin(doc, tournament, category) {
         );
       currentY += 14;
     }
+  }
+
+  // Render knockout stage if present
+  if (draw.knockoutStage && draw.knockoutStage.matches && draw.knockoutStage.matches.length > 0) {
+    doc.addPage({ layout: 'landscape' });
+    const koMatches = draw.knockoutStage.matches;
+    const koRounds = draw.knockoutStage.numberOfRounds || 1;
+
+    // Group knockout matches by round
+    const roundMatches = {};
+    for (let r = 1; r <= koRounds; r++) {
+      roundMatches[r] = koMatches
+        .filter(m => m.round === r)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+    }
+
+    renderSinglePageBracket(doc, tournament, category, roundMatches, koRounds, 'Knockout Stage');
   }
 }
 

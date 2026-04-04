@@ -685,6 +685,16 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
       matchesByRound[m.round].push(m)
     })
   }
+  // Include knockout stage matches (offset round numbers to display after group matches)
+  const knockoutMatches = (draw as any)?.knockoutStage?.matches || []
+  if (knockoutMatches.length > 0) {
+    const koOffset = 1000 // offset so knockout rounds sort after group rounds
+    knockoutMatches.forEach((m: any) => {
+      const key = m.round + koOffset
+      if (!matchesByRound[key]) matchesByRound[key] = []
+      matchesByRound[key].push(m)
+    })
+  }
 
   const isFinalized = draw?.finalized
 

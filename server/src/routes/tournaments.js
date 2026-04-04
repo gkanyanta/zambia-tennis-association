@@ -23,6 +23,7 @@ import {
   downloadDrawPDF,
   debugDrawData,
   syncRoundRobinResults,
+  generateKnockoutStage,
   updateMixerRatings,
   updateMixerCourtResult,
   getTournamentFinanceSummary,
@@ -80,6 +81,7 @@ router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authoriz
 router.get('/:tournamentId/categories/:categoryId/draw/pdf', downloadDrawPDF);
 router.get('/:tournamentId/categories/:categoryId/draw/debug', debugDrawData);
 router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('admin', 'staff'), generateDraw);
+router.post('/:tournamentId/categories/:categoryId/draw/knockout', protect, authorize('admin', 'staff'), generateKnockoutStage);
 
 // Umpire pool
 router.put('/:tournamentId/umpire-pool', protect, authorize('admin', 'staff'), updateUmpirePool);

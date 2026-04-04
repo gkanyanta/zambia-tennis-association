@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Grid3x3, RefreshCw, Eye, AlertCircle, FileDown } from 'lucide-react'
+import { Grid3x3, RefreshCw, Eye, AlertCircle, FileDown, Trophy } from 'lucide-react'
 import { DrawBracket } from '@/components/DrawBracket'
 import { MixerRatingAssignment } from '@/components/MixerRatingAssignment'
 import { MixerDrawView } from '@/components/MixerDrawView'
@@ -115,6 +115,31 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
     handleGeneratePreview()
   }
 
+  const [generatingKnockout, setGeneratingKnockout] = useState(false)
+
+  // Check if knockout can be generated (RR with 2+ groups, all group matches done, no knockout yet)
+  const rrGroups = (category.draw as any)?.roundRobinGroups || []
+  const canGenerateKnockout = category.draw?.type === 'round_robin' &&
+    rrGroups.length >= 2 &&
+    !(category.draw as any)?.knockoutStage?.matches?.length &&
+    rrGroups.every((g: any) => (g.matches || []).every((m: any) => m.status === 'completed' || m.status === 'walkover'))
+
+  const handleGenerateKnockout = async () => {
+    if (!tournamentId || !categoryId) return
+    const confirmed = confirm('Generate knockout stage (semi-finals + final) from group winners and runners-up?')
+    if (!confirmed) return
+
+    setGeneratingKnockout(true)
+    try {
+      await tournamentService.generateKnockoutStage(tournamentId, categoryId)
+      if (onRefresh) await onRefresh()
+    } catch (error: any) {
+      alert(error.message || 'Failed to generate knockout stage')
+    } finally {
+      setGeneratingKnockout(false)
+    }
+  }
+
   const handleMatchResultSubmit = async (result: { winner: string; score: string }) => {
     if (!selectedMatch || !onUpdateMatch) return
 
@@ -188,6 +213,16 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Draw
                 </Button>
+                {category.draw?.type === 'round_robin' && rrGroups.length >= 2 && (
+                  <Button
+                    onClick={handleGenerateKnockout}
+                    disabled={!canGenerateKnockout || generatingKnockout}
+                    title={!canGenerateKnockout ? ((category.draw as any)?.knockoutStage?.matches?.length ? 'Knockout already generated' : 'Complete all group matches first') : 'Generate semi-finals + final from group results'}
+                  >
+                    <Trophy className="h-4 w-4 mr-2" />
+                    {generatingKnockout ? 'Generating...' : ((category.draw as any)?.knockoutStage?.matches?.length ? 'Knockout Generated' : 'Generate Knockout')}
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>

@@ -208,7 +208,18 @@ const drawSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed
   },
   mixerRounds: [mixerRoundSchema],
-  mixerStandings: [mixerStandingSchema]
+  mixerStandings: [mixerStandingSchema],
+  // Knockout stage for round-robin categories with 2+ groups
+  knockoutStage: {
+    matches: [matchSchema],
+    numberOfRounds: Number,
+    generatedAt: Date,
+    status: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed'],
+      default: 'pending'
+    }
+  }
 });
 
 // Tournament category schema

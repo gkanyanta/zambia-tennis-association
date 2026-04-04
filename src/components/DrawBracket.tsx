@@ -316,6 +316,24 @@ function RoundRobinView({ draw, onMatchClick }: DrawBracketProps) {
 
   return (
     <div className="space-y-8">
+      {/* Knockout stage bracket (if generated) */}
+      {(draw as any).knockoutStage?.matches?.length > 0 && (
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold mb-4">Knockout Stage</h3>
+            <SingleEliminationBracket
+              draw={{
+                ...draw,
+                type: 'single_elimination',
+                matches: (draw as any).knockoutStage.matches,
+                numberOfRounds: (draw as any).knockoutStage.numberOfRounds
+              }}
+              onMatchClick={onMatchClick}
+            />
+          </CardContent>
+        </Card>
+      )}
+
       {roundRobinGroups.map((group) => (
         <Card key={group.groupName}>
           <CardContent className="p-6">

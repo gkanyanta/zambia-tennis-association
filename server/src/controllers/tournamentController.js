@@ -856,18 +856,25 @@ export const updateMatchResult = async (req, res) => {
       });
     }
 
-    // Find and update match — search draw.matches first, then roundRobinGroups
+    // Find and update match — search draw.matches, roundRobinGroups, then knockoutStage
     let match = category.draw.matches.id(matchId);
     let matchGroup = null;
+    let matchSource = 'draw'; // 'draw' | 'roundRobin' | 'knockout'
 
     if (!match && category.draw.roundRobinGroups) {
       for (const group of category.draw.roundRobinGroups) {
         match = group.matches.id(matchId);
         if (match) {
           matchGroup = group;
+          matchSource = 'roundRobin';
           break;
         }
       }
+    }
+
+    if (!match && category.draw.knockoutStage?.matches) {
+      match = category.draw.knockoutStage.matches.id(matchId);
+      if (match) matchSource = 'knockout';
     }
 
     if (!match) {
@@ -907,6 +914,28 @@ export const updateMatchResult = async (req, res) => {
         } else {
           nextMatches[nextMatchIndex].player2 = winnerPlayer;
         }
+      }
+    }
+
+    // For knockout stage, advance winner to next round
+    if (matchSource === 'knockout' && category.draw.knockoutStage) {
+      const koMatches = category.draw.knockoutStage.matches;
+      const nextRound = match.round + 1;
+      const currentRoundMatches = koMatches
+        .filter(m => m.round === match.round)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+      const positionInRound = currentRoundMatches.findIndex(
+        m => m._id.toString() === match._id.toString()
+      );
+      const nextMatchIndex = Math.floor(positionInRound / 2);
+      const isFirstPlayer = positionInRound % 2 === 0;
+      const nextMatches = koMatches
+        .filter(m => m.round === nextRound)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+      if (nextMatches[nextMatchIndex]) {
+        const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
+        if (isFirstPlayer) nextMatches[nextMatchIndex].player1 = winnerPlayer;
+        else nextMatches[nextMatchIndex].player2 = winnerPlayer;
       }
     }
 
@@ -998,6 +1027,182 @@ function recomputeRoundRobinStandings(group) {
 // @desc    Finalize draw results — lock matches, compute standings
 // @route   POST /api/tournaments/:tournamentId/categories/:categoryId/results/finalize
 // @access  Private (Admin/Staff)
+// @desc    Generate knockout stage from round-robin group results
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/draw/knockout
+// @access  Private (Admin/Staff)
+export const generateKnockoutStage = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+    if (!category.draw) return res.status(400).json({ success: false, message: 'No draw generated' });
+    if (category.draw.type !== 'round_robin') {
+      return res.status(400).json({ success: false, message: 'Knockout stage is only for round-robin categories' });
+    }
+
+    const groups = category.draw.roundRobinGroups || [];
+    if (groups.length < 2) {
+      return res.status(400).json({ success: false, message: 'Knockout stage requires at least 2 groups. Single-group categories determine winner by standings.' });
+    }
+
+    // Check if knockout already exists
+    if (category.draw.knockoutStage?.matches?.length > 0) {
+      return res.status(400).json({ success: false, message: 'Knockout stage already generated' });
+    }
+
+    // Validate all group matches are completed
+    for (const group of groups) {
+      const incomplete = group.matches.find(m => m.status !== 'completed' && m.status !== 'walkover');
+      if (incomplete) {
+        return res.status(400).json({
+          success: false,
+          message: `${group.groupName} has incomplete matches. Complete all group matches first.`
+        });
+      }
+      // Recompute standings to ensure they're up-to-date
+      recomputeRoundRobinStandings(group);
+    }
+
+    // Extract winners and runners-up from each group
+    const qualifiers = groups.map(group => {
+      const standings = group.standings || [];
+      return {
+        groupName: group.groupName,
+        winner: standings[0] ? { id: standings[0].playerId, name: standings[0].playerName } : null,
+        runnerUp: standings[1] ? { id: standings[1].playerId, name: standings[1].playerName } : null
+      };
+    });
+
+    // Validate we have enough qualifiers
+    if (qualifiers.some(q => !q.winner || !q.runnerUp)) {
+      return res.status(400).json({ success: false, message: 'Could not determine winners and runners-up from all groups' });
+    }
+
+    // Generate crossover semi-final + final bracket for 2 groups
+    // Semi 1: Group A winner vs Group B runner-up
+    // Semi 2: Group B winner vs Group A runner-up
+    const knockoutMatches = [];
+    let matchNumber = 1;
+
+    if (groups.length === 2) {
+      // Semi-finals
+      knockoutMatches.push({
+        matchNumber: matchNumber++,
+        round: 1,
+        roundName: 'Semi-Final',
+        player1: { id: qualifiers[0].winner.id, name: qualifiers[0].winner.name },
+        player2: { id: qualifiers[1].runnerUp.id, name: qualifiers[1].runnerUp.name },
+        status: 'scheduled'
+      });
+      knockoutMatches.push({
+        matchNumber: matchNumber++,
+        round: 1,
+        roundName: 'Semi-Final',
+        player1: { id: qualifiers[1].winner.id, name: qualifiers[1].winner.name },
+        player2: { id: qualifiers[0].runnerUp.id, name: qualifiers[0].runnerUp.name },
+        status: 'scheduled'
+      });
+      // Final (players TBD — filled when semi-finals complete)
+      knockoutMatches.push({
+        matchNumber: matchNumber++,
+        round: 2,
+        roundName: 'Final',
+        player1: { id: null, name: 'TBD' },
+        player2: { id: null, name: 'TBD' },
+        status: 'scheduled'
+      });
+
+      category.draw.knockoutStage = {
+        matches: knockoutMatches,
+        numberOfRounds: 2,
+        generatedAt: new Date(),
+        status: 'in_progress'
+      };
+    } else {
+      // 3+ groups: take top 2 from each, seed into a bracket
+      const allQualifiers = [];
+      for (const q of qualifiers) {
+        allQualifiers.push({ ...q.winner, seed: 1 });
+        allQualifiers.push({ ...q.runnerUp, seed: 2 });
+      }
+
+      // Determine bracket size (next power of 2)
+      const totalPlayers = allQualifiers.length;
+      const bracketSize = Math.pow(2, Math.ceil(Math.log2(totalPlayers)));
+      const numberOfRounds = Math.log2(bracketSize);
+
+      // Seed: alternate group winners and runners-up
+      // Winners get top seeds, runners-up get bottom seeds
+      const seeded = [];
+      const winners = allQualifiers.filter(q => q.seed === 1);
+      const runnersUp = allQualifiers.filter(q => q.seed === 2);
+      for (let i = 0; i < winners.length; i++) seeded.push(winners[i]);
+      for (let i = 0; i < runnersUp.length; i++) seeded.push(runnersUp[i]);
+
+      // Create first round matches
+      for (let i = 0; i < bracketSize / 2; i++) {
+        const p1 = seeded[i] || null;
+        const p2 = seeded[bracketSize - 1 - i] || null;
+        knockoutMatches.push({
+          matchNumber: matchNumber++,
+          round: 1,
+          roundName: numberOfRounds === 1 ? 'Final' : numberOfRounds === 2 ? 'Semi-Final' : `Round 1`,
+          player1: p1 ? { id: p1.id, name: p1.name } : { id: null, name: 'BYE', isBye: true },
+          player2: p2 ? { id: p2.id, name: p2.name } : { id: null, name: 'BYE', isBye: true },
+          status: 'scheduled'
+        });
+      }
+
+      // Create subsequent round placeholders
+      for (let r = 2; r <= numberOfRounds; r++) {
+        const matchesInRound = bracketSize / Math.pow(2, r);
+        const roundName = r === numberOfRounds ? 'Final' : r === numberOfRounds - 1 ? 'Semi-Final' : `Round ${r}`;
+        for (let i = 0; i < matchesInRound; i++) {
+          knockoutMatches.push({
+            matchNumber: matchNumber++,
+            round: r,
+            roundName,
+            player1: { id: null, name: 'TBD' },
+            player2: { id: null, name: 'TBD' },
+            status: 'scheduled'
+          });
+        }
+      }
+
+      category.draw.knockoutStage = {
+        matches: knockoutMatches,
+        numberOfRounds,
+        generatedAt: new Date(),
+        status: 'in_progress'
+      };
+    }
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Knockout stage generated: ${knockoutMatches.length} matches`,
+      data: {
+        qualifiers,
+        matches: knockoutMatches.map(m => ({
+          matchNumber: m.matchNumber,
+          round: m.round,
+          roundName: m.roundName,
+          player1: m.player1?.name,
+          player2: m.player2?.name
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Generate knockout error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const finalizeResults = async (req, res) => {
   try {
     const { tournamentId, categoryId } = req.params;
