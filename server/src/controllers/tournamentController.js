@@ -1002,6 +1002,57 @@ export const updateMatchResult = async (req, res) => {
  * Recompute round-robin group standings from match results.
  * Called after each match result so standings stay up-to-date in the PDF.
  */
+/**
+ * Enrich doubles draw player names with partner names (I.Lastname / I.Lastname format).
+ * Modifies category.draw in place for PDF rendering. Does NOT save to database.
+ */
+function enrichDoublesNames(category) {
+  const entries = category.entries || [];
+  const partnerMap = {};
+  for (const entry of entries) {
+    if (entry.partnerName && entry.playerId) {
+      partnerMap[entry.playerId] = entry.partnerName;
+    }
+    if (entry.partnerName && entry.playerZpin) {
+      partnerMap[entry.playerZpin] = entry.partnerName;
+    }
+  }
+  if (Object.keys(partnerMap).length === 0) return;
+
+  const shortenName = (name) => {
+    if (!name) return '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    return `${parts[0][0]}.${parts[parts.length - 1]}`;
+  };
+
+  const enrichPlayer = (p) => {
+    if (!p || !p.id || p.isBye) return;
+    const partner = partnerMap[p.id];
+    if (partner) {
+      p.name = `${shortenName(p.name)} / ${shortenName(partner)}`;
+    }
+  };
+
+  const enrichMatches = (matches) => {
+    if (!matches) return;
+    for (const m of matches) {
+      enrichPlayer(m.player1);
+      enrichPlayer(m.player2);
+    }
+  };
+
+  enrichMatches(category.draw.matches);
+  if (category.draw.roundRobinGroups) {
+    for (const g of category.draw.roundRobinGroups) {
+      enrichMatches(g.matches);
+    }
+  }
+  if (category.draw.knockoutStage?.matches) {
+    enrichMatches(category.draw.knockoutStage.matches);
+  }
+}
+
 function recomputeRoundRobinStandings(group) {
   const standings = {};
   group.players.forEach(p => {
@@ -2760,6 +2811,12 @@ export const downloadDrawPDF = async (req, res) => {
 
     if (!category.draw) {
       return res.status(400).json({ success: false, message: 'No draw generated for this category' });
+    }
+
+    // For doubles categories, enrich player names with partner names
+    const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles';
+    if (isDoubles) {
+      enrichDoublesNames(category);
     }
 
     const pdfBuffer = await generateDrawPDF(tournament, category);

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -140,6 +140,58 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
     }
   }
 
+  // For doubles categories, enrich draw player names with partner names
+  const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles'
+  const enrichedDraw = useMemo(() => {
+    if (!isDoubles || !category.draw) return category.draw
+    // Build lookup: playerId -> partnerName from entries
+    const partnerMap: Record<string, string> = {}
+    for (const entry of category.entries || []) {
+      if ((entry as any).partnerName && (entry as any).playerId) {
+        partnerMap[(entry as any).playerId] = (entry as any).partnerName
+      }
+      // Also map by playerZpin for entries that use zpin as id
+      if ((entry as any).partnerName && (entry as any).playerZpin) {
+        partnerMap[(entry as any).playerZpin] = (entry as any).partnerName
+      }
+    }
+    if (Object.keys(partnerMap).length === 0) return category.draw
+
+    const shortenName = (fullName: string) => {
+      if (!fullName) return ''
+      const parts = fullName.trim().split(/\s+/)
+      if (parts.length === 1) return parts[0]
+      return `${parts[0][0]}.${parts[parts.length - 1]}`
+    }
+
+    const enrichPlayer = (p: any) => {
+      if (!p || !p.id || p.isBye) return p
+      const partner = partnerMap[p.id]
+      if (!partner) return p
+      return { ...p, name: `${shortenName(p.name)} / ${shortenName(partner)}` }
+    }
+
+    const enrichMatches = (matches: any[]) =>
+      matches.map((m: any) => ({
+        ...m,
+        player1: enrichPlayer(m.player1),
+        player2: enrichPlayer(m.player2)
+      }))
+
+    return {
+      ...category.draw,
+      matches: enrichMatches(category.draw.matches || []),
+      roundRobinGroups: (category.draw as any).roundRobinGroups?.map((g: any) => ({
+        ...g,
+        matches: enrichMatches(g.matches || [])
+      })),
+      knockoutStage: (category.draw as any).knockoutStage ? {
+        ...(category.draw as any).knockoutStage,
+        matches: enrichMatches((category.draw as any).knockoutStage.matches || [])
+      } : undefined
+    }
+  }, [category.draw, category.entries, isDoubles])
+
   const handleMatchResultSubmit = async (result: { winner: string; score: string }) => {
     if (!selectedMatch || !onUpdateMatch) return
 
@@ -249,7 +301,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                 </Badge>
               </div>
             </div>
-            <DrawBracket draw={category.draw} onMatchClick={(match) => {
+            <DrawBracket draw={enrichedDraw || category.draw} onMatchClick={(match) => {
               if (onUpdateMatch && match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye) {
                 setSelectedMatch(match)
                 setShowMatchDialog(true)
