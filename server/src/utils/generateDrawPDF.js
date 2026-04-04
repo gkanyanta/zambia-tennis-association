@@ -624,14 +624,16 @@ function renderCrossTable(doc, group, startY) {
     standingsMap[s.playerId] = { ...s, position: i + 1 };
   });
 
-  // Layout dimensions
-  const nameColWidth = 120;
-  const numColWidth = 22;
-  const resultColWidth = Math.min(75, (CONTENT_WIDTH - nameColWidth - numColWidth - 4 * 28) / n);
-  const summaryColWidth = 28;
-  const rowHeight = Math.max(22, Math.min(30, (PAGE_HEIGHT - startY - MARGIN - 20) / (n + 1)));
-  const fontSize = Math.min(7.5, rowHeight * 0.3);
-  const smallFontSize = Math.max(5, fontSize - 1);
+  // Layout dimensions — sized for readability when printed
+  const summaryColWidth = 32;
+  const numColWidth = 26;
+  // Use available width to size name and result columns generously
+  const availableForResults = CONTENT_WIDTH - numColWidth - 4 * summaryColWidth;
+  const nameColWidth = Math.min(160, Math.max(120, availableForResults * 0.3));
+  const resultColWidth = Math.min(100, (availableForResults - nameColWidth) / n);
+  const rowHeight = Math.max(28, Math.min(40, (PAGE_HEIGHT - startY - MARGIN - 20) / (n + 1)));
+  const fontSize = 10;
+  const smallFontSize = 9;
   const tableWidth = numColWidth + nameColWidth + n * resultColWidth + 4 * summaryColWidth;
 
   let y = startY;
@@ -674,7 +676,7 @@ function renderCrossTable(doc, group, startY) {
     }
 
     // Row border
-    doc.rect(MARGIN, y, tableWidth, rowHeight).lineWidth(0.3).strokeColor(COLORS.border).stroke();
+    doc.rect(MARGIN, y, tableWidth, rowHeight).lineWidth(0.5).strokeColor(COLORS.border).stroke();
 
     const textY = y + (rowHeight - fontSize) / 2;
 
@@ -683,7 +685,7 @@ function renderCrossTable(doc, group, startY) {
     doc.text(`${i + 1}`, MARGIN + 2, textY, { width: numColWidth - 4, align: 'center', lineBreak: false });
 
     // Player name
-    const displayName = truncateName(player.name, Math.floor(nameColWidth / 5.5));
+    const displayName = truncateName(player.name, Math.floor(nameColWidth / 6));
     doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
     doc.text(displayName, MARGIN + numColWidth + 4, textY, { width: nameColWidth - 8, lineBreak: false });
 
@@ -692,7 +694,7 @@ function renderCrossTable(doc, group, startY) {
       const colX = MARGIN + numColWidth + nameColWidth + j * resultColWidth;
 
       // Draw cell border
-      doc.rect(colX, y, resultColWidth, rowHeight).lineWidth(0.3).strokeColor(COLORS.border).stroke();
+      doc.rect(colX, y, resultColWidth, rowHeight).lineWidth(0.5).strokeColor(COLORS.border).stroke();
 
       if (i === j) {
         // Diagonal — shade dark
@@ -726,7 +728,7 @@ function renderCrossTable(doc, group, startY) {
     doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
     for (let s = 0; s < summaryValues.length; s++) {
       const sx = summaryX + s * summaryColWidth;
-      doc.rect(sx, y, summaryColWidth, rowHeight).lineWidth(0.3).strokeColor(COLORS.border).stroke();
+      doc.rect(sx, y, summaryColWidth, rowHeight).lineWidth(0.5).strokeColor(COLORS.border).stroke();
       doc.text(`${summaryValues[s]}`, sx, textY, { width: summaryColWidth, align: 'center', lineBreak: false });
     }
 
