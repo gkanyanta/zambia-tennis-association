@@ -22,6 +22,7 @@ import {
   lookupPendingEntries,
   downloadDrawPDF,
   debugDrawData,
+  syncRoundRobinResults,
   updateMixerRatings,
   updateMixerCourtResult,
   getTournamentFinanceSummary,
@@ -51,6 +52,9 @@ router.get('/junior-categories', getJuniorCategories);
 // Pay-later routes (must be before /:id route)
 router.get('/pay-later/verify', verifyPayLaterToken);
 router.get('/pay-later/lookup', lookupPendingEntries);
+
+// Admin: sync round-robin results (must be before /:id route)
+router.post('/sync-round-robin', protect, authorize('admin', 'staff'), syncRoundRobinResults);
 
 // Basic tournament routes
 router.get('/', getTournaments);

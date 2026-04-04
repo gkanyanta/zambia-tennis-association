@@ -915,6 +915,46 @@ export const updateMatchResult = async (req, res) => {
       recomputeRoundRobinStandings(matchGroup);
     }
 
+    // Round-robin: also sync result to the OTHER copy of the match.
+    // Matches exist in both draw.matches and roundRobinGroups[].matches.
+    // Ensure both copies have the result so the PDF (which reads groups) works.
+    if (category.draw.type === 'round_robin' && match.player1?.id && match.player2?.id) {
+      const key = [match.player1.id, match.player2.id].sort().join('|');
+      // Sync from draw.matches → group matches
+      if (!matchGroup && category.draw.roundRobinGroups) {
+        for (const group of category.draw.roundRobinGroups) {
+          for (const gMatch of group.matches) {
+            if (gMatch.winner || gMatch.score) continue;
+            if (!gMatch.player1?.id || !gMatch.player2?.id) continue;
+            const gKey = [gMatch.player1.id, gMatch.player2.id].sort().join('|');
+            if (gKey === key) {
+              gMatch.winner = winner;
+              gMatch.score = score;
+              gMatch.status = status || 'completed';
+              gMatch.completedTime = new Date();
+              recomputeRoundRobinStandings(group);
+              break;
+            }
+          }
+        }
+      }
+      // Sync from group matches → draw.matches
+      if (matchGroup) {
+        for (const dMatch of category.draw.matches) {
+          if (dMatch.winner || dMatch.score) continue;
+          if (!dMatch.player1?.id || !dMatch.player2?.id) continue;
+          const dKey = [dMatch.player1.id, dMatch.player2.id].sort().join('|');
+          if (dKey === key) {
+            dMatch.winner = winner;
+            dMatch.score = score;
+            dMatch.status = status || 'completed';
+            dMatch.completedTime = new Date();
+            break;
+          }
+        }
+      }
+    }
+
     await tournament.save();
 
     res.status(200).json({
@@ -2587,6 +2627,82 @@ export const debugDrawData = async (req, res) => {
 
     res.status(200).json({ success: true, data: summary });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Sync round-robin results from draw.matches into roundRobinGroups and recompute standings
+// @route   POST /api/tournaments/sync-round-robin
+// @access  Private (Admin)
+export const syncRoundRobinResults = async (req, res) => {
+  try {
+    const tournaments = await Tournament.find({});
+    const results = [];
+    let totalSynced = 0;
+
+    for (const tournament of tournaments) {
+      for (const category of tournament.categories) {
+        if (!category.draw || category.draw.type !== 'round_robin') continue;
+        if (!category.draw.roundRobinGroups?.length) continue;
+
+        const drawMatches = category.draw.matches || [];
+        const resultsMap = new Map();
+
+        for (const m of drawMatches) {
+          if (!m.winner && !m.score) continue;
+          if (!m.player1?.id || !m.player2?.id) continue;
+          const key = [m.player1.id, m.player2.id].sort().join('|');
+          resultsMap.set(key, { winner: m.winner, score: m.score, status: m.status, completedTime: m.completedTime });
+        }
+
+        if (resultsMap.size === 0) continue;
+
+        let categorySynced = 0;
+
+        for (const group of category.draw.roundRobinGroups) {
+          for (const gMatch of group.matches) {
+            if (gMatch.winner || gMatch.score) continue;
+            if (!gMatch.player1?.id || !gMatch.player2?.id) continue;
+
+            const key = [gMatch.player1.id, gMatch.player2.id].sort().join('|');
+            const result = resultsMap.get(key);
+            if (!result) continue;
+
+            gMatch.winner = result.winner;
+            gMatch.score = result.score;
+            gMatch.status = result.status || 'completed';
+            gMatch.completedTime = result.completedTime;
+            categorySynced++;
+
+            const winnerName = gMatch.player1.id === result.winner ? gMatch.player1.name : gMatch.player2.name;
+            results.push({
+              tournament: tournament.name,
+              category: category.name,
+              group: group.groupName,
+              match: `${gMatch.player1.name} vs ${gMatch.player2.name}`,
+              score: result.score,
+              winner: winnerName
+            });
+          }
+
+          // Recompute standings
+          recomputeRoundRobinStandings(group);
+        }
+
+        if (categorySynced > 0) {
+          await tournament.save();
+          totalSynced += categorySynced;
+        }
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Synced ${totalSynced} round-robin results from draw.matches to group matches`,
+      data: { totalSynced, results }
+    });
+  } catch (error) {
+    console.error('Sync round-robin error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
