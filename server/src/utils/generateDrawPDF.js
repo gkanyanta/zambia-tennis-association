@@ -613,7 +613,8 @@ function renderCrossTable(doc, group, startY) {
   // Build standings lookup
   const standingsMap = {};
   standings.forEach((s, i) => {
-    standingsMap[s.playerId] = { ...s, position: i + 1 };
+    const plain = s.toObject ? s.toObject() : s;
+    standingsMap[plain.playerId] = { ...plain, position: i + 1 };
   });
 
   // Layout: fill ALL available page space with safe bottom margin
