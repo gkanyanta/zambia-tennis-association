@@ -13,6 +13,8 @@ interface UseLiveMatchReturn {
   suspendMatch: () => Promise<void>
   resumeMatch: () => Promise<void>
   endMatch: (winnerId: string, reason?: string) => Promise<void>
+  cancelLiveScoring: () => Promise<void>
+  updateSettings: (settings: Partial<import('@/types/liveMatch').MatchSettings>) => Promise<void>
   toggleVisibility: () => Promise<void>
 }
 
@@ -156,6 +158,31 @@ export function useLiveMatch(liveMatchId: string | undefined): UseLiveMatchRetur
     }
   }, [liveMatchId])
 
+  const updateSettings = useCallback(async (settings: Partial<import('@/types/liveMatch').MatchSettings>) => {
+    if (!liveMatchId) return
+    try {
+      const data = await apiFetch(`/live-matches/${liveMatchId}/settings`, {
+        method: 'PUT',
+        body: JSON.stringify(settings)
+      })
+      setMatch(data.data)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }, [liveMatchId])
+
+  const cancelLiveScoring = useCallback(async () => {
+    if (!liveMatchId) return
+    try {
+      await apiFetch(`/live-matches/${liveMatchId}/cancel`, {
+        method: 'DELETE'
+      })
+      setMatch(null)
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }, [liveMatchId])
+
   const toggleVisibility = useCallback(async () => {
     if (!liveMatchId) return
     try {
@@ -168,5 +195,5 @@ export function useLiveMatch(liveMatchId: string | undefined): UseLiveMatchRetur
     }
   }, [liveMatchId])
 
-  return { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch, toggleVisibility }
+  return { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch, cancelLiveScoring, updateSettings, toggleVisibility }
 }

@@ -514,6 +514,110 @@ export const endMatch = async (req, res) => {
   }
 };
 
+// @desc    Cancel live scoring without affecting the tournament draw match result
+// @route   DELETE /api/live-matches/:id/cancel
+// @access  Private (Admin/Staff)
+export const cancelLiveScoring = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const liveMatch = await LiveMatch.findById(id);
+    if (!liveMatch) {
+      return res.status(404).json({ success: false, message: 'Live match not found' });
+    }
+
+    // Revert tournament match status back (don't touch winner/score)
+    const tournament = await Tournament.findById(liveMatch.tournamentId);
+    if (tournament) {
+      const category = tournament.categories.id(liveMatch.categoryId);
+      if (category && category.draw) {
+        let match = category.draw.matches.id(liveMatch.matchId);
+        if (!match && category.draw.roundRobinGroups) {
+          for (const group of category.draw.roundRobinGroups) {
+            match = group.matches.id(liveMatch.matchId);
+            if (match) break;
+          }
+        }
+        if (!match && category.draw.knockoutStage?.matches) {
+          match = category.draw.knockoutStage.matches.id(liveMatch.matchId);
+        }
+        if (match) {
+          // If the match already had a result before live scoring, restore completed status;
+          // otherwise revert to scheduled
+          match.status = (match.winner && match.score) ? 'completed' : 'scheduled';
+          await tournament.save();
+        }
+      }
+    }
+
+    // Remove from scoreboard
+    const io = req.app.locals.io;
+    if (io) {
+      io.to('scoreboard').emit('match:cancelled', { liveMatchId: liveMatch._id });
+      io.to(`match:${liveMatch._id}`).emit('match:cancelled', { liveMatchId: liveMatch._id });
+    }
+
+    // Delete the live match document
+    await LiveMatch.findByIdAndDelete(id);
+
+    res.status(200).json({ success: true, message: 'Live scoring cancelled' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update match settings (noAd, bestOf, tiebreak rules) on a live match
+// @route   PUT /api/live-matches/:id/settings
+// @access  Private (Admin/Staff or assigned umpire)
+export const updateMatchSettings = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bestOf, tiebreakAt, finalSetTiebreak, finalSetTiebreakTo, noAd } = req.body;
+
+    const liveMatch = await LiveMatch.findById(id);
+    if (!liveMatch) {
+      return res.status(404).json({ success: false, message: 'Live match not found' });
+    }
+
+    if (liveMatch.status === 'completed') {
+      return res.status(400).json({ success: false, message: 'Cannot change settings on a completed match' });
+    }
+
+    // Update both top-level settings and matchState.settings
+    const updates = {};
+    if (bestOf !== undefined) updates.bestOf = bestOf;
+    if (tiebreakAt !== undefined) updates.tiebreakAt = tiebreakAt;
+    if (finalSetTiebreak !== undefined) updates.finalSetTiebreak = finalSetTiebreak;
+    if (finalSetTiebreakTo !== undefined) updates.finalSetTiebreakTo = finalSetTiebreakTo;
+    if (noAd !== undefined) updates.noAd = noAd;
+
+    Object.assign(liveMatch.settings, updates);
+
+    const state = liveMatch.matchState;
+    Object.assign(state.settings, updates);
+    liveMatch.matchState = state;
+    liveMatch.markModified('matchState');
+
+    await liveMatch.save();
+
+    // Notify clients so the scorecard reflects the new settings
+    const io = req.app.locals.io;
+    if (io) {
+      const payload = {
+        liveMatchId: liveMatch._id.toString(),
+        matchState: state,
+        status: liveMatch.status
+      };
+      io.to('scoreboard').emit('match:scoreUpdate', payload);
+      io.to(`match:${liveMatch._id}`).emit('match:scoreUpdate', payload);
+    }
+
+    res.status(200).json({ success: true, data: liveMatch });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Get matches assigned to the authenticated umpire
 // @route   GET /api/live-matches/my-matches
 // @access  Private (authenticated)

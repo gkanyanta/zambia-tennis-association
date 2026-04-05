@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Undo2, MoreVertical, Pause, Play, XCircle, Trophy, Clock, EyeOff, Eye } from 'lucide-react'
+import { ArrowLeft, Undo2, MoreVertical, Pause, Play, XCircle, Trophy, Clock, EyeOff, Eye, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -19,13 +19,15 @@ import { getScoreString } from '@/utils/tennisScoring'
 export function UmpireScoring() {
   const { liveMatchId } = useParams()
   const navigate = useNavigate()
-  const { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch, toggleVisibility } = useLiveMatch(liveMatchId)
+  const { match, loading, error, setFirstServer, awardPoint, undoPoint, suspendMatch, resumeMatch, endMatch, cancelLiveScoring, updateSettings, toggleVisibility } = useLiveMatch(liveMatchId)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [firstServerConfirmed, setFirstServerConfirmed] = useState(false)
   const [endDialogOpen, setEndDialogOpen] = useState(false)
   const [endReason, setEndReason] = useState<string>('retirement')
   const [endWinner, setEndWinner] = useState<string>('')
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [elapsed, setElapsed] = useState(0)
 
@@ -92,6 +94,17 @@ export function UmpireScoring() {
     try {
       await endMatch(endWinner, endReason)
       setEndDialogOpen(false)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleCancelLiveScoring = async () => {
+    setActionLoading(true)
+    try {
+      await cancelLiveScoring()
+      setCancelDialogOpen(false)
+      navigate('/umpire')
     } finally {
       setActionLoading(false)
     }
@@ -304,6 +317,12 @@ export function UmpireScoring() {
                   <div className="absolute right-0 bottom-full mb-2 w-48 rounded-md shadow-lg bg-background border z-50">
                     <div className="py-1">
                       <button
+                        onClick={() => { setMenuOpen(false); setSettingsDialogOpen(true) }}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                      >
+                        <Settings className="h-4 w-4 inline mr-2" /> Match Settings
+                      </button>
+                      <button
                         onClick={handleSuspend}
                         className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
                       >
@@ -317,6 +336,12 @@ export function UmpireScoring() {
                           ? <><Eye className="h-4 w-4 inline mr-2" /> Show on Scoreboard</>
                           : <><EyeOff className="h-4 w-4 inline mr-2" /> Hide from Scoreboard</>
                         }
+                      </button>
+                      <button
+                        onClick={() => { setMenuOpen(false); setCancelDialogOpen(true) }}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted text-orange-600"
+                      >
+                        <XCircle className="h-4 w-4 inline mr-2" /> Cancel Live Scoring
                       </button>
                       <button
                         onClick={() => { setMenuOpen(false); setEndDialogOpen(true) }}
@@ -385,6 +410,172 @@ export function UmpireScoring() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Cancel Live Scoring Dialog */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Live Scoring</DialogTitle>
+            <DialogDescription>
+              This will stop live scoring and remove it from the scoreboard. The match result in the draw will not be affected — you can score it manually instead.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+              Go Back
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelLiveScoring}
+              disabled={actionLoading}
+            >
+              Cancel Live Scoring
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Match Settings Dialog */}
+      {match && (
+        <MatchSettingsDialog
+          open={settingsDialogOpen}
+          onOpenChange={setSettingsDialogOpen}
+          settings={match.matchState.settings}
+          onSave={async (s) => {
+            setActionLoading(true)
+            try {
+              await updateSettings(s)
+              setSettingsDialogOpen(false)
+            } finally {
+              setActionLoading(false)
+            }
+          }}
+          saving={actionLoading}
+        />
+      )}
     </div>
+  )
+}
+
+function MatchSettingsDialog({
+  open,
+  onOpenChange,
+  settings,
+  onSave,
+  saving
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  settings: import('@/types/liveMatch').MatchSettings
+  onSave: (settings: Partial<import('@/types/liveMatch').MatchSettings>) => Promise<void>
+  saving: boolean
+}) {
+  const [bestOf, setBestOf] = useState(settings.bestOf)
+  const [tiebreakAt, setTiebreakAt] = useState(settings.tiebreakAt)
+  const [finalSetTiebreak, setFinalSetTiebreak] = useState(settings.finalSetTiebreak)
+  const [finalSetTiebreakTo, setFinalSetTiebreakTo] = useState(settings.finalSetTiebreakTo)
+  const [noAd, setNoAd] = useState(settings.noAd)
+
+  // Sync local state when dialog opens with fresh settings
+  useEffect(() => {
+    if (open) {
+      setBestOf(settings.bestOf)
+      setTiebreakAt(settings.tiebreakAt)
+      setFinalSetTiebreak(settings.finalSetTiebreak)
+      setFinalSetTiebreakTo(settings.finalSetTiebreakTo)
+      setNoAd(settings.noAd)
+    }
+  }, [open, settings])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Match Settings</DialogTitle>
+          <DialogDescription>
+            Update scoring rules for this match. Changes apply from the next point onwards.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium">Best Of</label>
+            <select
+              className="w-full mt-1 border rounded-md p-2 bg-background"
+              value={bestOf}
+              onChange={(e) => setBestOf(Number(e.target.value) as 3 | 5)}
+            >
+              <option value={1}>1 Set</option>
+              <option value={3}>3 Sets</option>
+              <option value={5}>5 Sets</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Games per Set (Tiebreak At)</label>
+            <select
+              className="w-full mt-1 border rounded-md p-2 bg-background"
+              value={tiebreakAt}
+              onChange={(e) => setTiebreakAt(Number(e.target.value))}
+            >
+              <option value={4}>4 (Short Sets)</option>
+              <option value={6}>6 (Standard)</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">No-Ad Scoring</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={noAd}
+              onClick={() => setNoAd(!noAd)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${noAd ? 'bg-primary' : 'bg-muted'}`}
+            >
+              <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${noAd ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Final Set Match Tiebreak</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={finalSetTiebreak}
+              onClick={() => setFinalSetTiebreak(!finalSetTiebreak)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${finalSetTiebreak ? 'bg-primary' : 'bg-muted'}`}
+            >
+              <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform ${finalSetTiebreak ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
+          {finalSetTiebreak && (
+            <div>
+              <label className="text-sm font-medium">Match Tiebreak Points</label>
+              <select
+                className="w-full mt-1 border rounded-md p-2 bg-background"
+                value={finalSetTiebreakTo}
+                onChange={(e) => setFinalSetTiebreakTo(Number(e.target.value))}
+              >
+                <option value={7}>7 Points</option>
+                <option value={10}>10 Points (Super Tiebreak)</option>
+              </select>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onSave({ bestOf, tiebreakAt, finalSetTiebreak, finalSetTiebreakTo, noAd })}
+            disabled={saving}
+          >
+            Save Settings
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

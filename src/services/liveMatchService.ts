@@ -61,5 +61,10 @@ export const liveMatchService = {
     apiFetch(`/live-matches/${id}/end`, {
       method: 'PUT',
       body: JSON.stringify(data)
+    }),
+
+  cancelLiveScoring: (id: string): Promise<{ success: boolean; message: string }> =>
+    apiFetch(`/live-matches/${id}/cancel`, {
+      method: 'DELETE'
     })
 }

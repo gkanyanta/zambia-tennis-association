@@ -1046,6 +1046,12 @@ function enrichDoublesNames(category) {
   if (category.draw.roundRobinGroups) {
     for (const g of category.draw.roundRobinGroups) {
       enrichMatches(g.matches);
+      // Also enrich player names in the players array (used for RR table rows)
+      if (g.players) {
+        for (const p of g.players) {
+          enrichPlayer(p);
+        }
+      }
     }
   }
   if (category.draw.knockoutStage?.matches) {
@@ -2813,13 +2819,16 @@ export const downloadDrawPDF = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No draw generated for this category' });
     }
 
-    // For doubles categories, enrich player names with partner names
-    const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles';
+    // For doubles categories, enrich player names with partner names.
+    // Convert to plain object first so property assignments work (Mongoose subdocs
+    // don't reliably allow deep nested property mutation).
+    let categoryForPdf = category.toObject();
+    const isDoubles = categoryForPdf.format === 'doubles' || categoryForPdf.format === 'mixed_doubles';
     if (isDoubles) {
-      enrichDoublesNames(category);
+      enrichDoublesNames(categoryForPdf);
     }
 
-    const pdfBuffer = await generateDrawPDF(tournament, category);
+    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf);
 
     const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeName(tournament.name)}-${safeName(category.name)}-Draw.pdf`;
