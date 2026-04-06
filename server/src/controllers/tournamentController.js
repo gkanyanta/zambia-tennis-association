@@ -1019,18 +1019,17 @@ function enrichDoublesNames(category) {
   }
   if (Object.keys(partnerMap).length === 0) return;
 
-  const shortenName = (name) => {
+  const surname = (name) => {
     if (!name) return '';
     const parts = name.trim().split(/\s+/);
-    if (parts.length === 1) return parts[0];
-    return `${parts[0][0]}.${parts[parts.length - 1]}`;
+    return parts[parts.length - 1];
   };
 
   const enrichPlayer = (p) => {
     if (!p || !p.id || p.isBye) return;
     const partner = partnerMap[p.id];
     if (partner) {
-      p.name = `${shortenName(p.name)} / ${shortenName(partner)}`;
+      p.name = `${surname(p.name)} / ${surname(partner)}`;
     }
   };
 

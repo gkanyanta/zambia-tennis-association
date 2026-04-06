@@ -430,8 +430,9 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
     doc.text(' ', { continued: true, lineBreak: false });
   }
 
-  // Player name
-  const displayName = truncateName(player.name, maxNameChars);
+  // Player name — don't truncate doubles pairs (contain " / ")
+  const isDoublesPair = player.name && player.name.includes(' / ');
+  const displayName = isDoublesPair ? player.name : truncateName(player.name, maxNameChars);
   doc
     .fontSize(nameFontSize)
     .fillColor(isWinner ? '#059669' : COLORS.primary)
@@ -707,8 +708,9 @@ function renderCrossTable(doc, group, startY) {
     doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.primary);
     doc.text(`${i + 1}`, MARGIN + 2, textY, { width: numColWidth - 4, align: 'center', lineBreak: false });
 
-    // Player name
-    const displayName = truncateName(player.name, Math.floor(nameColWidth / (fontSize * 0.6)));
+    // Player name — don't truncate doubles pairs
+    const isDoublesPair = player.name && player.name.includes(' / ');
+    const displayName = isDoublesPair ? player.name : truncateName(player.name, Math.floor(nameColWidth / (fontSize * 0.6)));
     doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
     doc.text(displayName, MARGIN + numColWidth + 4, textY, { width: nameColWidth - 8, lineBreak: false });
 
