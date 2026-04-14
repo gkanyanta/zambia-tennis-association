@@ -36,15 +36,19 @@ export const submitContactForm = async (req, res) => {
       </div>
     `;
 
-    // Send to info email
-    await sendEmail({
-      email: process.env.INFO_EMAIL || 'info@zambiatennis.com',
-      subject: `Contact Form: ${subject}`,
-      html: emailHtml,
-      replyTo: email // Reply-to will be the person who submitted the form
-    });
+    // Send email to info@zambiatennis.com (non-blocking)
+    try {
+      await sendEmail({
+        email: process.env.INFO_EMAIL || 'info@zambiatennis.com',
+        subject: `Contact Form: ${subject}`,
+        html: emailHtml,
+        replyTo: email // Reply-to will be the person who submitted the form
+      });
+    } catch (emailError) {
+      console.error('Failed to send contact notification email:', emailError);
+    }
 
-    // Send confirmation to user
+    // Send confirmation to user (non-blocking)
     const confirmationHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #2c5282;">Thank You for Contacting Zambia Tennis Association</h2>
@@ -66,11 +70,15 @@ export const submitContactForm = async (req, res) => {
       </div>
     `;
 
-    await sendEmail({
-      email: email,
-      subject: 'We received your message - Zambia Tennis Association',
-      html: confirmationHtml
-    });
+    try {
+      await sendEmail({
+        email: email,
+        subject: 'We received your message - Zambia Tennis Association',
+        html: confirmationHtml
+      });
+    } catch (emailError) {
+      console.error('Failed to send contact confirmation email:', emailError);
+    }
 
     res.status(201).json({
       success: true,
