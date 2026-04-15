@@ -362,8 +362,6 @@ export function ZPINPayment() {
                   {searchResults.length > 0 && (
                     <div className="mt-4 border rounded-lg divide-y max-h-80 overflow-y-auto">
                       {searchResults.map((player) => {
-                        const Icon = getMembershipIcon(player.membershipType?.code)
-                        const bgColor = getMembershipColor(player.membershipType?.code)
                         const isSelected = selectedPlayers.some(p => p._id === player._id)
 
                         return (
@@ -374,8 +372,8 @@ export function ZPINPayment() {
                             }`}
                           >
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className={`w-10 h-10 rounded-full ${bgColor} flex items-center justify-center flex-shrink-0`}>
-                                <Icon className="h-5 w-5 text-white" />
+                              <div className="w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center flex-shrink-0">
+                                <User className="h-5 w-5 text-white" />
                               </div>
                               <div className="min-w-0">
                                 <p className="font-medium truncate">{player.fullName}</p>
@@ -398,27 +396,22 @@ export function ZPINPayment() {
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   Active
                                 </Badge>
-                              ) : player.membershipType ? (
-                                <>
-                                  <div className="text-right">
-                                    <p className="font-semibold">K{player.membershipType.amount}</p>
-                                    <p className="text-xs text-muted-foreground">{player.membershipType.name}</p>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant={isSelected ? 'secondary' : 'default'}
-                                    onClick={() => handleAddPlayer(player)}
-                                    disabled={isSelected}
-                                  >
-                                    {isSelected ? (
-                                      <CheckCircle2 className="h-4 w-4" />
-                                    ) : (
-                                      <Plus className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </>
                               ) : (
-                                <Badge variant="outline">No type assigned</Badge>
+                                <Button
+                                  size="sm"
+                                  variant={isSelected ? 'secondary' : 'default'}
+                                  onClick={() => handleAddPlayer(player)}
+                                  disabled={isSelected}
+                                >
+                                  {isSelected ? (
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  ) : (
+                                    <>
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Select
+                                    </>
+                                  )}
+                                </Button>
                               )}
                             </div>
                           </div>
