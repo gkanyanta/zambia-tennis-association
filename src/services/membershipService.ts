@@ -435,6 +435,7 @@ export const membershipService = {
    */
   async initializeBulkPayment(data: {
     playerIds: string[];
+    nationalityOverrides?: Record<string, boolean>;
     payer: {
       name: string;
       email: string;

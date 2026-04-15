@@ -404,7 +404,7 @@ export const getPlayerPaymentDetails = async (req, res) => {
 // @access  Public
 export const initializeBulkPayment = async (req, res) => {
   try {
-    const { playerIds, payer } = req.body;
+    const { playerIds, payer, nationalityOverrides } = req.body;
 
     // Extract payer details from nested object
     const payerName = payer?.name;
@@ -465,7 +465,16 @@ export const initializeBulkPayment = async (req, res) => {
         });
       }
 
-      // Determine membership type based on age
+      // Apply nationality override if provided
+      if (nationalityOverrides && nationalityOverrides.hasOwnProperty(playerId.toString())) {
+        const isInternational = nationalityOverrides[playerId.toString()];
+        if (player.isInternational !== isInternational) {
+          player.isInternational = isInternational;
+          await player.save();
+        }
+      }
+
+      // Determine membership type based on age and nationality
       const membershipType = await determinePlayerMembershipType(player);
 
       if (!membershipType) {

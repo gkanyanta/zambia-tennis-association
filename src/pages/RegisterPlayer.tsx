@@ -449,17 +449,50 @@ export function RegisterPlayer() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      id="isInternational"
-                      checked={formData.isInternational || false}
-                      onChange={(e) => updateField('isInternational', e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300"
-                    />
-                    <Label htmlFor="isInternational" className="mb-0 cursor-pointer">
-                      International Player
-                    </Label>
+                  <div className="sm:col-span-2">
+                    <Label>Nationality *</Label>
+                    <div className="flex gap-4 mt-2">
+                      <label
+                        className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                          formData.isInternational === false
+                            ? 'border-primary bg-primary/5'
+                            : 'border-muted hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="nationality"
+                          checked={formData.isInternational === false}
+                          onChange={() => updateField('isInternational', false)}
+                          className="h-4 w-4"
+                        />
+                        <div>
+                          <p className="font-medium">Zambian</p>
+                          <p className="text-xs text-muted-foreground">
+                            {age !== null && age < 18 ? 'Junior - K100' : 'Senior - K250'}
+                          </p>
+                        </div>
+                      </label>
+                      <label
+                        className={`flex-1 flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                          formData.isInternational === true
+                            ? 'border-purple-500 bg-purple-500/5'
+                            : 'border-muted hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="nationality"
+                          checked={formData.isInternational === true}
+                          onChange={() => updateField('isInternational', true)}
+                          className="h-4 w-4"
+                        />
+                        <div>
+                          <p className="font-medium">Non-Zambian</p>
+                          <p className="text-xs text-muted-foreground">International - K500</p>
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -631,12 +664,12 @@ export function RegisterPlayer() {
                         <p className="font-medium">{formData.club}</p>
                       </div>
                     )}
-                    {formData.isInternational && (
-                      <div>
-                        <p className="text-muted-foreground">International</p>
-                        <Badge variant="outline">Yes</Badge>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-muted-foreground">Nationality</p>
+                      <Badge variant="outline" className={formData.isInternational ? 'border-purple-500 text-purple-700' : ''}>
+                        {formData.isInternational ? 'Non-Zambian (International)' : 'Zambian'}
+                      </Badge>
+                    </div>
                   </div>
 
                   {isJunior && (

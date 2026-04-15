@@ -46,6 +46,11 @@ const colorMap: Record<string, string> = {
 
 interface SelectedPlayer extends PlayerSearchResult {
   selected: boolean
+  nationalityOverride?: boolean // true = international, false = zambian
+}
+
+interface PendingPlayer extends PlayerSearchResult {
+  // Player waiting for nationality confirmation
 }
 
 export function ZPINPayment() {
@@ -57,6 +62,7 @@ export function ZPINPayment() {
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPayerForm, setShowPayerForm] = useState(false)
+  const [pendingPlayer, setPendingPlayer] = useState<PendingPlayer | null>(null)
   const payerFormRef = useRef<HTMLDivElement>(null)
 
   // Payer information
@@ -125,10 +131,46 @@ export function ZPINPayment() {
       return
     }
 
-    setSelectedPlayers([...selectedPlayers, { ...player, selected: true }])
+    // Show nationality confirmation prompt
+    setPendingPlayer(player)
+    setError(null)
+  }
+
+  const confirmNationality = (isInternational: boolean) => {
+    if (!pendingPlayer) return
+
+    // Recalculate membership type based on nationality choice
+    let membershipType = pendingPlayer.membershipType
+    if (membershipType) {
+      if (isInternational && membershipType.code !== 'zpin_international') {
+        membershipType = {
+          ...membershipType,
+          code: 'zpin_international',
+          name: 'International ZPIN',
+          amount: 500
+        }
+      } else if (!isInternational && membershipType.code === 'zpin_international') {
+        // Revert to age-based type
+        const isJunior = pendingPlayer.age !== null && pendingPlayer.age <= 18
+        membershipType = {
+          ...membershipType,
+          code: isJunior ? 'zpin_junior' : 'zpin_senior',
+          name: isJunior ? 'Junior ZPIN' : 'Senior ZPIN',
+          amount: isJunior ? 100 : 250
+        }
+      }
+    }
+
+    setSelectedPlayers([...selectedPlayers, {
+      ...pendingPlayer,
+      membershipType,
+      isInternational,
+      nationalityOverride: isInternational,
+      selected: true
+    }])
+    setPendingPlayer(null)
     setSearchQuery('')
     setSearchResults([])
-    setError(null)
   }
 
   const handleRemovePlayer = (playerId: string) => {
@@ -169,8 +211,17 @@ export function ZPINPayment() {
 
     try {
       const playerIds = selectedPlayers.map(p => p._id)
+      // Build nationality overrides for players whose nationality was changed
+      const nationalityOverrides: Record<string, boolean> = {}
+      selectedPlayers.forEach(p => {
+        if (p.nationalityOverride !== undefined) {
+          nationalityOverrides[p._id] = p.nationalityOverride
+        }
+      })
+
       const paymentData = await membershipService.initializeBulkPayment({
         playerIds,
+        nationalityOverrides: Object.keys(nationalityOverrides).length > 0 ? nationalityOverrides : undefined,
         payer: {
           name: payerName.trim(),
           email: payerEmail.trim(),
@@ -247,7 +298,7 @@ export function ZPINPayment() {
                 <div>
                   <h3 className="font-semibold mb-2">Membership Pricing</h3>
                   <p className="text-sm text-muted-foreground">
-                    Pricing is determined automatically based on the player's age:
+                    Pricing is determined by nationality and age. You will be asked to confirm nationality when adding each player:
                   </p>
                 </div>
               </div>
@@ -385,6 +436,59 @@ export function ZPINPayment() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Nationality Confirmation Prompt */}
+              {pendingPlayer && (
+                <Card className="mb-8 border-primary/50 shadow-lg">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Globe className="h-5 w-5" />
+                      Confirm Nationality
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Is <span className="font-semibold text-foreground">{pendingPlayer.fullName}</span> a Zambian or non-Zambian player?
+                      This determines the registration fee.
+                    </p>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => confirmNationality(false)}
+                        className="flex-1 flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-green-500 hover:bg-green-500/5 transition-colors text-left"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                          <User className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">Zambian</p>
+                          <p className="text-sm text-muted-foreground">
+                            {pendingPlayer.age !== null && pendingPlayer.age <= 18
+                              ? 'Junior - K100'
+                              : 'Senior - K250'}
+                          </p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => confirmNationality(true)}
+                        className="flex-1 flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-purple-500 hover:bg-purple-500/5 transition-colors text-left"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+                          <Globe className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">Non-Zambian</p>
+                          <p className="text-sm text-muted-foreground">International - K500</p>
+                        </div>
+                      </button>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => setPendingPlayer(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Selected Players */}
               <Card className="mb-8">
