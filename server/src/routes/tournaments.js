@@ -12,6 +12,7 @@ import {
   bulkUpdateSeeds,
   autoSeedCategory,
   generateDraw,
+  saveManualDraw,
   updateMatchResult,
   finalizeResults,
   checkEligibility,
@@ -81,6 +82,7 @@ router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authoriz
 router.get('/:tournamentId/categories/:categoryId/draw/pdf', downloadDrawPDF);
 router.get('/:tournamentId/categories/:categoryId/draw/debug', debugDrawData);
 router.post('/:tournamentId/categories/:categoryId/draw', protect, authorize('admin', 'staff'), generateDraw);
+router.post('/:tournamentId/categories/:categoryId/draw/manual', protect, authorize('admin', 'staff'), saveManualDraw);
 router.post('/:tournamentId/categories/:categoryId/draw/knockout', protect, authorize('admin', 'staff'), generateKnockoutStage);
 
 // Umpire pool

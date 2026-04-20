@@ -823,6 +823,78 @@ export const generateDraw = async (req, res) => {
   }
 };
 
+// @desc    Save a manually-entered draw (admin recording an offline draw)
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/draw/manual
+// @access  Private (Admin only)
+//
+// Accepts the same draw payload shape as generateDraw() but skips the
+// "accepted entries required" check so walk-in players (no playerId) and
+// paper-drawn brackets can be recorded. Players with an empty id are
+// treated as walk-ins and rendered from `name` alone.
+//
+// Overwrite protection: if a draw already exists for the category and any
+// of its matches have recorded results (winner set or status !== 'scheduled'),
+// the caller must pass `confirmOverwrite: true`, otherwise we refuse.
+export const saveManualDraw = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const { draw, confirmOverwrite } = req.body;
+
+    if (!draw || !draw.type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Draw payload is required and must include a type'
+      });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    // Refuse to silently wipe scored matches
+    const existing = category.draw;
+    if (existing) {
+      const hasScoredMatch = [
+        ...(existing.matches || []),
+        ...((existing.roundRobinGroups || []).flatMap(g => g.matches || [])),
+        ...((existing.knockoutStage && existing.knockoutStage.matches) || [])
+      ].some(m => m && (m.winner || (m.status && m.status !== 'scheduled')));
+
+      if (hasScoredMatch && !confirmOverwrite) {
+        return res.status(409).json({
+          success: false,
+          code: 'DRAW_HAS_RESULTS',
+          message: 'An existing draw for this category has recorded results. Pass confirmOverwrite: true to replace it.'
+        });
+      }
+    }
+
+    // Stamp as manual and persist; do not require accepted entries
+    category.draw = {
+      ...draw,
+      mode: 'manual',
+      generatedAt: draw.generatedAt || new Date()
+    };
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      data: category
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // @desc    Update match result
 // @route   PUT /api/tournaments/:tournamentId/categories/:categoryId/matches/:matchId
 // @access  Private (Admin only)

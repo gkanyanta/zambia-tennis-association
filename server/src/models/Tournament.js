@@ -191,6 +191,13 @@ const drawSchema = new mongoose.Schema({
     enum: ['single_elimination', 'round_robin', 'feed_in', 'mixer'],
     required: true
   },
+  // 'auto' = generated from accepted entries via drawGenerator.ts
+  // 'manual' = admin-entered from an offline draw; walk-ins allowed
+  mode: {
+    type: String,
+    enum: ['auto', 'manual'],
+    default: 'auto'
+  },
   matches: [matchSchema],
   roundRobinGroups: [roundRobinGroupSchema],
   bracketSize: Number,
