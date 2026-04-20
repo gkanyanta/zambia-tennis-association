@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Search, UserPlus, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
+import { PlayerMatchHistory } from '@/components/PlayerMatchHistory'
 
 const getMembershipBadge = (status?: string | null) => {
   switch (status) {
@@ -317,6 +318,15 @@ export function Players() {
                     <p className="font-medium">{new Date(selectedPlayer.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Match history & head-to-head */}
+              <div>
+                <h4 className="font-semibold mb-3">Match history & head-to-head</h4>
+                <PlayerMatchHistory
+                  playerId={selectedPlayer._id}
+                  playerName={`${selectedPlayer.firstName} ${selectedPlayer.lastName}`}
+                />
               </div>
 
               <div className="flex gap-2">
