@@ -847,6 +847,54 @@ export const saveManualDraw = async (req, res) => {
       });
     }
 
+    // Validate that every non-bye player slot has a non-empty, unique id.
+    // Downstream scoring, RR standings and bracket progression all key off
+    // player.id — an empty or duplicated id silently breaks those paths.
+    const collectPlayers = () => {
+      const all = [];
+      for (const m of draw.matches || []) {
+        if (m?.player1) all.push({ player: m.player1, where: `match ${m.matchNumber || ''} player1` });
+        if (m?.player2) all.push({ player: m.player2, where: `match ${m.matchNumber || ''} player2` });
+      }
+      for (const g of draw.roundRobinGroups || []) {
+        for (const p of g.players || []) all.push({ player: p, where: `group ${g.groupName || ''} roster` });
+        for (const m of g.matches || []) {
+          if (m?.player1) all.push({ player: m.player1, where: `group ${g.groupName || ''} match player1` });
+          if (m?.player2) all.push({ player: m.player2, where: `group ${g.groupName || ''} match player2` });
+        }
+      }
+      for (const m of (draw.knockoutStage && draw.knockoutStage.matches) || []) {
+        if (m?.player1) all.push({ player: m.player1, where: `knockout match ${m.matchNumber || ''} player1` });
+        if (m?.player2) all.push({ player: m.player2, where: `knockout match ${m.matchNumber || ''} player2` });
+      }
+      return all;
+    };
+    const slots = collectPlayers();
+    const seenIds = new Map();
+    for (const { player, where } of slots) {
+      if (!player || player.isBye) continue;
+      if (!player.id || String(player.id).trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: `Every non-bye player slot must have a non-empty id (missing at ${where}). Walk-ins should use a synthetic id such as "walkin-<uuid>".`
+        });
+      }
+      if (!player.name || String(player.name).trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: `Every non-bye player slot must have a name (missing at ${where})`
+        });
+      }
+      const id = String(player.id);
+      if (seenIds.has(id) && seenIds.get(id) !== player.name) {
+        return res.status(400).json({
+          success: false,
+          message: `Player id "${id}" appears with two different names ("${seenIds.get(id)}" vs "${player.name}"). Each player needs a unique id.`
+        });
+      }
+      seenIds.set(id, player.name);
+    }
+
     const tournament = await Tournament.findById(tournamentId);
     if (!tournament) {
       return res.status(404).json({ success: false, message: 'Tournament not found' });
