@@ -4,8 +4,14 @@ import MembershipSubscription from '../models/MembershipSubscription.js';
 import { protect, authorize } from '../middleware/auth.js';
 import xlsx from 'xlsx';
 import { generateNextZPIN } from '../utils/generateZPIN.js';
+import { getPlayerMatches, getHeadToHead } from '../controllers/playerStatsController.js';
 
 const router = express.Router();
+
+// Stats routes — defined early so the :playerId segment does not collide
+// with literal paths like /next-zpin that share the same mount point.
+router.get('/:playerId/matches', getPlayerMatches);
+router.get('/:playerA/head-to-head/:playerB', getHeadToHead);
 
 // @desc    Get all players (public) — supports ?club=Name&search=term&page=1&limit=50
 // @route   GET /api/players
