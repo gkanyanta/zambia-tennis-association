@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, X, Save, CalendarClock, ChevronUp, ChevronDown, FileDown, Trash2 } from 'lucide-react'
 import { tournamentService, Tournament, OrderOfPlayEntry, OrderOfPlaySlot } from '@/services/tournamentService'
+import { iterDrawMatches } from '@/utils/iterMatches'
 
 interface Props {
   tournament: Tournament
@@ -51,7 +52,9 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
     setSlots(tournament.orderOfPlay || [])
   }, [tournament.orderOfPlay])
 
-  // Aggregate all schedulable matches across categories
+  // Aggregate all schedulable matches across categories.
+  // Uses iterDrawMatches so round-robin matches — which live in both
+  // draw.matches and roundRobinGroups[].matches — are only counted once.
   const allMatches = useMemo(() => {
     const matches: SchedulableMatch[] = []
 
@@ -59,10 +62,10 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
       const draw = (category as any).draw
       if (!draw) continue
 
-      const addMatch = (m: any) => {
-        if (!m.player1 || !m.player2) return
-        if (m.player1.isBye || m.player2.isBye) return
-        if (!m.player1.name && !m.player2.name) return
+      for (const { match: m } of iterDrawMatches<any>(draw)) {
+        if (!m.player1 || !m.player2) continue
+        if (m.player1.isBye || m.player2.isBye) continue
+        if (!m.player1.name && !m.player2.name) continue
 
         matches.push({
           categoryId: category._id,
@@ -74,13 +77,6 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
           player2Name: m.player2.name || 'TBD',
           status: m.status || 'scheduled',
         })
-      }
-
-      if (draw.matches) draw.matches.forEach(addMatch)
-      if (draw.roundRobinGroups) {
-        for (const group of draw.roundRobinGroups) {
-          if (group.matches) group.matches.forEach(addMatch)
-        }
       }
     }
 

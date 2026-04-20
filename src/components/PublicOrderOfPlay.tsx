@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CalendarClock } from 'lucide-react'
 import { Tournament } from '@/services/tournamentService'
+import { iterDrawMatches } from '@/utils/iterMatches'
 
 interface Props {
   tournament: Tournament
@@ -20,7 +21,9 @@ interface ScheduledMatch {
 }
 
 export function PublicOrderOfPlay({ tournament }: Props) {
-  // Collect all scheduled matches
+  // Collect all scheduled matches.
+  // Uses iterDrawMatches so round-robin matches — stored in both
+  // draw.matches and roundRobinGroups[].matches — are only listed once.
   const scheduledMatches = useMemo(() => {
     const matches: ScheduledMatch[] = []
 
@@ -28,9 +31,9 @@ export function PublicOrderOfPlay({ tournament }: Props) {
       const draw = (category as any).draw
       if (!draw) continue
 
-      const addMatch = (m: any) => {
-        if (!m.scheduledTime) return
-        if (m.player1?.isBye || m.player2?.isBye) return
+      for (const { match: m } of iterDrawMatches<any>(draw)) {
+        if (!m.scheduledTime) continue
+        if (m.player1?.isBye || m.player2?.isBye) continue
 
         matches.push({
           categoryName: category.name,
@@ -42,13 +45,6 @@ export function PublicOrderOfPlay({ tournament }: Props) {
           status: m.status,
           score: m.score,
         })
-      }
-
-      if (draw.matches) draw.matches.forEach(addMatch)
-      if (draw.roundRobinGroups) {
-        for (const group of draw.roundRobinGroups) {
-          if (group.matches) group.matches.forEach(addMatch)
-        }
       }
     }
 

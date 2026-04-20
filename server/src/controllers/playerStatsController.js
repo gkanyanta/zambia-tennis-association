@@ -1,5 +1,6 @@
 import Tournament from '../models/Tournament.js';
 import User from '../models/User.js';
+import { iterDrawMatches } from '../utils/iterDrawMatches.js';
 
 /**
  * Walk-in players (created via the manual draw feature) have synthetic ids
@@ -9,38 +10,17 @@ import User from '../models/User.js';
 const isWalkinId = (id) => typeof id === 'string' && id.startsWith('walkin-');
 
 /**
- * Iterate every match embedded in a tournament's categories.
- * Yields { tournament, category, match, stage } for completed matches.
- *
- * Round-robin tournaments store every match in TWO places simultaneously
- * (draw.matches and roundRobinGroups[].matches) — the backend keeps them
- * in sync so the PDF export (reads groups) and scoring UI (reads
- * draw.matches) both see results. Reading both arrays would double-count,
- * so we pick the canonical source per draw type: groups for round-robin,
- * draw.matches for everything else.
+ * Iterate every completed, player-identified match in a tournament.
+ * Yields { category, match, stage } and relies on iterDrawMatches to
+ * dedupe round-robin matches (which are stored in both draw.matches and
+ * roundRobinGroups[].matches).
  */
 function* iterCompletedMatches(tournament) {
   for (const category of tournament.categories || []) {
-    const draw = category.draw;
-    if (!draw) continue;
-
-    const emit = (arr, stage) => {
-      if (!arr) return [];
-      return arr
-        .filter((m) => m && m.status === 'completed' && m.winner && m.player1?.id && m.player2?.id)
-        .map((m) => ({ category, match: m, stage }));
-    };
-
-    if (draw.type === 'round_robin') {
-      for (const group of draw.roundRobinGroups || []) {
-        for (const item of emit(group.matches, `group:${group.groupName || ''}`)) yield item;
-      }
-    } else {
-      for (const item of emit(draw.matches, 'main')) yield item;
-    }
-
-    if (draw.knockoutStage) {
-      for (const item of emit(draw.knockoutStage.matches, 'knockout')) yield item;
+    for (const { match, stage } of iterDrawMatches(category.draw)) {
+      if (!match || match.status !== 'completed') continue;
+      if (!match.winner || !match.player1?.id || !match.player2?.id) continue;
+      yield { category, match, stage };
     }
   }
 }
