@@ -13,11 +13,24 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const { club, clubId, search, page, limit: qLimit } = req.query;
-    const filter = { role: 'player' };
+    const currentYear = new Date().getFullYear();
+
+    // Include any user with an active player subscription for the current
+    // year, not just those with role='player'. Staff/admin users who hold a
+    // ZPIN should surface in player search too.
+    const playerSubEntityIds = await MembershipSubscription.distinct('entityId', {
+      entityType: 'player',
+      year: currentYear,
+      status: 'active',
+    });
+
+    const conditions = [
+      { $or: [{ role: 'player' }, { _id: { $in: playerSubEntityIds } }] },
+    ];
 
     // Filter by club name (exact or partial match)
     if (club) {
-      filter.club = { $regex: new RegExp(`^${club}$`, 'i') };
+      conditions.push({ club: { $regex: new RegExp(`^${club}$`, 'i') } });
     }
 
     // clubId: look up club name first, then filter
@@ -25,7 +38,7 @@ router.get('/', async (req, res) => {
       const Club = (await import('../models/Club.js')).default;
       const clubDoc = await Club.findById(clubId);
       if (clubDoc) {
-        filter.club = { $regex: new RegExp(`^${clubDoc.name}$`, 'i') };
+        conditions.push({ club: { $regex: new RegExp(`^${clubDoc.name}$`, 'i') } });
       } else {
         return res.status(200).json({ success: true, count: 0, data: [] });
       }
@@ -34,12 +47,16 @@ router.get('/', async (req, res) => {
     // Search by name or ZPIN
     if (search) {
       const searchRegex = new RegExp(search, 'i');
-      filter.$or = [
-        { firstName: searchRegex },
-        { lastName: searchRegex },
-        { zpin: searchRegex }
-      ];
+      conditions.push({
+        $or: [
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { zpin: searchRegex },
+        ],
+      });
     }
+
+    const filter = conditions.length > 1 ? { $and: conditions } : conditions[0];
 
     let query = User.find(filter).select('-password').sort({ lastName: 1, firstName: 1 });
 
@@ -57,7 +74,6 @@ router.get('/', async (req, res) => {
     // multiple records for the year (e.g. a stale cancelled row plus a later
     // active row from a successful bulk payment), and we must not let a
     // non-active row mask the active one.
-    const currentYear = new Date().getFullYear();
     const enriched = await Promise.all(players.map(async p => {
       const obj = p.toObject();
 
