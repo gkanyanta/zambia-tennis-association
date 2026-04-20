@@ -435,6 +435,27 @@ export const tournamentService = {
     return response.data;
   },
 
+  /**
+   * Save a manually-entered draw (admin is recording an offline/paper draw).
+   * Pass `confirmOverwrite: true` to replace an existing draw that has
+   * recorded match results.
+   */
+  async saveManualDraw(
+    tournamentId: string,
+    categoryId: string,
+    drawData: any,
+    confirmOverwrite = false
+  ): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/draw/manual`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ draw: drawData, confirmOverwrite }),
+      }
+    );
+    return response.data;
+  },
+
   // Match Results
   async updateMatchResult(
     tournamentId: string,

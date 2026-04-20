@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EntryManagement } from '@/components/EntryManagement'
 import { DrawGeneration } from '@/components/DrawGeneration'
+import { ManualDrawBuilder } from '@/components/ManualDrawBuilder'
 import { TournamentFinance } from '@/components/TournamentFinance'
 import { OrderOfPlayAdmin } from '@/components/OrderOfPlayAdmin'
 import { UmpirePoolAdmin } from '@/components/UmpirePoolAdmin'
@@ -14,7 +15,7 @@ import { MixerDrawView } from '@/components/MixerDrawView'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock, Radio } from 'lucide-react'
+import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock, Radio, ClipboardEdit } from 'lucide-react'
 import type { Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
 import { liveMatchService } from '@/services/liveMatchService'
@@ -428,6 +429,7 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
   const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
     tournament.categories[0] || null
   )
+  const [manualMode, setManualMode] = useState(false)
 
   const handleGenerateDraw = async (draw: Draw) => {
     try {
@@ -495,14 +497,40 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
         </Card>
       )}
 
-      <DrawGeneration
-        category={selectedCategory as any}
-        tournamentId={tournament._id}
-        categoryId={(selectedCategory as any)?._id}
-        onGenerateDraw={handleGenerateDraw}
-        onUpdateMatch={handleUpdateMatch}
-        onRefresh={onRefresh}
-      />
+      {/* Toggle between auto-generate and manual-entry modes.
+          Hidden for mixer draws (they have their own assignment flow). */}
+      {(selectedCategory as any)?.drawType !== 'mixer' && (
+        <div className="flex justify-end">
+          {manualMode ? null : (
+            <Button variant="outline" size="sm" onClick={() => setManualMode(true)}>
+              <ClipboardEdit className="h-4 w-4 mr-2" />
+              {(selectedCategory as any)?.draw ? 'Replace with manual draw' : 'Enter manual draw'}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {manualMode ? (
+        <ManualDrawBuilder
+          category={selectedCategory as any}
+          tournamentId={tournament._id}
+          categoryId={(selectedCategory as any)?._id}
+          onCancel={() => setManualMode(false)}
+          onSaved={async () => {
+            await onRefresh()
+            setManualMode(false)
+          }}
+        />
+      ) : (
+        <DrawGeneration
+          category={selectedCategory as any}
+          tournamentId={tournament._id}
+          categoryId={(selectedCategory as any)?._id}
+          onGenerateDraw={handleGenerateDraw}
+          onUpdateMatch={handleUpdateMatch}
+          onRefresh={onRefresh}
+        />
+      )}
     </div>
   )
 }
