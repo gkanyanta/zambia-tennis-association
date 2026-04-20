@@ -11,6 +11,13 @@ const isWalkinId = (id) => typeof id === 'string' && id.startsWith('walkin-');
 /**
  * Iterate every match embedded in a tournament's categories.
  * Yields { tournament, category, match, stage } for completed matches.
+ *
+ * Round-robin tournaments store every match in TWO places simultaneously
+ * (draw.matches and roundRobinGroups[].matches) — the backend keeps them
+ * in sync so the PDF export (reads groups) and scoring UI (reads
+ * draw.matches) both see results. Reading both arrays would double-count,
+ * so we pick the canonical source per draw type: groups for round-robin,
+ * draw.matches for everything else.
  */
 function* iterCompletedMatches(tournament) {
   for (const category of tournament.categories || []) {
@@ -24,10 +31,14 @@ function* iterCompletedMatches(tournament) {
         .map((m) => ({ category, match: m, stage }));
     };
 
-    for (const item of emit(draw.matches, 'main')) yield item;
-    for (const group of draw.roundRobinGroups || []) {
-      for (const item of emit(group.matches, `group:${group.groupName || ''}`)) yield item;
+    if (draw.type === 'round_robin') {
+      for (const group of draw.roundRobinGroups || []) {
+        for (const item of emit(group.matches, `group:${group.groupName || ''}`)) yield item;
+      }
+    } else {
+      for (const item of emit(draw.matches, 'main')) yield item;
     }
+
     if (draw.knockoutStage) {
       for (const item of emit(draw.knockoutStage.matches, 'knockout')) yield item;
     }
