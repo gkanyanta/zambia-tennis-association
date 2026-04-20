@@ -430,6 +430,7 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
     tournament.categories[0] || null
   )
   const [manualMode, setManualMode] = useState(false)
+  const [manualEditMode, setManualEditMode] = useState(false)
 
   const handleGenerateDraw = async (draw: Draw) => {
     try {
@@ -499,26 +500,35 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
 
       {/* Toggle between auto-generate and manual-entry modes.
           Hidden for mixer draws (they have their own assignment flow). */}
-      {(selectedCategory as any)?.drawType !== 'mixer' && (
-        <div className="flex justify-end">
-          {manualMode ? null : (
-            <Button variant="outline" size="sm" onClick={() => setManualMode(true)}>
+      {(selectedCategory as any)?.drawType !== 'mixer' && !manualMode && !manualEditMode && (
+        <div className="flex justify-end gap-2">
+          {(selectedCategory as any)?.draw?.mode === 'manual' && (
+            <Button variant="outline" size="sm" onClick={() => setManualEditMode(true)}>
               <ClipboardEdit className="h-4 w-4 mr-2" />
-              {(selectedCategory as any)?.draw ? 'Replace with manual draw' : 'Enter manual draw'}
+              Edit manual draw slots
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setManualMode(true)}>
+            <ClipboardEdit className="h-4 w-4 mr-2" />
+            {(selectedCategory as any)?.draw ? 'Replace with manual draw' : 'Enter manual draw'}
+          </Button>
         </div>
       )}
 
-      {manualMode ? (
+      {manualMode || manualEditMode ? (
         <ManualDrawBuilder
           category={selectedCategory as any}
           tournamentId={tournament._id}
           categoryId={(selectedCategory as any)?._id}
-          onCancel={() => setManualMode(false)}
+          editMode={manualEditMode}
+          onCancel={() => {
+            setManualMode(false)
+            setManualEditMode(false)
+          }}
           onSaved={async () => {
             await onRefresh()
             setManualMode(false)
+            setManualEditMode(false)
           }}
         />
       ) : (

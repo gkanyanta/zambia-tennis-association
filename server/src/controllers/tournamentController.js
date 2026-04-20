@@ -943,6 +943,167 @@ export const saveManualDraw = async (req, res) => {
   }
 };
 
+// @desc    Update the round-1 slots of an existing manual draw while
+//          preserving match _ids and scores.
+// @route   PUT /api/tournaments/:tournamentId/categories/:categoryId/draw/manual/slots
+// @access  Private (Admin only)
+//
+// Body: { slots: [ { id, name, seed?, isBye? }, ... ] }
+// Length must equal draw.bracketSize. slots[0] vs slots[1] -> match 1, etc.
+//
+// For each round-1 match whose player ids would change:
+//   - if the match has a recorded result (winner set or status != 'scheduled'),
+//     the request is refused with a clear message. The admin must clear the
+//     result first (or do a full replace via POST /draw/manual with
+//     confirmOverwrite) to avoid silent data loss.
+//   - otherwise the player slots are updated in place; match._id is preserved
+//     so live scoring, scheduling and any already-advanced winner references
+//     stay intact for matches that are not touched.
+// Round 2+ slots are not edited directly here — they are populated by
+// advancement as results come in.
+export const updateManualDrawSlots = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const { slots } = req.body || {};
+
+    if (!Array.isArray(slots) || slots.length === 0) {
+      return res.status(400).json({ success: false, message: 'slots array is required' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+    if (!category.draw) return res.status(400).json({ success: false, message: 'No draw exists for this category' });
+    if (category.draw.type !== 'single_elimination') {
+      return res.status(400).json({ success: false, message: 'Slot editing is currently only supported for single-elimination draws' });
+    }
+    if (category.draw.bracketSize && slots.length !== category.draw.bracketSize) {
+      return res.status(400).json({
+        success: false,
+        message: `Expected ${category.draw.bracketSize} slots, received ${slots.length}`
+      });
+    }
+
+    // Normalise a slot into a player object
+    const toPlayer = (slot) => {
+      if (!slot || slot.isBye || !slot.id || !String(slot.id).trim()) {
+        return { id: 'bye', name: 'BYE', isBye: true };
+      }
+      return {
+        id: String(slot.id),
+        name: slot.name ? String(slot.name).trim() : '',
+        seed: slot.seed || undefined,
+      };
+    };
+
+    const newPlayers = slots.map(toPlayer);
+
+    // Validate non-bye slots have names and unique ids
+    const seenIds = new Map();
+    for (let i = 0; i < newPlayers.length; i++) {
+      const p = newPlayers[i];
+      if (p.isBye) continue;
+      if (!p.name) {
+        return res.status(400).json({
+          success: false,
+          message: `Slot ${i + 1}: a non-bye player requires a name`
+        });
+      }
+      if (seenIds.has(p.id) && seenIds.get(p.id) !== p.name) {
+        return res.status(400).json({
+          success: false,
+          message: `Slot ${i + 1}: id "${p.id}" is already used by "${seenIds.get(p.id)}"`
+        });
+      }
+      seenIds.set(p.id, p.name);
+    }
+
+    // Pair slots into proposed round-1 matches
+    const round1 = category.draw.matches.filter(m => m.round === 1).sort((a, b) => a.matchNumber - b.matchNumber);
+    const bracketHalf = Math.floor(newPlayers.length / 2);
+    if (round1.length !== bracketHalf) {
+      return res.status(400).json({
+        success: false,
+        message: `Expected ${bracketHalf} round-1 matches, found ${round1.length}. The draw appears inconsistent; do a full replace.`
+      });
+    }
+
+    // First pass: detect refusals before mutating anything
+    const changed = [];
+    for (let i = 0; i < round1.length; i++) {
+      const match = round1[i];
+      const p1 = newPlayers[i * 2];
+      const p2 = newPlayers[i * 2 + 1];
+      const oldP1Id = match.player1?.id || '';
+      const oldP2Id = match.player2?.id || '';
+      const idsDiffer = oldP1Id !== p1.id || oldP2Id !== p2.id;
+      if (!idsDiffer) continue;
+      const hasResult = match.winner || (match.status && match.status !== 'scheduled');
+      if (hasResult) {
+        return res.status(409).json({
+          success: false,
+          code: 'MATCH_HAS_RESULT',
+          message: `Match ${match.matchNumber} already has a recorded result. Clear the result first, or use the full-replace action to rebuild the draw.`
+        });
+      }
+      changed.push({ match, p1, p2 });
+    }
+
+    // Second pass: apply updates. Match _id is preserved because we mutate
+    // the subdocument in place rather than replacing it.
+    for (const { match, p1, p2 } of changed) {
+      match.player1 = p1;
+      match.player2 = p2;
+      // Recompute bye auto-advancement for this match
+      const bothByes = p1.isBye && p2.isBye;
+      const hasBye = p1.isBye || p2.isBye;
+      const realPlayer = p1.isBye ? (p2.isBye ? undefined : p2) : p1;
+      if (bothByes) {
+        match.status = 'completed';
+        match.winner = undefined;
+      } else if (hasBye && realPlayer) {
+        match.status = 'completed';
+        match.winner = realPlayer.id;
+      } else {
+        match.status = 'scheduled';
+        match.winner = undefined;
+      }
+    }
+
+    // Propagate bye-advanced winners into round 2 for matches we just changed.
+    // For each changed round-1 match at index i, its round-2 target is at
+    // floor(i / 2) and it takes player1 vs player2 depending on i's parity.
+    const round2 = category.draw.matches.filter(m => m.round === 2).sort((a, b) => a.matchNumber - b.matchNumber);
+    for (const { match } of changed) {
+      const idxInRound = round1.findIndex(m => m._id.toString() === match._id.toString());
+      if (idxInRound === -1) continue;
+      const nextIdx = Math.floor(idxInRound / 2);
+      const isFirst = idxInRound % 2 === 0;
+      const r2 = round2[nextIdx];
+      if (!r2) continue;
+      if (r2.winner || (r2.status && r2.status !== 'scheduled')) continue; // don't touch scored r2
+      if (match.winner) {
+        const w = match.player1?.id === match.winner ? match.player1 : match.player2;
+        if (w) {
+          const advanced = { id: w.id, name: w.name, seed: w.seed, isBye: false };
+          if (isFirst) r2.player1 = advanced;
+          else r2.player2 = advanced;
+        }
+      } else {
+        // No winner — clear whatever was auto-advanced previously from this slot
+        if (isFirst) r2.player1 = undefined;
+        else r2.player2 = undefined;
+      }
+    }
+
+    await tournament.save();
+    res.status(200).json({ success: true, data: category });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Update match result
 // @route   PUT /api/tournaments/:tournamentId/categories/:categoryId/matches/:matchId
 // @access  Private (Admin only)

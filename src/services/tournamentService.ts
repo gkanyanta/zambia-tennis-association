@@ -456,6 +456,27 @@ export const tournamentService = {
     return response.data;
   },
 
+  /**
+   * Update round-1 slots of an existing manual draw while preserving match
+   * _ids and any scores that are not touched. slots[] length must equal
+   * the draw's bracketSize. The backend refuses to modify a round-1 match
+   * that already has a recorded result.
+   */
+  async updateManualDrawSlots(
+    tournamentId: string,
+    categoryId: string,
+    slots: Array<{ id?: string; name?: string; seed?: number; isBye?: boolean }>
+  ): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/draw/manual/slots`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ slots }),
+      }
+    );
+    return response.data;
+  },
+
   // Match Results
   async updateMatchResult(
     tournamentId: string,

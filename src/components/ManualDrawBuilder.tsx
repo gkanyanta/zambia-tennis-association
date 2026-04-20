@@ -24,6 +24,10 @@ interface ManualDrawBuilderProps {
   category: TournamentCategory
   tournamentId: string
   categoryId: string
+  /** When true, the builder edits the existing draw's round-1 slots and
+   *  calls updateManualDrawSlots (preserves match _ids and scores).
+   *  When false, it creates a new draw via saveManualDraw. */
+  editMode?: boolean
   onSaved: () => Promise<void> | void
   onCancel: () => void
 }
@@ -143,6 +147,7 @@ export function ManualDrawBuilder({
   category,
   tournamentId,
   categoryId,
+  editMode = false,
   onSaved,
   onCancel,
 }: ManualDrawBuilderProps) {
@@ -151,14 +156,47 @@ export function ManualDrawBuilder({
     [category.entries]
   )
 
+  // Derive initial slots + bracket size from the existing draw when editing.
+  const derivedFromDraw = useMemo(() => {
+    if (!editMode || !category.draw || category.draw.type !== 'single_elimination') return null
+    const draw = category.draw as any
+    const size = (draw.bracketSize as BracketSize | undefined) ?? null
+    if (!size || !(BRACKET_SIZES as readonly number[]).includes(size)) return null
+
+    const round1: any[] = (draw.matches || [])
+      .filter((m: any) => m.round === 1)
+      .sort((a: any, b: any) => a.matchNumber - b.matchNumber)
+
+    const slots: Slot[] = Array.from({ length: size }, emptySlot)
+    const entryByPlayerId = new Map(acceptedEntries.map(e => [e.playerId, e] as const))
+
+    const playerToSlot = (p: any): Slot => {
+      if (!p || p.isBye) return { source: 'bye' }
+      const matchedEntry = p.id ? entryByPlayerId.get(p.id) : undefined
+      if (matchedEntry) return { source: 'entry', entryId: matchedEntry.id, seed: p.seed ?? matchedEntry.seed }
+      if (p.id && String(p.id).startsWith('walkin-')) return { source: 'walkin', walkinName: p.name || '', seed: p.seed }
+      // Fallback: treat as walk-in if we have a name but no matching entry
+      if (p.name) return { source: 'walkin', walkinName: p.name, seed: p.seed }
+      return { source: 'empty' }
+    }
+
+    round1.forEach((m, i) => {
+      slots[i * 2] = playerToSlot(m.player1)
+      slots[i * 2 + 1] = playerToSlot(m.player2)
+    })
+
+    return { size, slots }
+  }, [editMode, category.draw, acceptedEntries])
+
   const initialBracketSize: BracketSize = useMemo(() => {
+    if (derivedFromDraw) return derivedFromDraw.size as BracketSize
     const count = acceptedEntries.length || 8
     return (BRACKET_SIZES.find(s => s >= count) ?? 64) as BracketSize
-  }, [acceptedEntries.length])
+  }, [acceptedEntries.length, derivedFromDraw])
 
   const [bracketSize, setBracketSize] = useState<BracketSize>(initialBracketSize)
   const [slots, setSlots] = useState<Slot[]>(() =>
-    Array.from({ length: initialBracketSize }, emptySlot)
+    derivedFromDraw ? derivedFromDraw.slots : Array.from({ length: initialBracketSize }, emptySlot)
   )
   const [preview, setPreview] = useState<Draw | null>(null)
   const [saving, setSaving] = useState(false)
@@ -240,22 +278,40 @@ export function ManualDrawBuilder({
     setPreview(buildSingleEliminationDraw(slots, acceptedEntries))
   }
 
+  const slotsToPayload = () => {
+    // Project each slot into the wire format expected by updateManualDrawSlots.
+    // Walk-ins get a stable synthetic id; entries contribute their playerId.
+    return slots.map(s => {
+      const player = slotToPlayer(s, acceptedEntries)
+      return {
+        id: player.id,
+        name: player.name,
+        seed: player.seed,
+        isBye: player.isBye,
+      }
+    })
+  }
+
   const handleSave = async (confirmOverwrite = false) => {
     const err = validate()
     if (err) {
       setError(err)
       return
     }
-    const drawToSave = preview ?? buildSingleEliminationDraw(slots, acceptedEntries)
     setSaving(true)
     setError(null)
     try {
-      await tournamentService.saveManualDraw(tournamentId, categoryId, drawToSave, confirmOverwrite)
+      if (editMode) {
+        await tournamentService.updateManualDrawSlots(tournamentId, categoryId, slotsToPayload())
+      } else {
+        const drawToSave = preview ?? buildSingleEliminationDraw(slots, acceptedEntries)
+        await tournamentService.saveManualDraw(tournamentId, categoryId, drawToSave, confirmOverwrite)
+      }
       await onSaved()
     } catch (e: any) {
-      const msg: string = e?.message || 'Failed to save manual draw'
-      // Backend returns code DRAW_HAS_RESULTS when there's a scored draw to overwrite
-      if (/existing draw/i.test(msg) || /recorded results/i.test(msg)) {
+      const msg: string = e?.message || (editMode ? 'Failed to update draw slots' : 'Failed to save manual draw')
+      // saveManualDraw returns DRAW_HAS_RESULTS when an existing scored draw is present
+      if (!editMode && (/existing draw/i.test(msg) || /recorded results/i.test(msg))) {
         setRequiresOverwrite(true)
       }
       setError(msg)
@@ -333,13 +389,13 @@ export function ManualDrawBuilder({
         <Card className="border-primary">
           <CardHeader>
             <div className="flex justify-between items-center">
-              <CardTitle>Manual Draw Preview</CardTitle>
+              <CardTitle>{editMode ? 'Updated Round 1 — Preview' : 'Manual Draw Preview'}</CardTitle>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setPreview(null)}>
                   Back to edit
                 </Button>
                 <Button onClick={() => handleSave(requiresOverwrite)} disabled={saving}>
-                  {saving ? 'Saving…' : requiresOverwrite ? 'Confirm & overwrite existing draw' : 'Save manual draw'}
+                  {saving ? 'Saving…' : editMode ? 'Apply slot changes' : requiresOverwrite ? 'Confirm & overwrite existing draw' : 'Save manual draw'}
                 </Button>
               </div>
             </div>
@@ -348,8 +404,9 @@ export function ManualDrawBuilder({
             <Alert className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                Review the bracket carefully. Saving publishes this draw. Walk-in players are marked with a unique
-                synthetic id so live scoring and PDF export work the same as for registered players.
+                {editMode
+                  ? 'Only round-1 slots are updated. Any match that already has a recorded result will be refused by the server to protect your scores.'
+                  : 'Review the bracket carefully. Saving publishes this draw. Walk-in players are marked with a unique synthetic id so live scoring and PDF export work the same as for registered players.'}
               </AlertDescription>
             </Alert>
             {error && (
@@ -373,11 +430,12 @@ export function ManualDrawBuilder({
             <div>
               <CardTitle className="flex items-center gap-2">
                 <ClipboardEdit className="h-5 w-5" />
-                Enter Manual Draw
+                {editMode ? 'Edit manual draw slots' : 'Enter manual draw'}
               </CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Record a draw that was conducted offline. Pick a bracket size, then place each player in their slot.
-                Accepted entries appear in the dropdown; use "Walk-in" for any player who is not registered in the system.
+                {editMode
+                  ? 'Edit round-1 slots. Scores on any already-played match are preserved — the server will refuse to change a match that has a recorded result.'
+                  : 'Record a draw that was conducted offline. Pick a bracket size, then place each player in their slot. Accepted entries appear in the dropdown; use "Walk-in" for any player who is not registered in the system.'}
               </p>
             </div>
             <Button variant="outline" onClick={onCancel}>
@@ -394,19 +452,23 @@ export function ManualDrawBuilder({
                 size="sm"
                 variant={size === bracketSize ? 'default' : 'outline'}
                 onClick={() => changeBracketSize(size)}
+                disabled={editMode}
+                title={editMode ? 'Bracket size is fixed while editing an existing draw' : ''}
               >
                 {size}
               </Button>
             ))}
-            <div className="ml-auto flex gap-2">
-              <Button size="sm" variant="outline" onClick={autoFillFromEntries} disabled={acceptedEntries.length === 0}>
-                Auto-fill from entries
-              </Button>
-              <Button size="sm" variant="ghost" onClick={clearAll}>
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear
-              </Button>
-            </div>
+            {!editMode && (
+              <div className="ml-auto flex gap-2">
+                <Button size="sm" variant="outline" onClick={autoFillFromEntries} disabled={acceptedEntries.length === 0}>
+                  Auto-fill from entries
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearAll}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
@@ -438,7 +500,13 @@ export function ManualDrawBuilder({
               Preview bracket
             </Button>
             <Button variant="outline" onClick={() => handleSave(requiresOverwrite)} disabled={saving}>
-              {saving ? 'Saving…' : requiresOverwrite ? 'Confirm & overwrite existing draw' : 'Save without preview'}
+              {saving
+                ? 'Saving…'
+                : editMode
+                  ? 'Apply slot changes'
+                  : requiresOverwrite
+                    ? 'Confirm & overwrite existing draw'
+                    : 'Save without preview'}
             </Button>
           </div>
         </CardContent>
