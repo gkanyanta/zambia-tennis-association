@@ -52,17 +52,27 @@ router.get('/', async (req, res) => {
 
     const players = await query;
 
-    // Derive membership status from current-year subscription records
+    // Derive membership status from current-year subscription records.
+    // Prefer an active subscription if one exists — a single player can have
+    // multiple records for the year (e.g. a stale cancelled row plus a later
+    // active row from a successful bulk payment), and we must not let a
+    // non-active row mask the active one.
     const currentYear = new Date().getFullYear();
     const enriched = await Promise.all(players.map(async p => {
       const obj = p.toObject();
 
-      // Look up this year's subscription
-      const subscription = await MembershipSubscription.findOne({
-        entityId: p._id,
-        entityType: 'player',
-        year: currentYear
-      });
+      const subscription =
+        (await MembershipSubscription.findOne({
+          entityId: p._id,
+          entityType: 'player',
+          year: currentYear,
+          status: 'active'
+        })) ||
+        (await MembershipSubscription.findOne({
+          entityId: p._id,
+          entityType: 'player',
+          year: currentYear
+        }).sort({ createdAt: -1 }));
 
       if (subscription) {
         if (subscription.status === 'active') {
@@ -76,9 +86,20 @@ router.get('/', async (req, res) => {
           obj.hasActiveSubscription = false;
         }
       } else {
-        // No subscription record for current year
-        obj.membershipStatus = 'expired';
-        obj.hasActiveSubscription = false;
+        // No subscription record for current year. Fall back to the User
+        // record — registration-paid players (REG-* flow) historically only
+        // had their User.membershipStatus set without a subscription row.
+        const userActive =
+          p.membershipStatus === 'active' &&
+          p.membershipExpiry &&
+          new Date(p.membershipExpiry) >= new Date();
+        if (userActive) {
+          obj.membershipStatus = 'active';
+          obj.hasActiveSubscription = true;
+        } else {
+          obj.membershipStatus = 'expired';
+          obj.hasActiveSubscription = false;
+        }
       }
 
       return obj;

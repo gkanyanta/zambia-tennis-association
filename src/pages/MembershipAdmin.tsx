@@ -104,6 +104,7 @@ export function MembershipAdmin() {
   const [confirmingSub, setConfirmingSub] = useState<MembershipSubscription | null>(null)
   const [confirmPaymentMethod, setConfirmPaymentMethod] = useState('bank_transfer')
   const [confirmBankReference, setConfirmBankReference] = useState('')
+  const [confirmOverrideReason, setConfirmOverrideReason] = useState('')
   const [confirmingPayment, setConfirmingPayment] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [confirmSuccess, setConfirmSuccess] = useState<string | null>(null)
@@ -289,7 +290,13 @@ export function MembershipAdmin() {
       setConfirmingPayment(true)
       setConfirmError(null)
       setConfirmSuccess(null)
-      const result = await membershipService.confirmSubscription(confirmingSub._id, confirmPaymentMethod, confirmBankReference)
+      const isOverride = confirmingSub.status !== 'pending'
+      const result = await membershipService.confirmSubscription(
+        confirmingSub._id,
+        confirmPaymentMethod,
+        confirmBankReference,
+        isOverride ? confirmOverrideReason.trim() : undefined
+      )
       setConfirmSuccess(
         `Activated ${confirmingSub.entityName}${result.zpin ? ` (ZPIN: ${result.zpin})` : ''}. Receipt: ${result.transaction?.receiptNumber || 'N/A'}`
       )
@@ -656,7 +663,7 @@ export function MembershipAdmin() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-1">
-                                  {sub.status === 'pending' && (user?.role === 'admin' || user?.role === 'finance') && (
+                                  {sub.status !== 'active' && (user?.role === 'admin' || user?.role === 'finance') && (
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -665,13 +672,14 @@ export function MembershipAdmin() {
                                         setConfirmingSub(sub)
                                         setConfirmPaymentMethod('bank_transfer')
                                         setConfirmBankReference('')
+                                        setConfirmOverrideReason('')
                                         setConfirmError(null)
                                         setConfirmSuccess(null)
                                         setConfirmDialogOpen(true)
                                       }}
                                     >
                                       <CheckCircle2 className="h-4 w-4 mr-1" />
-                                      Confirm
+                                      {sub.status === 'pending' ? 'Confirm' : 'Activate'}
                                     </Button>
                                   )}
                                   {sub.receiptNumber && (
@@ -1008,12 +1016,22 @@ export function MembershipAdmin() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Confirm Payment
+              {confirmingSub && confirmingSub.status !== 'pending' ? 'Activate Subscription (Override)' : 'Confirm Payment'}
             </DialogTitle>
             <DialogDescription>
-              Activate the pending subscription for{' '}
-              <span className="font-semibold">{confirmingSub?.entityName}</span>
-              {' '}({confirmingSub?.membershipTypeName} — K{confirmingSub?.amount})
+              {confirmingSub && confirmingSub.status !== 'pending' ? (
+                <>
+                  Force-activate the <span className="font-semibold">{confirmingSub.status}</span> subscription for{' '}
+                  <span className="font-semibold">{confirmingSub?.entityName}</span>
+                  {' '}({confirmingSub?.membershipTypeName} — K{confirmingSub?.amount})
+                </>
+              ) : (
+                <>
+                  Activate the pending subscription for{' '}
+                  <span className="font-semibold">{confirmingSub?.entityName}</span>
+                  {' '}({confirmingSub?.membershipTypeName} — K{confirmingSub?.amount})
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -1045,7 +1063,9 @@ export function MembershipAdmin() {
 
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800 font-medium">
-                  Please verify that the payment has been received in the bank account before confirming.
+                  {confirmingSub && confirmingSub.status !== 'pending'
+                    ? `This subscription is currently "${confirmingSub.status}". Force-activating it bypasses the normal payment flow — only do this when you have verified the payment was received.`
+                    : 'Please verify that the payment has been received in the bank account before confirming.'}
                 </p>
               </div>
 
@@ -1077,13 +1097,33 @@ export function MembershipAdmin() {
                     </SelectContent>
                   </Select>
                 </div>
+                {confirmingSub && confirmingSub.status !== 'pending' && (
+                  <div>
+                    <Label>Override Reason <span className="text-destructive">*</span></Label>
+                    <Input
+                      placeholder="e.g. Payment received but webhook missed; activated manually"
+                      value={confirmOverrideReason}
+                      onChange={(e) => setConfirmOverrideReason(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Recorded against the subscription notes and stored with your admin user ID
+                    </p>
+                  </div>
+                )}
               </div>
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleConfirmPayment} disabled={confirmingPayment || !confirmBankReference.trim()}>
+                <Button
+                  onClick={handleConfirmPayment}
+                  disabled={
+                    confirmingPayment ||
+                    !confirmBankReference.trim() ||
+                    (confirmingSub?.status !== 'pending' && !confirmOverrideReason.trim())
+                  }
+                >
                   {confirmingPayment ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />

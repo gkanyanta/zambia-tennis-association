@@ -372,16 +372,23 @@ export const membershipService = {
   },
 
   /**
-   * Confirm/activate a pending subscription (admin)
+   * Confirm/activate a subscription (admin).
+   * For non-pending subscriptions (cancelled/expired) the backend requires
+   * an overrideReason so the admin override is auditable.
    */
-  async confirmSubscription(id: string, paymentMethod: string, bankReference: string): Promise<{
+  async confirmSubscription(
+    id: string,
+    paymentMethod: string,
+    bankReference: string,
+    overrideReason?: string
+  ): Promise<{
     subscription: MembershipSubscription;
     transaction: any;
     zpin?: string;
   }> {
     const response = await apiFetch(`/membership/subscriptions/${id}/confirm`, {
       method: 'PUT',
-      body: JSON.stringify({ paymentMethod, bankReference }),
+      body: JSON.stringify({ paymentMethod, bankReference, overrideReason }),
     });
     return response.data;
   },

@@ -1,6 +1,7 @@
 import PlayerRegistration from '../models/PlayerRegistration.js';
 import User from '../models/User.js';
 import MembershipType from '../models/MembershipType.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 import Transaction from '../models/Transaction.js';
 import { generateNextZPIN } from '../utils/generateZPIN.js';
 import { generateReceipt } from '../utils/generateReceipt.js';
@@ -569,6 +570,24 @@ export const approveRegistration = async (req, res) => {
     const age = calculateAge(registration.dateOfBirth);
     const membershipType = age < 18 ? 'junior' : 'adult';
 
+    // If paid, resolve the MembershipType up-front so we can fail fast
+    // (before creating User/registration state) if it's missing. A missing
+    // MembershipType was previously swallowed, leaving approved players with
+    // no subscription and making them invisible on Membership Management.
+    let paidMembershipType = null;
+    if (hasPaid) {
+      paidMembershipType =
+        (registration.membershipTypeCode &&
+          (await MembershipType.findOne({ code: registration.membershipTypeCode }))) ||
+        (await MembershipType.findOne({ code: membershipType === 'junior' ? 'zpin_junior' : 'zpin_senior' }));
+      if (!paidMembershipType) {
+        return res.status(500).json({
+          success: false,
+          message: `Cannot approve: MembershipType "${registration.membershipTypeCode || (membershipType === 'junior' ? 'zpin_junior' : 'zpin_senior')}" is not seeded. Run the membershipTypes seed and retry.`
+        });
+      }
+    }
+
     // Generate ZPIN
     const zpin = await generateNextZPIN(membershipType);
 
@@ -606,6 +625,54 @@ export const approveRegistration = async (req, res) => {
     registration.createdUserId = user._id;
     if (adminNotes) registration.adminNotes = adminNotes;
     await registration.save();
+
+    // If the player paid as part of registration, create a MembershipSubscription
+    // for the current year so the player listing (which derives status from
+    // subscriptions) shows them as active. Without this row, the registration
+    // payment lives only as a Transaction and the player surfaces as expired.
+    if (hasPaid) {
+      const currentYear = MembershipSubscription.getCurrentYear();
+      const existingSub = await MembershipSubscription.findOne({
+        entityId: user._id,
+        entityType: 'player',
+        year: currentYear,
+      });
+      if (!existingSub) {
+        // Find the registration's Transaction so we can carry forward the receipt
+        const regTxn = await Transaction.findOne({
+          $or: [
+            { reference: registration.paymentReference },
+            { relatedId: registration._id, relatedModel: 'PlayerRegistration' },
+          ],
+          status: 'completed',
+        }).sort({ createdAt: -1 });
+
+        const sub = new MembershipSubscription({
+          entityType: 'player',
+          entityId: user._id,
+          entityModel: 'User',
+          entityName: `${user.firstName} ${user.lastName}`,
+          membershipType: paidMembershipType._id,
+          membershipTypeName: registration.membershipTypeName || paidMembershipType.name,
+          membershipTypeCode: registration.membershipTypeCode || paidMembershipType.code,
+          year: currentYear,
+          startDate: registration.paymentDate || new Date(),
+          endDate: MembershipSubscription.getYearEndDate(currentYear),
+          amount: registration.paymentAmount || paidMembershipType.amount,
+          currency: paidMembershipType.currency || 'ZMW',
+          status: 'active',
+          paymentMethod: registration.paymentMethod || 'online',
+          paymentReference: registration.paymentReference || `REG-${registration.referenceNumber}`,
+          transactionId: regTxn?.transactionId || null,
+          paymentDate: registration.paymentDate || new Date(),
+          receiptNumber: regTxn?.receiptNumber || null,
+          zpin: user.zpin,
+          processedBy: req.user._id,
+          notes: `Auto-created from registration ${registration.referenceNumber} on approval`,
+        });
+        await sub.save();
+      }
+    }
 
     // Send confirmation email if email exists
     if (registration.email) {

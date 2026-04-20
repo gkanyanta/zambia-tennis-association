@@ -17,7 +17,7 @@ import sendEmail from '../utils/sendEmail.js';
 export const confirmSubscriptionPayment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { paymentMethod = 'other', bankReference } = req.body;
+    const { paymentMethod = 'other', bankReference, overrideReason } = req.body;
 
     if (!bankReference || !bankReference.trim()) {
       return res.status(400).json({
@@ -54,10 +54,13 @@ export const confirmSubscriptionPayment = async (req, res) => {
       });
     }
 
-    if (subscription.status !== 'pending') {
+    // Allow activation from any non-active status. For cancelled/expired
+    // subscriptions, require an overrideReason so the admin action is auditable.
+    const isOverride = subscription.status !== 'pending';
+    if (isOverride && (!overrideReason || !overrideReason.trim())) {
       return res.status(400).json({
         success: false,
-        message: `Cannot confirm subscription — status is "${subscription.status}"`
+        message: `Subscription is "${subscription.status}". A reason is required to activate it as an admin override.`
       });
     }
 
@@ -68,6 +71,11 @@ export const confirmSubscriptionPayment = async (req, res) => {
     // Store bank reference in transactionId — do NOT overwrite paymentReference
     // paymentReference is the canonical link to the Lenco payment
     subscription.transactionId = bankReference.trim();
+    if (isOverride) {
+      const stamp = `[${new Date().toISOString()}] Admin override (${req.user?.email || req.user?.id}): ${overrideReason.trim()}`;
+      subscription.notes = subscription.notes ? `${subscription.notes}\n${stamp}` : stamp;
+      subscription.processedBy = req.user?.id;
+    }
 
     // Update entity (player or club)
     let entityEmail;
