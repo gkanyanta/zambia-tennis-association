@@ -194,23 +194,46 @@ function renderTable(doc, columns, rows, startY, options = {}) {
     headerFontSize = 8,
     totalRow = null,
     colorFn = null,
+    // When true, long cell text wraps onto multiple lines and the row
+    // grows to fit. Minimum height remains `rowHeight`.
+    wrapText = false,
   } = options;
 
   let y = startY;
   const tableWidth = columns.reduce((s, c) => s + c.width, 0);
   const headerRowHeight = rowHeight + 2;
-  const textPadY = Math.round((rowHeight - fontSize) / 2);
+  const verticalPad = 4;
 
   // Header row
   drawTableHeader(doc, columns, y, tableWidth, headerBg, headerTextColor, headerFontSize, headerRowHeight);
   y += headerRowHeight;
 
+  // Compute the drawn height of a single row. For non-wrap tables this is
+  // always `rowHeight`; for wrap tables it grows with the tallest cell.
+  const measureRowHeight = (row) => {
+    if (!wrapText) return rowHeight;
+    doc.save();
+    doc.font('Helvetica').fontSize(fontSize);
+    let maxH = fontSize;
+    for (let j = 0; j < columns.length; j++) {
+      const col = columns[j];
+      const val = row[j] !== undefined ? row[j] : (col.key ? row[col.key] : '');
+      const textVal = String(val ?? '-');
+      const h = doc.heightOfString(textVal, { width: col.width - 8 });
+      if (h > maxH) maxH = h;
+    }
+    doc.restore();
+    return Math.max(rowHeight, Math.ceil(maxH) + verticalPad * 2);
+  };
+
   // Data rows
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    const thisRowHeight = measureRowHeight(row);
+    const textPadY = wrapText ? verticalPad : Math.round((thisRowHeight - fontSize) / 2);
 
     // Check if we need a new page
-    if (y + rowHeight > PAGE_HEIGHT - MARGIN - 20) {
+    if (y + thisRowHeight > PAGE_HEIGHT - MARGIN - 20) {
       doc.addPage({ size: 'A4', margin: MARGIN });
       y = MARGIN + 10;
       drawTableHeader(doc, columns, y, tableWidth, headerBg, headerTextColor, headerFontSize, headerRowHeight);
@@ -220,14 +243,14 @@ function renderTable(doc, columns, rows, startY, options = {}) {
     // Row background (alternating)
     if (i % 2 === 0) {
       doc.save();
-      doc.rect(MARGIN, y, tableWidth, rowHeight).fill(COLORS.lightBg);
+      doc.rect(MARGIN, y, tableWidth, thisRowHeight).fill(COLORS.lightBg);
       doc.restore();
     }
 
     // Row bottom border
     doc.save();
-    doc.moveTo(MARGIN, y + rowHeight)
-      .lineTo(MARGIN + tableWidth, y + rowHeight)
+    doc.moveTo(MARGIN, y + thisRowHeight)
+      .lineTo(MARGIN + tableWidth, y + thisRowHeight)
       .lineWidth(0.3)
       .strokeColor(COLORS.border)
       .stroke();
@@ -252,13 +275,13 @@ function renderTable(doc, columns, rows, startY, options = {}) {
       doc.text(textVal, colX + 4, y + textPadY, {
         width: col.width - 8,
         align: col.align || 'left',
-        lineBreak: false,
+        lineBreak: wrapText,
       });
       doc.restore();
 
       colX += col.width;
     }
-    y += rowHeight;
+    y += thisRowHeight;
   }
 
   // Total row
@@ -407,21 +430,22 @@ export const generateBudgetPDF = (tournament, financeData) => {
         { label: 'Notes', width: CONTENT_WIDTH - 360, align: 'left' },
       ];
 
-      // Build rows — income first, then expense
+      // Build rows — income first, then expense. Notes are not truncated;
+      // renderTable with wrapText grows each row to fit the longest cell.
       const allLines = [...incomeLines, ...expenseLines];
       const rows = allLines.map((line) => [
         line.type === 'income' ? 'Income' : 'Expense',
         categoryLabel(line.category),
         line.description || '-',
         formatCurrency(line.budgetedAmount),
-        (line.notes || '-').substring(0, 60) + ((line.notes || '').length > 60 ? '...' : ''),
+        line.notes || '-',
       ]);
 
       // Subtotals
       const incomeTotal = incomeLines.reduce((s, b) => s + b.budgetedAmount, 0);
       const expenseTotal = expenseLines.reduce((s, b) => s + b.budgetedAmount, 0);
 
-      y = renderTable(doc, columns, rows, y);
+      y = renderTable(doc, columns, rows, y, { wrapText: true });
       y += 5;
 
       // Summary section
