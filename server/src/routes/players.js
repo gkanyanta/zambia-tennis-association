@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
 import { protect, authorize } from '../middleware/auth.js';
@@ -7,6 +8,21 @@ import { generateNextZPIN } from '../utils/generateZPIN.js';
 import { getPlayerMatches, getHeadToHead } from '../controllers/playerStatsController.js';
 
 const router = express.Router();
+
+// Try to identify the caller from a Bearer token without requiring it, so
+// this public endpoint can keep serving anonymous users while granting
+// admins/staff unmasked fields.
+async function resolveOptionalCallerRole(req) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return null;
+  try {
+    const decoded = jwt.verify(header.slice(7), process.env.JWT_SECRET);
+    const caller = await User.findById(decoded.id).select('role').lean();
+    return caller?.role || null;
+  } catch {
+    return null;
+  }
+}
 
 // Stats routes — defined early so the :playerId segment does not collide
 // with literal paths like /next-zpin that share the same mount point.
@@ -20,6 +36,9 @@ router.get('/', async (req, res) => {
   try {
     const { club, clubId, search, page, limit: qLimit } = req.query;
     const currentYear = new Date().getFullYear();
+
+    const callerRole = await resolveOptionalCallerRole(req);
+    const isPrivilegedCaller = callerRole === 'admin' || callerRole === 'staff';
 
     // Include any user with an active player subscription for the current
     // year, not just those with role='player'. Staff/admin users who hold a
@@ -122,6 +141,10 @@ router.get('/', async (req, res) => {
           obj.membershipStatus = 'expired';
           obj.hasActiveSubscription = false;
         }
+      }
+
+      if (!isPrivilegedCaller && !obj.hasActiveSubscription) {
+        obj.zpin = null;
       }
 
       return obj;

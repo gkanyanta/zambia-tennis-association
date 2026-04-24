@@ -10,6 +10,7 @@ export interface User {
   club?: string;
   membershipType?: 'junior' | 'adult' | 'family' | null;
   membershipStatus?: 'active' | 'inactive' | 'expired' | 'pending' | null;
+  hasActiveSubscription?: boolean;
   membershipExpiry?: string;
   dateOfBirth?: string;
   gender?: 'male' | 'female';

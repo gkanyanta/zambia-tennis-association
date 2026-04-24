@@ -220,7 +220,11 @@ export function Players() {
                     {filteredPlayers.map((player) => (
                       <tr key={player._id} className="hover:bg-muted/50">
                         <td className="px-4 py-3">
-                          <span className="font-mono text-sm font-medium">{player.zpin || 'N/A'}</span>
+                          {player.hasActiveSubscription ? (
+                            <span className="font-mono text-sm font-medium">{player.zpin || 'N/A'}</span>
+                          ) : (
+                            <span className="font-mono text-sm italic text-muted-foreground">••••••••</span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <div>
@@ -285,7 +289,13 @@ export function Players() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-muted-foreground">ZPIN:</span>
-                    <p className="font-mono font-medium">{selectedPlayer.zpin || 'N/A'}</p>
+                    {selectedPlayer.hasActiveSubscription ? (
+                      <p className="font-mono font-medium">{selectedPlayer.zpin || 'N/A'}</p>
+                    ) : (
+                      <p className="font-mono font-medium italic text-muted-foreground">
+                        •••••••• (pay ZPIN to reveal)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground">Email:</span>
