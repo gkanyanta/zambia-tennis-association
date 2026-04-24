@@ -35,6 +35,7 @@ export interface HeadToHeadSummary {
 
 export interface PlayerMatchesResponse {
   playerId: string
+  hasActiveSubscription: boolean
   totalMatches: number
   wins: number
   losses: number
@@ -66,6 +67,9 @@ export interface HeadToHeadMatch {
 export interface HeadToHeadResponse {
   playerA: { id: string; name: string | null; zpin: string | null; club: string | null }
   playerB: { id: string; name: string | null; zpin: string | null; club: string | null }
+  hasActiveSubscription: boolean
+  playerAActive?: boolean
+  playerBActive?: boolean
   total: number
   aWins: number
   bWins: number

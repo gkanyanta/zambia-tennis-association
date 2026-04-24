@@ -1,6 +1,18 @@
 import Tournament from '../models/Tournament.js';
 import User from '../models/User.js';
+import MembershipSubscription from '../models/MembershipSubscription.js';
 import { iterDrawMatches } from '../utils/iterDrawMatches.js';
+
+const lockedPlayerMatchesResponse = (playerId) => ({
+  playerId,
+  hasActiveSubscription: false,
+  totalMatches: 0,
+  wins: 0,
+  losses: 0,
+  winPercentage: 0,
+  matches: [],
+  headToHead: [],
+});
 
 /**
  * Walk-in players (created via the manual draw feature) have synthetic ids
@@ -66,6 +78,14 @@ export const getPlayerMatches = async (req, res) => {
       return res.status(400).json({ success: false, message: 'A registered player id is required' });
     }
 
+    const hasActiveSubscription = await MembershipSubscription.hasActiveSubscription(playerId, 'player');
+    if (!hasActiveSubscription) {
+      return res.status(200).json({
+        success: true,
+        data: lockedPlayerMatchesResponse(playerId),
+      });
+    }
+
     const tournaments = await Tournament.find(
       {},
       'name startDate endDate categories'
@@ -122,6 +142,7 @@ export const getPlayerMatches = async (req, res) => {
       success: true,
       data: {
         playerId,
+        hasActiveSubscription: true,
         totalMatches: matches.length,
         wins,
         losses,
@@ -146,6 +167,41 @@ export const getHeadToHead = async (req, res) => {
     }
     if (isWalkinId(playerA) || isWalkinId(playerB)) {
       return res.status(400).json({ success: false, message: 'Walk-in players cannot be queried for head-to-head' });
+    }
+
+    const [aActive, bActive] = await Promise.all([
+      MembershipSubscription.hasActiveSubscription(playerA, 'player'),
+      MembershipSubscription.hasActiveSubscription(playerB, 'player'),
+    ]);
+    if (!aActive || !bActive) {
+      const users = await User.find(
+        { _id: { $in: [playerA, playerB] } },
+        'firstName lastName club'
+      ).lean();
+      const usersById = new Map(users.map((u) => [u._id.toString(), u]));
+      const lockedProfile = (id) => {
+        const u = usersById.get(String(id));
+        return {
+          id,
+          name: u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : null,
+          zpin: null,
+          club: u?.club || null,
+        };
+      };
+      return res.status(200).json({
+        success: true,
+        data: {
+          playerA: lockedProfile(playerA),
+          playerB: lockedProfile(playerB),
+          hasActiveSubscription: false,
+          playerAActive: aActive,
+          playerBActive: bActive,
+          total: 0,
+          aWins: 0,
+          bWins: 0,
+          matches: [],
+        },
+      });
     }
 
     const [tournaments, users] = await Promise.all([
@@ -208,6 +264,7 @@ export const getHeadToHead = async (req, res) => {
       data: {
         playerA: toProfile(playerA),
         playerB: toProfile(playerB),
+        hasActiveSubscription: true,
         total: matches.length,
         aWins,
         bWins,

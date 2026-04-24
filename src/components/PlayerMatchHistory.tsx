@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowLeft, AlertCircle, Trophy, Swords } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Trophy, Swords, Lock } from 'lucide-react'
 import {
   playerStatsService,
   type PlayerMatchesResponse,
@@ -78,6 +79,27 @@ export function PlayerMatchHistory({ playerId, playerName }: PlayerMatchHistoryP
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>{error}</AlertDescription>
       </Alert>
+    )
+  }
+
+  if (data && !data.hasActiveSubscription) {
+    return (
+      <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
+        <div className="flex justify-center">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+            <Lock className="h-6 w-6 text-muted-foreground" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <p className="font-semibold">Match history is locked</p>
+          <p className="text-sm text-muted-foreground">
+            {playerName}'s ZPIN is not active. Pay ZPIN to unlock match history, head-to-head, and win rate.
+          </p>
+        </div>
+        <Button asChild size="sm">
+          <Link to="/register-zpin">Pay ZPIN</Link>
+        </Button>
+      </div>
     )
   }
 
