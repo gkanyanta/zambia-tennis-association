@@ -378,8 +378,10 @@ export function ZPINPayment() {
                               <div className="min-w-0">
                                 <p className="font-medium truncate">{player.fullName}</p>
                                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                  {player.zpin && (
+                                  {player.zpin ? (
                                     <span className="font-mono">ZPIN: {player.zpin}</span>
+                                  ) : (
+                                    <span className="font-mono italic">ZPIN: •••••••• (pay to reveal)</span>
                                   )}
                                   {player.age !== null && (
                                     <span>Age: {player.age}</span>

@@ -307,12 +307,14 @@ export const searchPlayersForPayment = async (req, res) => {
         status: 'active'
       });
 
+      const hasActiveSubscription = !!activeSubscription;
+
       return {
         _id: player._id,
         firstName: player.firstName,
         lastName: player.lastName,
         fullName: `${player.firstName} ${player.lastName}`,
-        zpin: player.zpin,
+        zpin: hasActiveSubscription ? player.zpin : null,
         dateOfBirth: player.dateOfBirth,
         age,
         club: player.club,
@@ -324,7 +326,7 @@ export const searchPlayersForPayment = async (req, res) => {
           code: membershipType.code,
           amount: membershipType.amount
         } : null,
-        hasActiveSubscription: !!activeSubscription,
+        hasActiveSubscription,
         subscriptionExpiry: activeSubscription?.endDate || player.membershipExpiry
       };
     }));
