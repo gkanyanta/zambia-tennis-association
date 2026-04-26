@@ -475,12 +475,15 @@ export const initializeBulkPayment = async (req, res) => {
         });
       }
 
-      // Apply nationality override if provided
+      // Apply nationality override if provided. Use findByIdAndUpdate so we
+      // do not re-run full User validation on imported records that may be
+      // missing optional-but-conditionally-required fields (placeholder
+      // emails, guardian info, etc.).
       if (nationalityOverrides && nationalityOverrides.hasOwnProperty(playerId.toString())) {
         const isInternational = nationalityOverrides[playerId.toString()];
         if (player.isInternational !== isInternational) {
+          await User.findByIdAndUpdate(player._id, { isInternational }, { runValidators: false });
           player.isInternational = isInternational;
-          await player.save();
         }
       }
 
@@ -582,7 +585,7 @@ export const initializeBulkPayment = async (req, res) => {
     console.error('Initialize bulk payment error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to initialize bulk payment',
+      message: `Failed to initialize bulk payment: ${error.message}`,
       error: error.message
     });
   }
