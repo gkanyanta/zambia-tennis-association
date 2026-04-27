@@ -69,16 +69,26 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Search by name or ZPIN
+    // Search by name or ZPIN. Split on whitespace so a query like
+    // "Mwa Ban" requires "Mwa" AND "Ban" to each match somewhere across
+    // firstName / lastName / zpin (each token uses substring matching, so
+    // partial names like "Mwa" still hit "Mwape"). Single-token queries
+    // keep the simple substring behaviour.
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
-      conditions.push({
+      const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const tokens = String(search).trim().split(/\s+/).filter(Boolean);
+      const tokenClause = (tok) => ({
         $or: [
-          { firstName: searchRegex },
-          { lastName: searchRegex },
-          { zpin: searchRegex },
+          { firstName: { $regex: escapeRegex(tok), $options: 'i' } },
+          { lastName: { $regex: escapeRegex(tok), $options: 'i' } },
+          { zpin: { $regex: escapeRegex(tok), $options: 'i' } },
         ],
       });
+      if (tokens.length > 1) {
+        conditions.push({ $and: tokens.map(tokenClause) });
+      } else if (tokens.length === 1) {
+        conditions.push(tokenClause(tokens[0]));
+      }
     }
 
     const filter = conditions.length > 1 ? { $and: conditions } : conditions[0];
