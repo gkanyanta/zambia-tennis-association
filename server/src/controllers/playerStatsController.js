@@ -21,28 +21,52 @@ const lockedPlayerMatchesResponse = (playerId) => ({
  */
 const isWalkinId = (id) => typeof id === 'string' && id.startsWith('walkin-');
 
+const isDoublesFormat = (fmt) => fmt === 'doubles' || fmt === 'mixed_doubles';
+
+/**
+ * Build a lookup of playerId -> their partner for a category, derived from
+ * the entries collection (which is where partner pairing actually lives).
+ * Matches themselves only store one player per "side", so we have to join
+ * back to entries to render both names of a doubles pair.
+ */
+const buildPartnerMap = (category) => {
+  const map = new Map();
+  if (!isDoublesFormat(category?.format)) return map;
+  for (const entry of category.entries || []) {
+    const a = entry.playerId ? String(entry.playerId) : null;
+    const b = entry.partnerId ? String(entry.partnerId) : null;
+    if (a && b) {
+      if (!map.has(a)) map.set(a, { id: b, name: entry.partnerName || null });
+      if (!map.has(b)) map.set(b, { id: a, name: entry.playerName || null });
+    }
+  }
+  return map;
+};
+
 /**
  * Iterate every completed, player-identified match in a tournament.
- * Yields { category, match, stage } and relies on iterDrawMatches to
- * dedupe round-robin matches (which are stored in both draw.matches and
- * roundRobinGroups[].matches).
+ * Yields { category, match, stage, partnerMap } so doubles partners can be
+ * resolved at projection time.
  */
 function* iterCompletedMatches(tournament) {
   for (const category of tournament.categories || []) {
+    const partnerMap = buildPartnerMap(category);
     for (const { match, stage } of iterDrawMatches(category.draw)) {
       if (!match || match.status !== 'completed') continue;
       if (!match.winner || !match.player1?.id || !match.player2?.id) continue;
-      yield { category, match, stage };
+      yield { category, match, stage, partnerMap };
     }
   }
 }
 
 /** Project a raw match into the shape served to clients. */
-const projectMatch = (tournament, category, match, stage, playerId) => {
+const projectMatch = (tournament, category, match, stage, playerId, partnerMap) => {
   const isP1 = match.player1.id === playerId;
   const self = isP1 ? match.player1 : match.player2;
   const opponent = isP1 ? match.player2 : match.player1;
   const won = match.winner === playerId;
+  const selfPartner = partnerMap?.get(String(self.id)) || null;
+  const oppPartner = partnerMap?.get(String(opponent.id)) || null;
   return {
     tournamentId: tournament._id,
     tournamentName: tournament.name,
@@ -56,10 +80,14 @@ const projectMatch = (tournament, category, match, stage, playerId) => {
     roundName: match.roundName,
     stage,
     playerName: self.name,
+    partnerId: selfPartner?.id || null,
+    partnerName: selfPartner?.name || null,
     opponent: {
       id: opponent.id,
       name: opponent.name,
       isWalkin: isWalkinId(opponent.id),
+      partnerId: oppPartner?.id || null,
+      partnerName: oppPartner?.name || null,
     },
     score: match.score || '',
     won,
@@ -93,9 +121,9 @@ export const getPlayerMatches = async (req, res) => {
 
     const matches = [];
     for (const t of tournaments) {
-      for (const { category, match, stage } of iterCompletedMatches(t)) {
+      for (const { category, match, stage, partnerMap } of iterCompletedMatches(t)) {
         if (match.player1.id !== playerId && match.player2.id !== playerId) continue;
-        matches.push(projectMatch(t, category, match, stage, playerId));
+        matches.push(projectMatch(t, category, match, stage, playerId, partnerMap));
       }
     }
 
@@ -109,7 +137,8 @@ export const getPlayerMatches = async (req, res) => {
     const wins = matches.filter((m) => m.won).length;
     const losses = matches.length - wins;
 
-    // Per-opponent H2H summary
+    // Per-opponent H2H summary. Doubles partner of the most recent match
+    // is preserved on the summary so the UI can show the pair "X / Y".
     const byOpponent = new Map();
     for (const m of matches) {
       const key = m.opponent.id || `walkin::${m.opponent.name}`;
@@ -118,7 +147,9 @@ export const getPlayerMatches = async (req, res) => {
         rec = {
           opponentId: m.opponent.id,
           opponentName: m.opponent.name,
+          opponentPartnerName: m.opponent.partnerName || null,
           isWalkin: m.opponent.isWalkin,
+          isDoubles: isDoublesFormat(m.categoryFormat),
           played: 0,
           wins: 0,
           losses: 0,
@@ -132,6 +163,9 @@ export const getPlayerMatches = async (req, res) => {
       const d = m.completedTime || m.tournamentEnd;
       if (d && (!rec.lastPlayed || new Date(d) > new Date(rec.lastPlayed))) {
         rec.lastPlayed = d;
+        // Surface the partner from the most recent match against this opp
+        rec.opponentPartnerName = m.opponent.partnerName || null;
+        rec.isDoubles = isDoublesFormat(m.categoryFormat);
       }
     }
 
@@ -213,10 +247,12 @@ export const getHeadToHead = async (req, res) => {
 
     const matches = [];
     for (const t of tournaments) {
-      for (const { category, match, stage } of iterCompletedMatches(t)) {
+      for (const { category, match, stage, partnerMap } of iterCompletedMatches(t)) {
         const ids = [match.player1.id, match.player2.id];
         if (!ids.includes(playerA) || !ids.includes(playerB)) continue;
         const aIsP1 = match.player1.id === playerA;
+        const aPartner = partnerMap?.get(String(playerA)) || null;
+        const bPartner = partnerMap?.get(String(playerB)) || null;
         matches.push({
           tournamentId: t._id,
           tournamentName: t.name,
@@ -231,6 +267,8 @@ export const getHeadToHead = async (req, res) => {
           stage,
           playerAName: aIsP1 ? match.player1.name : match.player2.name,
           playerBName: aIsP1 ? match.player2.name : match.player1.name,
+          playerAPartnerName: aPartner?.name || null,
+          playerBPartnerName: bPartner?.name || null,
           score: match.score || '',
           winner: match.winner,
           aWon: match.winner === playerA,

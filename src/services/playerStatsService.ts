@@ -13,10 +13,14 @@ export interface MatchHistoryItem {
   roundName: string
   stage: string
   playerName: string
+  partnerId: string | null
+  partnerName: string | null
   opponent: {
     id: string
     name: string
     isWalkin: boolean
+    partnerId: string | null
+    partnerName: string | null
   }
   score: string
   won: boolean
@@ -26,7 +30,9 @@ export interface MatchHistoryItem {
 export interface HeadToHeadSummary {
   opponentId: string | null
   opponentName: string
+  opponentPartnerName: string | null
   isWalkin: boolean
+  isDoubles: boolean
   played: number
   wins: number
   losses: number
@@ -58,6 +64,8 @@ export interface HeadToHeadMatch {
   stage: string
   playerAName: string
   playerBName: string
+  playerAPartnerName: string | null
+  playerBPartnerName: string | null
   score: string
   winner: string
   aWon: boolean
