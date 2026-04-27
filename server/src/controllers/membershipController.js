@@ -271,14 +271,24 @@ export const searchPlayersForPayment = async (req, res) => {
       });
     }
 
-    // Build search query
+    // Split on whitespace so a query like "Mwape Banda" requires both tokens
+    // to match somewhere across firstName / lastName / zpin. A single-token
+    // query falls back to the original behaviour.
+    const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tokens = String(q).trim().split(/\s+/).filter(Boolean);
+    const tokenClause = (tok) => ({
+      $or: [
+        { firstName: { $regex: escapeRegex(tok), $options: 'i' } },
+        { lastName: { $regex: escapeRegex(tok), $options: 'i' } },
+        { zpin: { $regex: escapeRegex(tok), $options: 'i' } }
+      ]
+    });
+
     const searchQuery = {
       role: 'player',
-      $or: [
-        { firstName: { $regex: q, $options: 'i' } },
-        { lastName: { $regex: q, $options: 'i' } },
-        { zpin: { $regex: q, $options: 'i' } }
-      ]
+      ...(tokens.length > 1
+        ? { $and: tokens.map(tokenClause) }
+        : tokenClause(tokens[0]))
     };
 
     if (club) {
