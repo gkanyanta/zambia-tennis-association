@@ -29,6 +29,11 @@ import {
   Info
 } from 'lucide-react'
 import { membershipService, PlayerSearchResult } from '@/services/membershipService'
+import {
+  playerRegistrationService,
+  type DuplicateCheckResponse,
+  type DuplicateCheckUserMatch,
+} from '@/services/playerRegistrationService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
 import debounce from 'lodash/debounce'
 
@@ -71,6 +76,15 @@ export function ZPINPayment() {
   const [payerPhone, setPayerPhone] = useState('')
   const [payerRelation, setPayerRelation] = useState('')
 
+  // "Can't find your player?" submission flow
+  const [showSubmitForm, setShowSubmitForm] = useState(false)
+  const [submitFirstName, setSubmitFirstName] = useState('')
+  const [submitLastName, setSubmitLastName] = useState('')
+  const [submitDob, setSubmitDob] = useState('')
+  const [dupChecking, setDupChecking] = useState(false)
+  const [dupResult, setDupResult] = useState<DuplicateCheckResponse | null>(null)
+  const [dupError, setDupError] = useState<string | null>(null)
+
   const currentYear = new Date().getFullYear()
 
   // Debounced search function
@@ -103,6 +117,57 @@ export function ZPINPayment() {
       debouncedSearch.cancel()
     }
   }, [searchQuery, debouncedSearch])
+
+  // When the user re-engages the main search, hide the manual submit panel
+  // so they don't end up looking at stale duplicate-check results.
+  useEffect(() => {
+    if (searchQuery.length >= 2) {
+      setShowSubmitForm(false)
+      setDupResult(null)
+      setDupError(null)
+    }
+  }, [searchQuery])
+
+  const handleCheckDuplicate = async () => {
+    setDupError(null)
+    setDupResult(null)
+    if (!submitFirstName.trim() || !submitLastName.trim()) {
+      setDupError('Please enter both first and last name.')
+      return
+    }
+    try {
+      setDupChecking(true)
+      const result = await playerRegistrationService.checkDuplicate({
+        firstName: submitFirstName.trim(),
+        lastName: submitLastName.trim(),
+        dateOfBirth: submitDob || undefined,
+      })
+      setDupResult(result)
+    } catch (err: any) {
+      setDupError(err.message || 'Failed to check for existing records')
+    } finally {
+      setDupChecking(false)
+    }
+  }
+
+  const handleConfirmExistingPlayer = (match: DuplicateCheckUserMatch) => {
+    // Drop into the existing renewal basket flow — the duplicate-check
+    // response shape is compatible with PlayerSearchResult.
+    handleAddPlayer(match as unknown as PlayerSearchResult)
+    setShowSubmitForm(false)
+    setDupResult(null)
+    setSubmitFirstName('')
+    setSubmitLastName('')
+    setSubmitDob('')
+  }
+
+  const handleProceedAsNewPlayer = () => {
+    const params = new URLSearchParams()
+    if (submitFirstName.trim()) params.set('firstName', submitFirstName.trim())
+    if (submitLastName.trim()) params.set('lastName', submitLastName.trim())
+    if (submitDob) params.set('dateOfBirth', submitDob)
+    navigate(`/register-player?${params.toString()}`)
+  }
 
   // Auto-scroll to payer form when it becomes visible
   useEffect(() => {
@@ -422,11 +487,176 @@ export function ZPINPayment() {
                     </div>
                   )}
 
-                  {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+                  {searchQuery.length >= 2 && !searching && searchResults.length === 0 && !showSubmitForm && (
                     <div className="mt-4 text-center py-8 text-muted-foreground">
                       <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       <p>No players found matching "{searchQuery}"</p>
                       <p className="text-sm mt-1">Try a different name or ZPIN</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4"
+                        onClick={() => {
+                          setShowSubmitForm(true)
+                          setDupResult(null)
+                          setDupError(null)
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Submit player details
+                      </Button>
+                    </div>
+                  )}
+
+                  {showSubmitForm && (
+                    <div className="mt-4 border rounded-lg p-4 space-y-4 bg-muted/30">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">Can't find the player?</p>
+                          <p className="text-sm text-muted-foreground">
+                            Enter their details below. We'll check whether they're already in the system before creating a new registration.
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowSubmitForm(false)
+                            setDupResult(null)
+                            setDupError(null)
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <Label htmlFor="dup-first-name">First name *</Label>
+                          <Input
+                            id="dup-first-name"
+                            value={submitFirstName}
+                            onChange={(e) => setSubmitFirstName(e.target.value)}
+                            placeholder="e.g. Mwape"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="dup-last-name">Last name *</Label>
+                          <Input
+                            id="dup-last-name"
+                            value={submitLastName}
+                            onChange={(e) => setSubmitLastName(e.target.value)}
+                            placeholder="e.g. Banda"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="dup-dob">Date of birth (optional)</Label>
+                          <Input
+                            id="dup-dob"
+                            type="date"
+                            value={submitDob}
+                            onChange={(e) => setSubmitDob(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {dupError && (
+                        <div className="text-sm text-destructive flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4" />
+                          {dupError}
+                        </div>
+                      )}
+
+                      <Button onClick={handleCheckDuplicate} disabled={dupChecking}>
+                        {dupChecking ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Checking…
+                          </>
+                        ) : (
+                          'Check & continue'
+                        )}
+                      </Button>
+
+                      {dupResult && (
+                        <div className="space-y-3">
+                          {dupResult.registrationMatches.length > 0 && (
+                            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+                              <div className="flex items-start gap-2">
+                                <Info className="h-4 w-4 mt-0.5 text-amber-600 flex-shrink-0" />
+                                <div>
+                                  <p className="font-semibold text-amber-900">
+                                    A registration with this name is already in progress.
+                                  </p>
+                                  <ul className="mt-1 space-y-1 text-amber-900">
+                                    {dupResult.registrationMatches.map((r) => (
+                                      <li key={r.referenceNumber}>
+                                        <span className="font-mono">{r.referenceNumber}</span> — status: {r.status.replace('_', ' ')}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <p className="mt-1 text-amber-800">
+                                    Please wait for ZTA to process the existing registration before submitting again.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {dupResult.userMatches.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-sm font-semibold">
+                                We found {dupResult.userMatches.length === 1 ? 'a player' : 'players'} with this name. Is this who you're paying for?
+                              </p>
+                              <div className="border rounded-lg divide-y">
+                                {dupResult.userMatches.map((m) => (
+                                  <div key={m._id} className="p-3 flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="font-medium truncate">
+                                        {m.fullName}
+                                        {m.dobMatches === true && (
+                                          <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700">
+                                            DOB matches
+                                          </Badge>
+                                        )}
+                                      </p>
+                                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                        {m.age !== null && <span>Age: {m.age}</span>}
+                                        {m.club && <span>Club: {m.club}</span>}
+                                        {m.gender && <span className="capitalize">{m.gender}</span>}
+                                      </div>
+                                    </div>
+                                    <div className="flex-shrink-0">
+                                      {m.hasActiveSubscription ? (
+                                        <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                                          Already paid for {currentYear}
+                                        </Badge>
+                                      ) : (
+                                        <Button size="sm" onClick={() => handleConfirmExistingPlayer(m)}>
+                                          That's the player — pay renewal
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <Button variant="outline" size="sm" onClick={handleProceedAsNewPlayer}>
+                                None of these is the player — register as new
+                              </Button>
+                            </div>
+                          ) : dupResult.registrationMatches.length === 0 ? (
+                            <div className="rounded-md border bg-background p-3 text-sm space-y-2">
+                              <p>
+                                We didn't find any existing record. Continue to the full registration form to submit details and pay.
+                              </p>
+                              <Button size="sm" onClick={handleProceedAsNewPlayer}>
+                                Continue to registration
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>

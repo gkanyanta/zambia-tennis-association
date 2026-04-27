@@ -94,8 +94,51 @@ export interface RegistrationsListResponse {
   };
 }
 
+export interface DuplicateCheckUserMatch {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  zpin: string | null;
+  dateOfBirth: string | null;
+  age: number | null;
+  gender: 'male' | 'female' | null;
+  club: string | null;
+  isInternational: boolean;
+  membershipType: { _id: string; name: string; code: string; amount: number } | null;
+  hasActiveSubscription: boolean;
+  subscriptionExpiry: string | null;
+  dobMatches: boolean | null;
+}
+
+export interface DuplicateCheckRegistrationMatch {
+  referenceNumber: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  status: 'pending_payment' | 'pending_approval';
+  createdAt: string;
+}
+
+export interface DuplicateCheckResponse {
+  userMatches: DuplicateCheckUserMatch[];
+  registrationMatches: DuplicateCheckRegistrationMatch[];
+}
+
 export const playerRegistrationService = {
   // ===== Public endpoints =====
+
+  async checkDuplicate(input: {
+    firstName: string;
+    lastName: string;
+    dateOfBirth?: string;
+  }): Promise<DuplicateCheckResponse> {
+    const response = await apiFetch('/player-registration/check-duplicate', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return response.data;
+  },
 
   async submitRegistration(data: RegistrationSubmitData): Promise<{
     referenceNumber: string;

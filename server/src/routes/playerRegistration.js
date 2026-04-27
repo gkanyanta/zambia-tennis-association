@@ -6,6 +6,7 @@ import {
   verifyRegistrationPayment,
   getRegistrationByReference,
   initializePayLaterPayment,
+  checkDuplicate,
   getRegistrations,
   getRegistration,
   updateRegistration,
@@ -22,6 +23,7 @@ router.post('/submit-and-pay', submitAndPay);
 router.post('/verify-payment', verifyRegistrationPayment);
 router.get('/lookup/:referenceNumber', getRegistrationByReference);
 router.post('/pay-later', initializePayLaterPayment);
+router.post('/check-duplicate', checkDuplicate);
 
 // Admin routes
 router.get('/', protect, authorize('admin', 'staff'), getRegistrations);

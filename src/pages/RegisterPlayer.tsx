@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ type Step = 1 | 2 | 3
 
 export function RegisterPlayer() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState<Step>(1)
   const [clubs, setClubs] = useState<Club[]>([])
   const [clubSearch, setClubSearch] = useState('')
@@ -51,6 +52,21 @@ export function RegisterPlayer() {
   useEffect(() => {
     clubService.getClubs().then(setClubs).catch(() => {})
   }, [])
+
+  // Prefill from query params (e.g. when arriving from the ZPIN payment
+  // page's "no match found, register as new" hand-off).
+  useEffect(() => {
+    const firstName = searchParams.get('firstName')
+    const lastName = searchParams.get('lastName')
+    const dateOfBirth = searchParams.get('dateOfBirth')
+    if (!firstName && !lastName && !dateOfBirth) return
+    setFormData(prev => ({
+      ...prev,
+      firstName: firstName || prev.firstName,
+      lastName: lastName || prev.lastName,
+      dateOfBirth: dateOfBirth || prev.dateOfBirth,
+    }))
+  }, [searchParams])
 
   const age = useMemo(() => {
     if (!formData.dateOfBirth) return null

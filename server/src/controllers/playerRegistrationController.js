@@ -39,6 +39,129 @@ const generateReference = (prefix = 'REG') => {
 
 // ==================== PUBLIC ENDPOINTS ====================
 
+// Helper: build a case-insensitive exact-match regex anchored to start/end.
+// Escapes regex metacharacters in user-supplied names.
+const exactNameRegex = (name) => {
+  const escaped = String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped}$`, 'i');
+};
+
+const sameDay = (a, b) => {
+  if (!a || !b) return null;
+  const da = new Date(a);
+  const db = new Date(b);
+  if (isNaN(da.getTime()) || isNaN(db.getTime())) return null;
+  return (
+    da.getUTCFullYear() === db.getUTCFullYear() &&
+    da.getUTCMonth() === db.getUTCMonth() &&
+    da.getUTCDate() === db.getUTCDate()
+  );
+};
+
+// @desc    Look up existing player records that match a name (and optional DOB)
+//          before creating a new PlayerRegistration. Used by the public ZPIN
+//          payment search so an existing player is steered to renewal rather
+//          than a duplicate registration.
+// @route   POST /api/player-registration/check-duplicate
+// @access  Public
+export const checkDuplicate = async (req, res) => {
+  try {
+    const { firstName, lastName, dateOfBirth } = req.body;
+
+    if (!firstName || !lastName) {
+      return res.status(400).json({
+        success: false,
+        message: 'firstName and lastName are required'
+      });
+    }
+
+    const fnRegex = exactNameRegex(firstName);
+    const lnRegex = exactNameRegex(lastName);
+    const currentYear = MembershipSubscription.getCurrentYear();
+
+    // Existing User accounts (the renewal candidates).
+    const userMatches = await User.find({
+      firstName: fnRegex,
+      lastName: lnRegex,
+      role: 'player'
+    })
+      .select('firstName lastName zpin dateOfBirth gender club isInternational membershipStatus')
+      .lean();
+
+    // In-flight registrations awaiting payment or admin approval — don't let
+    // the same person submit twice.
+    const registrationMatches = await PlayerRegistration.find({
+      firstName: fnRegex,
+      lastName: lnRegex,
+      status: { $in: ['pending_payment', 'pending_approval'] }
+    })
+      .select('referenceNumber firstName lastName dateOfBirth status createdAt')
+      .lean();
+
+    // Enrich users with subscription state and membership type so the
+    // client can drop them straight into the existing bulk-payment basket.
+    const enriched = await Promise.all(userMatches.map(async (u) => {
+      const activeSub = await MembershipSubscription.findOne({
+        entityId: u._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'active'
+      }).lean();
+
+      const age = u.dateOfBirth
+        ? Math.floor((Date.now() - new Date(u.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+        : null;
+
+      const mt = age !== null
+        ? await determineMembershipType(age, u.isInternational)
+        : null;
+
+      // DOB match flag — strong tiebreaker when many people share a name.
+      const dobMatches = dateOfBirth ? sameDay(dateOfBirth, u.dateOfBirth) : null;
+
+      return {
+        _id: u._id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        fullName: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+        zpin: activeSub ? u.zpin : null,
+        dateOfBirth: u.dateOfBirth,
+        age,
+        gender: u.gender || null,
+        club: u.club || null,
+        isInternational: !!u.isInternational,
+        membershipType: mt
+          ? { _id: mt._id, name: mt.name, code: mt.code, amount: mt.amount }
+          : null,
+        hasActiveSubscription: !!activeSub,
+        subscriptionExpiry: activeSub?.endDate || null,
+        dobMatches
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        userMatches: enriched,
+        registrationMatches: registrationMatches.map((r) => ({
+          referenceNumber: r.referenceNumber,
+          firstName: r.firstName,
+          lastName: r.lastName,
+          dateOfBirth: r.dateOfBirth,
+          status: r.status,
+          createdAt: r.createdAt
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Check duplicate registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to check for duplicates'
+    });
+  }
+};
+
 // @desc    Submit registration (pay later)
 // @route   POST /api/player-registration/submit
 // @access  Public
