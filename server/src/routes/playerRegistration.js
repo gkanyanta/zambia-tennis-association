@@ -11,6 +11,7 @@ import {
   getRegistration,
   updateRegistration,
   approveRegistration,
+  approveRegistrationAsExisting,
   rejectRegistration,
   recordManualPaymentForRegistration
 } from '../controllers/playerRegistrationController.js';
@@ -30,6 +31,7 @@ router.get('/', protect, authorize('admin', 'staff'), getRegistrations);
 router.get('/:id', protect, authorize('admin', 'staff'), getRegistration);
 router.put('/:id', protect, authorize('admin', 'staff'), updateRegistration);
 router.post('/:id/approve', protect, authorize('admin'), approveRegistration);
+router.post('/:id/approve-as-existing', protect, authorize('admin'), approveRegistrationAsExisting);
 router.post('/:id/reject', protect, authorize('admin'), rejectRegistration);
 router.post('/:id/record-payment', protect, authorize('admin', 'staff'), recordManualPaymentForRegistration);
 

@@ -16,6 +16,8 @@ import { clubService, type Club } from '@/services/clubService'
 import {
   playerRegistrationService,
   type PlayerRegistration,
+  type PlayerRegistrationDetail,
+  type RegistrationNameMatch,
   type RegistrationsListResponse
 } from '@/services/playerRegistrationService'
 
@@ -61,6 +63,8 @@ export function PlayerManagement() {
   const [editAppData, setEditAppData] = useState<any>({})
   const [showApproveDialog, setShowApproveDialog] = useState<PlayerRegistration | null>(null)
   const [approveNotes, setApproveNotes] = useState('')
+  const [approveDetail, setApproveDetail] = useState<PlayerRegistrationDetail | null>(null)
+  const [approveDetailLoading, setApproveDetailLoading] = useState(false)
   const [showRejectDialog, setShowRejectDialog] = useState<PlayerRegistration | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [showPaymentDialog, setShowPaymentDialog] = useState<PlayerRegistration | null>(null)
@@ -72,6 +76,32 @@ export function PlayerManagement() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // When the approve dialog opens, fetch the full registration detail so we
+  // can show admin any existing players that share this name.
+  useEffect(() => {
+    if (!showApproveDialog) {
+      setApproveDetail(null)
+      return
+    }
+    let cancelled = false
+    setApproveDetailLoading(true)
+    setApproveDetail(null)
+    playerRegistrationService
+      .getRegistration(showApproveDialog._id)
+      .then((detail) => {
+        if (!cancelled) setApproveDetail(detail)
+      })
+      .catch((err) => {
+        console.error('Failed to load registration detail for approval:', err)
+      })
+      .finally(() => {
+        if (!cancelled) setApproveDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showApproveDialog])
 
   const fetchData = async () => {
     try {
@@ -450,10 +480,40 @@ export function PlayerManagement() {
       alert(`Approved! ZPIN: ${result.user.zpin}${statusNote}`)
       setShowApproveDialog(null)
       setApproveNotes('')
+      setApproveDetail(null)
       fetchApplications(appPage)
       fetchData() // Refresh players list
     } catch (err: any) {
       alert(err.message || 'Failed to approve')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleApproveAsExisting = async (match: RegistrationNameMatch) => {
+    if (!showApproveDialog) return
+    if (match.hasActiveSubscription) {
+      alert(`${match.fullName} already has an active subscription. Refund the registration payment instead of merging.`)
+      return
+    }
+    if (!confirm(`Approve this registration as a renewal for existing player ${match.fullName}${match.zpin ? ` (${match.zpin})` : ''}? No new ZPIN will be issued.`)) {
+      return
+    }
+    try {
+      setActionLoading(true)
+      const result = await playerRegistrationService.approveRegistrationAsExisting(
+        showApproveDialog._id,
+        match._id,
+        approveNotes || undefined,
+      )
+      alert(`Renewal recorded for ${result.user.firstName} ${result.user.lastName} (${result.user.zpin}).`)
+      setShowApproveDialog(null)
+      setApproveNotes('')
+      setApproveDetail(null)
+      fetchApplications(appPage)
+      fetchData()
+    } catch (err: any) {
+      alert(err.message || 'Failed to approve as existing player')
     } finally {
       setActionLoading(false)
     }
@@ -1356,7 +1416,7 @@ export function PlayerManagement() {
       {/* Approve Dialog */}
       {showApproveDialog && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowApproveDialog(null)}>
-          <Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-green-700">
                 <CheckCircle2 className="h-5 w-5" />
@@ -1366,7 +1426,7 @@ export function PlayerManagement() {
             <CardContent className="space-y-4">
               <p className="text-sm">
                 Approve <strong>{showApproveDialog.firstName} {showApproveDialog.lastName}</strong>'s registration?
-                This will create a new player with an assigned ZPIN.
+                Approving as new will create a fresh player with a new ZPIN.
               </p>
               {showApproveDialog.status === 'pending_payment' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
@@ -1377,6 +1437,68 @@ export function PlayerManagement() {
                   </p>
                 </div>
               )}
+
+              {approveDetailLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Checking for existing players with this name…
+                </div>
+              )}
+
+              {approveDetail?.nameMatches && approveDetail.nameMatches.length > 0 && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">
+                      Existing player{approveDetail.nameMatches.length > 1 ? 's' : ''} with the same name found
+                    </p>
+                    <p className="text-xs text-amber-800 mt-1">
+                      Review below before approving. If this registration is the same person, approve as renewal — no new ZPIN will be issued.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {approveDetail.nameMatches.map((m) => (
+                      <div key={m._id} className="rounded-md border bg-white p-2.5 flex items-start justify-between gap-3">
+                        <div className="min-w-0 text-sm">
+                          <div className="font-medium truncate flex items-center gap-2 flex-wrap">
+                            {m.fullName}
+                            {m.zpin && <span className="font-mono text-xs text-muted-foreground">{m.zpin}</span>}
+                            {m.dobMatches === true && (
+                              <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px]">DOB matches</Badge>
+                            )}
+                            {m.clubMatches && (
+                              <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-[10px]">Club matches</Badge>
+                            )}
+                            {m.hasActiveSubscription && (
+                              <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px]">Active</Badge>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mt-0.5">
+                            {m.age !== null && <span>Age {m.age}</span>}
+                            {m.gender && <span className="capitalize">{m.gender}</span>}
+                            {m.club && <span>{m.club}</span>}
+                            {m.isInternational && <span>International</span>}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {m.hasActiveSubscription ? (
+                            <span className="text-xs text-muted-foreground italic">Already paid for current year — refund instead</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleApproveAsExisting(m)}
+                              disabled={actionLoading}
+                            >
+                              Approve as this player
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <Label>Admin Notes (optional)</Label>
                 <textarea
@@ -1390,7 +1512,7 @@ export function PlayerManagement() {
                 <Button variant="outline" onClick={() => setShowApproveDialog(null)}>Cancel</Button>
                 <Button onClick={handleApprove} disabled={actionLoading} className="bg-green-600 hover:bg-green-700">
                   {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                  Approve
+                  Approve as new player
                 </Button>
               </div>
             </CardContent>

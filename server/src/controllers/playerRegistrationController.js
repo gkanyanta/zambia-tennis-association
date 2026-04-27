@@ -572,7 +572,8 @@ export const getRegistration = async (req, res) => {
   try {
     const registration = await PlayerRegistration.findById(req.params.id)
       .populate('reviewedBy', 'firstName lastName')
-      .populate('createdUserId', 'firstName lastName zpin');
+      .populate('createdUserId', 'firstName lastName zpin')
+      .populate('linkedToExistingUserId', 'firstName lastName zpin');
 
     if (!registration) {
       return res.status(404).json({
@@ -581,9 +582,57 @@ export const getRegistration = async (req, res) => {
       });
     }
 
+    // Find existing User accounts whose first+last name match this
+    // registration exactly (case-insensitive). The admin uses these to
+    // decide whether this is a duplicate of an existing player.
+    const fnRegex = exactNameRegex(registration.firstName);
+    const lnRegex = exactNameRegex(registration.lastName);
+    const candidates = await User.find({
+      firstName: fnRegex,
+      lastName: lnRegex,
+      role: 'player'
+    })
+      .select('firstName lastName zpin dateOfBirth gender club isInternational membershipStatus')
+      .lean();
+
+    const currentYear = MembershipSubscription.getCurrentYear();
+    const nameMatches = await Promise.all(candidates.map(async (u) => {
+      const activeSub = await MembershipSubscription.findOne({
+        entityId: u._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'active'
+      }).lean();
+      const age = u.dateOfBirth
+        ? Math.floor((Date.now() - new Date(u.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+        : null;
+      return {
+        _id: u._id,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        fullName: `${u.firstName || ''} ${u.lastName || ''}`.trim(),
+        zpin: u.zpin || null,
+        dateOfBirth: u.dateOfBirth,
+        age,
+        gender: u.gender || null,
+        club: u.club || null,
+        isInternational: !!u.isInternational,
+        membershipStatus: u.membershipStatus || null,
+        hasActiveSubscription: !!activeSub,
+        subscriptionExpiry: activeSub?.endDate || null,
+        dobMatches: registration.dateOfBirth ? sameDay(registration.dateOfBirth, u.dateOfBirth) : null,
+        clubMatches:
+          !!registration.club && !!u.club &&
+          registration.club.trim().toLowerCase() === u.club.trim().toLowerCase()
+      };
+    }));
+
+    const data = registration.toObject();
+    data.nameMatches = nameMatches;
+
     res.status(200).json({
       success: true,
-      data: registration
+      data
     });
   } catch (error) {
     console.error('Get registration error:', error);
@@ -850,6 +899,216 @@ export const approveRegistration = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to approve registration'
+    });
+  }
+};
+
+// @desc    Approve a registration as a renewal for an existing User instead
+//          of creating a new one. Used when admin recognises the registrant
+//          as an already-registered player to avoid duplicate accounts.
+// @route   POST /api/player-registration/:id/approve-as-existing
+// @access  Private (Admin)
+export const approveRegistrationAsExisting = async (req, res) => {
+  try {
+    const { existingUserId, adminNotes } = req.body;
+    if (!existingUserId) {
+      return res.status(400).json({ success: false, message: 'existingUserId is required' });
+    }
+
+    const registration = await PlayerRegistration.findById(req.params.id);
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Registration not found' });
+    }
+    if (registration.status === 'approved') {
+      return res.status(400).json({ success: false, message: 'Registration has already been approved' });
+    }
+    if (registration.status !== 'pending_approval' && registration.status !== 'pending_payment') {
+      return res.status(400).json({
+        success: false,
+        message: `Registration must be in pending_payment or pending_approval status. Current: ${registration.status}`
+      });
+    }
+
+    const existingUser = await User.findById(existingUserId);
+    if (!existingUser || existingUser.role !== 'player') {
+      return res.status(404).json({ success: false, message: 'Existing player not found' });
+    }
+
+    // Defence-in-depth: name must match the registration. Even though the
+    // admin selected this user, we reject if the names don't line up so
+    // that a stale UI or copy-paste error can't merge unrelated records.
+    const sameName =
+      (registration.firstName || '').trim().toLowerCase() === (existingUser.firstName || '').trim().toLowerCase() &&
+      (registration.lastName || '').trim().toLowerCase() === (existingUser.lastName || '').trim().toLowerCase();
+    if (!sameName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Existing player name does not match the registration. Use the regular approve flow if this is a different person.'
+      });
+    }
+
+    const hasPaid = registration.status === 'pending_approval' || !!registration.paymentDate;
+    if (!hasPaid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Registration payment is not yet recorded. Record the payment before merging into an existing player.'
+      });
+    }
+
+    const currentYear = MembershipSubscription.getCurrentYear();
+    const existingActive = await MembershipSubscription.findOne({
+      entityId: existingUser._id,
+      entityType: 'player',
+      year: currentYear,
+      status: 'active'
+    });
+    if (existingActive) {
+      return res.status(400).json({
+        success: false,
+        message: `${existingUser.firstName} ${existingUser.lastName} already has an active ${currentYear} subscription. Refund the registration payment instead of merging.`
+      });
+    }
+
+    // Resolve the membership type for the existing user (recompute from
+    // their age/nationality — the registration's stored type might reflect
+    // the registrant's claimed details, not the existing user's).
+    const age = calculateAge(existingUser.dateOfBirth);
+    const membershipType = await determineMembershipType(age, existingUser.isInternational);
+    const paidMembershipType = membershipType?._id
+      ? membershipType
+      : await MembershipType.findOne({ code: registration.membershipTypeCode });
+    if (!paidMembershipType?._id) {
+      return res.status(500).json({
+        success: false,
+        message: 'Cannot resolve a seeded MembershipType for this player. Run the membershipTypes seed and retry.'
+      });
+    }
+
+    // Carry the registration's transaction over so the receipt and audit
+    // trail stay linked.
+    const regTxn = await Transaction.findOne({
+      $or: [
+        { reference: registration.paymentReference },
+        { relatedId: registration._id, relatedModel: 'PlayerRegistration' },
+      ],
+      status: 'completed',
+    }).sort({ createdAt: -1 });
+
+    // Reuse any pending sub for this user/year if one exists; otherwise
+    // create a fresh active one.
+    let sub = await MembershipSubscription.findOne({
+      entityId: existingUser._id,
+      entityType: 'player',
+      year: currentYear,
+      status: { $in: ['pending', 'cancelled'] }
+    });
+    if (sub) {
+      sub.membershipType = paidMembershipType._id;
+      sub.membershipTypeName = paidMembershipType.name;
+      sub.membershipTypeCode = paidMembershipType.code;
+      sub.amount = registration.paymentAmount || paidMembershipType.amount;
+      sub.currency = paidMembershipType.currency || 'ZMW';
+      sub.status = 'active';
+      sub.paymentMethod = registration.paymentMethod || 'online';
+      sub.paymentReference = registration.paymentReference || `REG-${registration.referenceNumber}`;
+      sub.transactionId = regTxn?.transactionId || sub.transactionId || null;
+      sub.paymentDate = registration.paymentDate || new Date();
+      sub.receiptNumber = regTxn?.receiptNumber || sub.receiptNumber || null;
+      sub.zpin = existingUser.zpin;
+      sub.processedBy = req.user._id;
+      sub.notes = `Reconciled from registration ${registration.referenceNumber}`;
+      await sub.save();
+    } else {
+      sub = new MembershipSubscription({
+        entityType: 'player',
+        entityId: existingUser._id,
+        entityModel: 'User',
+        entityName: `${existingUser.firstName} ${existingUser.lastName}`,
+        membershipType: paidMembershipType._id,
+        membershipTypeName: paidMembershipType.name,
+        membershipTypeCode: paidMembershipType.code,
+        year: currentYear,
+        startDate: registration.paymentDate || new Date(),
+        endDate: MembershipSubscription.getYearEndDate(currentYear),
+        amount: registration.paymentAmount || paidMembershipType.amount,
+        currency: paidMembershipType.currency || 'ZMW',
+        status: 'active',
+        paymentMethod: registration.paymentMethod || 'online',
+        paymentReference: registration.paymentReference || `REG-${registration.referenceNumber}`,
+        transactionId: regTxn?.transactionId || null,
+        paymentDate: registration.paymentDate || new Date(),
+        receiptNumber: regTxn?.receiptNumber || null,
+        zpin: existingUser.zpin,
+        processedBy: req.user._id,
+        notes: `Reconciled from registration ${registration.referenceNumber}`,
+      });
+      await sub.save();
+    }
+
+    // Refresh the existing user's status fields without re-running full
+    // schema validation (imported records may be missing optional-but-
+    // conditionally-required fields).
+    await User.findByIdAndUpdate(
+      existingUser._id,
+      {
+        membershipStatus: 'active',
+        membershipExpiry: MembershipSubscription.getYearEndDate(currentYear),
+        lastPaymentDate: registration.paymentDate || new Date(),
+        lastPaymentAmount: registration.paymentAmount || paidMembershipType.amount,
+      },
+      { runValidators: false }
+    );
+
+    registration.status = 'approved';
+    registration.reviewedBy = req.user._id;
+    registration.reviewedAt = new Date();
+    registration.linkedToExistingUserId = existingUser._id;
+    const mergeNote = `Merged into existing player ${existingUser.firstName} ${existingUser.lastName}` +
+      `${existingUser.zpin ? ` (${existingUser.zpin})` : ''} by ${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() +
+      ` on ${new Date().toISOString().slice(0, 10)}`;
+    registration.adminNotes = adminNotes
+      ? `${adminNotes}\n${mergeNote}`
+      : mergeNote;
+    await registration.save();
+
+    if (registration.email) {
+      try {
+        await sendEmail({
+          email: registration.email,
+          subject: 'ZPIN Renewal Confirmed - Zambia Tennis Association',
+          html: `
+            <h2>ZPIN Renewal Confirmed</h2>
+            <p>Dear ${registration.firstName},</p>
+            <p>We've reconciled your registration with your existing ZTA player record.
+               Your ZPIN <strong>${existingUser.zpin}</strong> is now active for ${currentYear}.</p>
+            <p>You don't need to create a new account — keep using your existing ZPIN for tournaments and rankings.</p>
+            <p>Best regards,<br>Zambia Tennis Association</p>
+          `
+        });
+      } catch (emailError) {
+        console.error('Failed to send merge confirmation email:', emailError);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Registration approved as renewal for existing player',
+      data: {
+        registration,
+        user: {
+          _id: existingUser._id,
+          firstName: existingUser.firstName,
+          lastName: existingUser.lastName,
+          zpin: existingUser.zpin,
+        },
+        subscription: { _id: sub._id, status: sub.status, year: sub.year }
+      }
+    });
+  } catch (error) {
+    console.error('Approve as existing error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to approve registration as existing player'
     });
   }
 };

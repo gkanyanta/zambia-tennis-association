@@ -123,6 +123,14 @@ const playerRegistrationSchema = new mongoose.Schema({
   createdUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+
+  // When admin recognises the registrant as an existing player and
+  // approves the payment as a renewal, this points to the existing User
+  // record. createdUserId stays null because no new User was created.
+  linkedToExistingUserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   timestamps: true

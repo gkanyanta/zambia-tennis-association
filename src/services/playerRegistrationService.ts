@@ -120,6 +120,29 @@ export interface DuplicateCheckRegistrationMatch {
   createdAt: string;
 }
 
+export interface RegistrationNameMatch {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  zpin: string | null;
+  dateOfBirth: string | null;
+  age: number | null;
+  gender: 'male' | 'female' | null;
+  club: string | null;
+  isInternational: boolean;
+  membershipStatus: 'active' | 'inactive' | 'expired' | 'pending' | null;
+  hasActiveSubscription: boolean;
+  subscriptionExpiry: string | null;
+  dobMatches: boolean | null;
+  clubMatches: boolean;
+}
+
+export type PlayerRegistrationDetail = PlayerRegistration & {
+  nameMatches?: RegistrationNameMatch[];
+  linkedToExistingUserId?: { _id: string; firstName: string; lastName: string; zpin: string };
+};
+
 export interface DuplicateCheckResponse {
   userMatches: DuplicateCheckUserMatch[];
   registrationMatches: DuplicateCheckRegistrationMatch[];
@@ -200,7 +223,7 @@ export const playerRegistrationService = {
     return response.data;
   },
 
-  async getRegistration(id: string): Promise<PlayerRegistration> {
+  async getRegistration(id: string): Promise<PlayerRegistrationDetail> {
     const response = await apiFetch(`/player-registration/${id}`);
     return response.data;
   },
@@ -220,6 +243,18 @@ export const playerRegistrationService = {
     const response = await apiFetch(`/player-registration/${id}/approve`, {
       method: 'POST',
       body: JSON.stringify({ adminNotes }),
+    });
+    return response.data;
+  },
+
+  async approveRegistrationAsExisting(id: string, existingUserId: string, adminNotes?: string): Promise<{
+    registration: PlayerRegistration;
+    user: { _id: string; firstName: string; lastName: string; zpin: string };
+    subscription: { _id: string; status: string; year: number };
+  }> {
+    const response = await apiFetch(`/player-registration/${id}/approve-as-existing`, {
+      method: 'POST',
+      body: JSON.stringify({ existingUserId, adminNotes }),
     });
     return response.data;
   },
