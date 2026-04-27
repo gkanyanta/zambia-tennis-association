@@ -71,6 +71,13 @@ export const initializeLencoWidget = async (config: LencoWidgetConfig): Promise<
 
     console.log('Initializing Lenco widget with reference:', config.reference);
 
+    // Lenco card payments are disabled at the merchant level for now, so
+    // restrict the widget to mobile money regardless of what call sites
+    // pass. When cards come back online, lift this filter.
+    const requested = config.channels || ['mobile-money'];
+    const channels = requested.filter((c) => c !== 'card');
+    const safeChannels = channels.length > 0 ? channels : ['mobile-money'];
+
     // Initialize widget with configuration
     (window as any).LencoPay.getPaid({
       key: publicKey,
@@ -78,7 +85,7 @@ export const initializeLencoWidget = async (config: LencoWidgetConfig): Promise<
       email: config.email,
       amount: config.amount,
       currency: config.currency || 'ZMW',
-      channels: config.channels || ['card', 'mobile-money'],
+      channels: safeChannels,
       onSuccess: (response: { reference: string }) => {
         console.log('Payment successful:', response);
         config.onSuccess(response);

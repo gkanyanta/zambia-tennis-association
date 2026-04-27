@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { membershipService, MembershipType, SubscriptionStatus } from '@/services/membershipService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import { useAuth } from '@/context/AuthContext'
 
 const iconMap: Record<string, any> = {
@@ -289,6 +290,7 @@ export function MembershipPayment() {
                     <p className="text-sm text-muted-foreground">Total Amount</p>
                     <p className="text-2xl font-bold">K{selectedPlanData.amount}</p>
                   </div>
+                  <div className="md:col-span-3"><MobileMoneyOnlyNotice /></div>
                   <Button
                     size="lg"
                     onClick={handlePayment}

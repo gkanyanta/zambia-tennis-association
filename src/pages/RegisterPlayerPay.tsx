@@ -15,6 +15,7 @@ import {
   type RegistrationLookupResponse
 } from '@/services/playerRegistrationService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 
 export function RegisterPlayerPay() {
   const navigate = useNavigate()
@@ -201,6 +202,7 @@ export function RegisterPlayerPay() {
                       />
                     </div>
 
+                    <MobileMoneyOnlyNotice />
                     <Button
                       onClick={handlePay}
                       disabled={paying}

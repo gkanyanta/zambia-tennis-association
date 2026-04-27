@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Loader2, AlertCircle, CreditCard, Trophy, Search } from 'lucide-react'
 import { apiFetch } from '@/services/api'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 
 interface PayLaterEntry {
   entryId: string
@@ -323,6 +324,8 @@ export function PayLaterComplete() {
                 {error}
               </div>
             )}
+
+            <MobileMoneyOnlyNotice />
 
             <Button
               onClick={handlePayNow}

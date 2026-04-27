@@ -16,6 +16,7 @@ import {
 import { Heart, Users, Trophy, GraduationCap, Building2, Sparkles, CreditCard, Loader2 } from 'lucide-react'
 import { lencoPaymentService } from '@/services/lencoPaymentService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 
 const impactAreas = [
   {
@@ -333,6 +334,8 @@ export function Donate() {
                       Make this donation anonymous
                     </Label>
                   </div>
+
+                  <MobileMoneyOnlyNotice />
 
                   <div className="flex justify-center gap-4 pt-4">
                     <Button

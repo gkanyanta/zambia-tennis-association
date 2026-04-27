@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { membershipService, ClubSearchResult } from '@/services/membershipService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import debounce from 'lodash/debounce'
 
 export function ClubAffiliationPayment() {
@@ -600,7 +601,9 @@ export function ClubAffiliationPayment() {
 
           {/* Pay Button (shown only when payer form is visible) */}
           {showPayerForm && selectedType && (
-            <div className="flex justify-center">
+            <div className="space-y-4 max-w-xl mx-auto">
+              <MobileMoneyOnlyNotice />
+              <div className="flex justify-center">
               <Button
                 size="lg"
                 onClick={handlePayment}
@@ -619,6 +622,7 @@ export function ClubAffiliationPayment() {
                   </>
                 )}
               </Button>
+              </div>
             </div>
           )}
 

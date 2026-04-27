@@ -14,6 +14,7 @@ import { clubService, type Club } from '@/services/clubService'
 import { playerRegistrationService, type RegistrationSubmitData } from '@/services/playerRegistrationService'
 import { uploadDocument } from '@/services/api'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 
 type Step = 1 | 2 | 3
 
@@ -732,6 +733,7 @@ export function RegisterPlayer() {
 
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-3 pt-4 border-t">
+                  <MobileMoneyOnlyNotice />
                   <Button
                     onClick={handlePayNow}
                     disabled={loading}

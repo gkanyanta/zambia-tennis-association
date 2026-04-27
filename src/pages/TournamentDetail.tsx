@@ -25,6 +25,7 @@ import { tournamentService, Tournament } from '@/services/tournamentService'
 import { PublicOrderOfPlay } from '@/components/PublicOrderOfPlay'
 import { lencoPaymentService } from '@/services/lencoPaymentService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/AuthContext'
 import { apiFetch } from '@/services/api'
@@ -450,24 +451,27 @@ export function TournamentDetail() {
                                   </Button>
 
                                   {tournament.entryFee > 0 && (
-                                    <Button
-                                      className="w-full"
-                                      variant="outline"
-                                      onClick={handlePayEntryFee}
-                                      disabled={payingEntryFee}
-                                    >
-                                      {payingEntryFee ? (
-                                        <>
-                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                          Processing...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <CreditCard className="h-4 w-4 mr-2" />
-                                          Pay Entry Fee (K{zpinPaidUp === false ? Math.ceil(tournament.entryFee * 1.5) : tournament.entryFee})
-                                        </>
-                                      )}
-                                    </Button>
+                                    <>
+                                      <MobileMoneyOnlyNotice />
+                                      <Button
+                                        className="w-full"
+                                        variant="outline"
+                                        onClick={handlePayEntryFee}
+                                        disabled={payingEntryFee}
+                                      >
+                                        {payingEntryFee ? (
+                                          <>
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            Processing...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <CreditCard className="h-4 w-4 mr-2" />
+                                            Pay Entry Fee (K{zpinPaidUp === false ? Math.ceil(tournament.entryFee * 1.5) : tournament.entryFee})
+                                          </>
+                                        )}
+                                      </Button>
+                                    </>
                                   )}
 
                                   <p className="text-xs text-muted-foreground text-center">

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { coachService, type Coach, type PricingPlan } from '@/services/coachService'
 import { lencoPaymentService } from '@/services/lencoPaymentService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import { DollarSign, Calendar, CreditCard, Loader2, Wallet } from 'lucide-react'
 
 interface CoachListingPaymentFormProps {
@@ -247,6 +248,8 @@ export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachLis
             </Card>
           )}
 
+          <MobileMoneyOnlyNotice />
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onCancel} disabled={payingOnline}>
               Cancel
@@ -270,7 +273,7 @@ export function CoachListingPaymentForm({ coach, onSuccess, onCancel }: CoachLis
             </Button>
           </div>
           <p className="text-xs text-muted-foreground text-center">
-            Secure payment via Lenco - Supports cards and mobile money
+            Secure payment via Lenco
           </p>
         </div>
       )}

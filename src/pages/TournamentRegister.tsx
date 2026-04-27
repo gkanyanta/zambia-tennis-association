@@ -34,6 +34,7 @@ import { calculateTennisAge } from '@/types/tournament'
 import { membershipService, PlayerSearchResult } from '@/services/membershipService'
 import { clubService, Club } from '@/services/clubService'
 import { apiFetch } from '@/services/api'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
 import debounce from 'lodash/debounce'
 
@@ -1589,6 +1590,7 @@ export function TournamentRegister() {
 
                 {/* Payment Options */}
                 <div className="space-y-3">
+                  <MobileMoneyOnlyNotice />
                   <Button
                     onClick={() => handleSubmit(true)}
                     disabled={submitting}

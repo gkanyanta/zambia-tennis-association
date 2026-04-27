@@ -35,6 +35,7 @@ import {
   type DuplicateCheckUserMatch,
 } from '@/services/playerRegistrationService'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import debounce from 'lodash/debounce'
 
 const iconMap: Record<string, any> = {
@@ -882,7 +883,9 @@ export function ZPINPayment() {
 
           {/* Pay Button (shown only when payer form is visible) */}
           {showPayerForm && (
-            <div className="flex justify-center">
+            <div className="space-y-4 max-w-xl mx-auto">
+              <MobileMoneyOnlyNotice />
+              <div className="flex justify-center">
               <Button
                 size="lg"
                 onClick={handlePayment}
@@ -901,6 +904,7 @@ export function ZPINPayment() {
                   </>
                 )}
               </Button>
+              </div>
             </div>
           )}
 
@@ -911,10 +915,8 @@ export function ZPINPayment() {
             </p>
             <div className="flex items-center justify-center gap-4 text-muted-foreground flex-wrap">
               <span className="text-xs">Accepts:</span>
-              <Badge variant="outline">Visa/Mastercard</Badge>
               <Badge variant="outline">MTN Mobile Money</Badge>
               <Badge variant="outline">Airtel Money</Badge>
-              <Badge variant="outline">Zamtel Kwacha</Badge>
             </div>
           </div>
 
