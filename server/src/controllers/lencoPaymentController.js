@@ -51,7 +51,62 @@ const verifyLencoPayment = async (reference) => {
   }
 };
 
-// Helper function to create transaction record and send receipt (idempotent)
+// Pull the operator/mobile-money reference and other useful fields out of
+// a Lenco webhook payload (or verify-API response). Lenco field naming is
+// inconsistent across event types, so check several known shapes; the full
+// payload is also saved verbatim under metadata.lenco so we never lose data.
+const buildLencoMetadata = (lencoData) => {
+  if (!lencoData || typeof lencoData !== 'object') return {};
+  const mm = lencoData.mobileMoney || lencoData.mobile_money || {};
+  const bank = lencoData.bankPayment || lencoData.bank_payment || {};
+  const card = lencoData.card || {};
+  const operatorReference =
+    lencoData.operatorReference ||
+    lencoData.operator_reference ||
+    lencoData.mobileMoneyReference ||
+    lencoData.mobile_money_reference ||
+    lencoData.senderReference ||
+    lencoData.sender_reference ||
+    mm.reference ||
+    mm.operatorReference ||
+    mm.providerReference ||
+    bank.reference ||
+    null;
+  const channel =
+    lencoData.paymentChannel ||
+    lencoData.channel ||
+    lencoData.method ||
+    (mm && Object.keys(mm).length ? 'mobile-money' : null) ||
+    (bank && Object.keys(bank).length ? 'bank' : null) ||
+    (card && Object.keys(card).length ? 'card' : null) ||
+    null;
+  const payerMobile =
+    mm.phone || mm.mobileNumber || mm.msisdn ||
+    lencoData.customerPhone || lencoData.customer_phone ||
+    lencoData.payer?.phone || null;
+  const payerProvider = mm.operator || mm.provider || mm.network || null;
+  return {
+    lenco: lencoData,
+    mobileMoneyReference: operatorReference,
+    paymentChannel: channel,
+    payerMobileNumber: payerMobile,
+    payerMobileMoneyOperator: payerProvider,
+  };
+};
+
+const channelToPaymentMethod = (channel) => {
+  if (!channel) return null;
+  const c = String(channel).toLowerCase();
+  if (c.includes('mobile')) return 'mobile_money';
+  if (c.includes('bank')) return 'bank_transfer';
+  if (c.includes('card')) return 'card';
+  return null;
+};
+
+// Helper function to create transaction record and send receipt (idempotent).
+// Pass the raw Lenco webhook payload (or verify-API response) as
+// `transactionData.lencoData` so the mobile-money provider reference and
+// other channel fields get captured automatically.
 const createTransactionAndSendReceipt = async (transactionData) => {
   try {
     // Idempotency: check if a Transaction already exists for this reference
@@ -60,6 +115,9 @@ const createTransactionAndSendReceipt = async (transactionData) => {
       console.log(`Transaction already exists for reference ${transactionData.reference}: ${existing.receiptNumber}`);
       return existing;
     }
+
+    const lencoMeta = buildLencoMetadata(transactionData.lencoData);
+    const inferredMethod = channelToPaymentMethod(lencoMeta.paymentChannel);
 
     // Create transaction record
     const transaction = new Transaction({
@@ -70,13 +128,13 @@ const createTransactionAndSendReceipt = async (transactionData) => {
       currency: transactionData.currency || 'ZMW',
       payerName: transactionData.payerName,
       payerEmail: transactionData.payerEmail,
-      payerPhone: transactionData.payerPhone,
+      payerPhone: transactionData.payerPhone || lencoMeta.payerMobileNumber,
       status: 'completed',
       paymentGateway: transactionData.paymentGateway || 'lenco',
-      paymentMethod: transactionData.paymentMethod || 'card',
+      paymentMethod: transactionData.paymentMethod || inferredMethod || 'card',
       relatedId: transactionData.relatedId,
       relatedModel: transactionData.relatedModel,
-      metadata: transactionData.metadata || {},
+      metadata: { ...(transactionData.metadata || {}), ...lencoMeta },
       description: transactionData.description,
       paymentDate: transactionData.paymentDate || new Date()
     });
@@ -442,6 +500,7 @@ export const verifyPayment = async (req, res) => {
             txn = await createTransactionAndSendReceipt({
               reference,
               transactionId,
+              lencoData: lencoResponse.data,
               type: 'membership',
               amount: totalAmount,
               payerName: firstPending?.payer?.name || 'Top-Up Payer',
@@ -503,6 +562,7 @@ export const verifyPayment = async (req, res) => {
               existingTxn = await createTransactionAndSendReceipt({
                 reference,
                 transactionId,
+                lencoData: lencoResponse.data,
                 type: 'membership',
                 amount: totalAmount,
                 payerName: firstSub?.payer?.name || firstSub?.entityName || 'Bulk Payer',
@@ -602,6 +662,7 @@ export const verifyPayment = async (req, res) => {
           transaction = await createTransactionAndSendReceipt({
             reference,
             transactionId,
+            lencoData: lencoResponse.data,
             type: 'membership',
             amount: totalAmount,
             payerName: firstSub?.payer?.name || firstSub?.notes?.match(/payment by ([^(]+)\(/i)?.[1]?.trim() || 'Bulk Payer',
@@ -664,6 +725,7 @@ export const verifyPayment = async (req, res) => {
               existingTxn = await createTransactionAndSendReceipt({
                 reference,
                 transactionId,
+                lencoData: lencoResponse.data,
                 type: 'membership',
                 amount: amountPaid,
                 payerName: subscription.payer?.name || subscription.entityName,
@@ -759,6 +821,7 @@ export const verifyPayment = async (req, res) => {
           transaction = await createTransactionAndSendReceipt({
             reference,
             transactionId,
+            lencoData: lencoResponse.data,
             type: 'membership',
             amount: amountPaid,
             payerName: subscription.payer?.name || subscription.entityName,
@@ -926,6 +989,7 @@ export const verifyPayment = async (req, res) => {
       const transaction = await createTransactionAndSendReceipt({
         reference,
         transactionId,
+        lencoData: lencoResponse.data,
         type: 'membership',
         amount: amountPaid,
         payerName: subscription.entityName,
@@ -1001,6 +1065,7 @@ export const verifyPayment = async (req, res) => {
       const transaction = await createTransactionAndSendReceipt({
         reference,
         transactionId,
+        lencoData: lencoResponse.data,
         type: 'donation',
         amount: amountPaid,
         payerName: donation.donorName,
@@ -1086,6 +1151,7 @@ export const verifyPayment = async (req, res) => {
       const transaction = await createTransactionAndSendReceipt({
         reference,
         transactionId,
+        lencoData: lencoResponse.data,
         type: 'registration',
         amount: amountPaid,
         payerName: `${registration.firstName} ${registration.lastName}`,
@@ -1239,6 +1305,7 @@ export const handleWebhook = async (req, res) => {
                 await createTransactionAndSendReceipt({
                   reference,
                   transactionId: transaction_id,
+                  lencoData: data,
                   type: 'membership',
                   amount: totalAmount,
                   payerName: firstPending?.payer?.name || 'Top-Up Payer',
@@ -1280,6 +1347,7 @@ export const handleWebhook = async (req, res) => {
                 existingTxn = await createTransactionAndSendReceipt({
                   reference,
                   transactionId: transaction_id,
+                  lencoData: data,
                   type: 'membership',
                   amount: totalAmount,
                   payerName: firstSub?.payer?.name || firstSub?.entityName || 'Bulk Payer',
@@ -1352,6 +1420,7 @@ export const handleWebhook = async (req, res) => {
                 const txnRecord = await createTransactionAndSendReceipt({
                   reference,
                   transactionId: transaction_id,
+                  lencoData: data,
                   type: 'membership',
                   amount: totalAmount,
                   payerName: firstSub?.payer?.name || 'Bulk Payer',
@@ -1401,6 +1470,7 @@ export const handleWebhook = async (req, res) => {
                 existingTxn = await createTransactionAndSendReceipt({
                   reference,
                   transactionId: transaction_id,
+                  lencoData: data,
                   type: 'membership',
                   amount,
                   payerName: subscription.payer?.name || subscription.entityName,
@@ -1464,6 +1534,7 @@ export const handleWebhook = async (req, res) => {
               const transaction = await createTransactionAndSendReceipt({
                 reference,
                 transactionId: transaction_id,
+                lencoData: data,
                 type: 'membership',
                 amount,
                 payerName: subscription.payer?.name || subscription.entityName,
@@ -1519,6 +1590,7 @@ export const handleWebhook = async (req, res) => {
             const transaction = await createTransactionAndSendReceipt({
               reference,
               transactionId: transaction_id,
+              lencoData: data,
               type: 'membership',
               amount,
               payerName: subscription.payer?.name || subscription.entityName,
@@ -1557,6 +1629,7 @@ export const handleWebhook = async (req, res) => {
             await createTransactionAndSendReceipt({
               reference,
               transactionId: transaction_id,
+              lencoData: data,
               type: 'donation',
               amount,
               payerName: donation.donorName,
@@ -1593,6 +1666,7 @@ export const handleWebhook = async (req, res) => {
             await createTransactionAndSendReceipt({
               reference,
               transactionId: transaction_id,
+              lencoData: data,
               type: 'registration',
               amount,
               payerName: `${registration.firstName} ${registration.lastName}`,
