@@ -23,6 +23,7 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import axios from 'axios';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -34,6 +35,7 @@ import { connectDatabase } from '../config/database.js';
 import Transaction from '../models/Transaction.js';
 
 const APPLY = process.argv.includes('--apply');
+const ALLOW_SANDBOX = process.argv.includes('--allow-sandbox');
 const limitFlag = process.argv.indexOf('--limit');
 const LIMIT = limitFlag !== -1 ? parseInt(process.argv[limitFlag + 1], 10) || 0 : 0;
 const SLEEP_MS = 250;
@@ -43,6 +45,16 @@ const LENCO_API_KEY = process.env.LENCO_API_KEY;
 
 if (!LENCO_API_KEY) {
   console.error('LENCO_API_KEY not set — cannot call verify API');
+  process.exit(1);
+}
+
+const isSandbox = /sandbox/i.test(LENCO_BASE_URL);
+if (APPLY && isSandbox && !ALLOW_SANDBOX) {
+  console.error(
+    `Refusing to run --apply against a sandbox endpoint (${LENCO_BASE_URL}).\n` +
+    `Switch LENCO_BASE_URL + LENCO_API_KEY in server/.env to your production\n` +
+    `Lenco credentials, or pass --allow-sandbox if you really mean it.`
+  );
   process.exit(1);
 }
 
@@ -132,6 +144,17 @@ const run = async () => {
     console.log('Nothing to do.');
     await mongoose.disconnect();
     return;
+  }
+
+  // Snapshot every candidate before any writes so a manual restore is
+  // possible if anything in this run turns out wrong.
+  if (APPLY) {
+    const snapshotDir = path.resolve(__dirname, '../../backfill-snapshots');
+    fs.mkdirSync(snapshotDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const snapshotPath = path.join(snapshotDir, `transactions-pre-lenco-backfill-${stamp}.json`);
+    fs.writeFileSync(snapshotPath, JSON.stringify(candidates, null, 2));
+    console.log(`Snapshot of ${candidates.length} candidate(s) written to:\n  ${snapshotPath}\n`);
   }
 
   let updated = 0;
