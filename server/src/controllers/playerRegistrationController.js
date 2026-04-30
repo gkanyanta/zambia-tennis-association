@@ -16,13 +16,19 @@ const calculateAge = (dob) => {
   return Math.floor((today.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 };
 
-// Helper: determine membership type from age + international
-const determineMembershipType = async (age, isInternational) => {
+// Helper: determine membership type from age + international + senior-
+// eligibility opt-in for juniors. International rate is flat K500; juniors
+// who want to enter senior-category tournaments pay K250 (zpin_junior_senior).
+const determineMembershipType = async (age, isInternational, wantsSeniorEligibility = false) => {
   if (isInternational) {
     const mt = await MembershipType.findOne({ code: 'zpin_international', isActive: true });
     return mt || { code: 'zpin_international', name: 'International ZPIN', amount: 500 };
   }
   if (age < 18) {
+    if (wantsSeniorEligibility) {
+      const upgraded = await MembershipType.findOne({ code: 'zpin_junior_senior', isActive: true });
+      if (upgraded) return upgraded;
+    }
     const mt = await MembershipType.findOne({ code: 'zpin_junior', isActive: true });
     return mt || { code: 'zpin_junior', name: 'Junior ZPIN', amount: 100 };
   }
@@ -170,7 +176,7 @@ export const submitRegistration = async (req, res) => {
     const {
       firstName, lastName, dateOfBirth, gender, phone, email, club,
       isInternational, parentGuardianName, parentGuardianPhone,
-      parentGuardianEmail, proofOfAgeDocument
+      parentGuardianEmail, proofOfAgeDocument, wantsSeniorEligibility
     } = req.body;
 
     // Validate required fields
@@ -200,7 +206,7 @@ export const submitRegistration = async (req, res) => {
     }
 
     // Determine membership type and amount
-    const membershipType = await determineMembershipType(age, isInternational);
+    const membershipType = await determineMembershipType(age, isInternational, !!wantsSeniorEligibility);
 
     const registration = new PlayerRegistration({
       firstName,
@@ -251,7 +257,7 @@ export const submitAndPay = async (req, res) => {
     const {
       firstName, lastName, dateOfBirth, gender, phone, email, club,
       isInternational, parentGuardianName, parentGuardianPhone,
-      parentGuardianEmail, proofOfAgeDocument
+      parentGuardianEmail, proofOfAgeDocument, wantsSeniorEligibility
     } = req.body;
 
     // Validate required fields
@@ -288,7 +294,7 @@ export const submitAndPay = async (req, res) => {
     }
 
     // Determine membership type and amount
-    const membershipType = await determineMembershipType(age, isInternational);
+    const membershipType = await determineMembershipType(age, isInternational, !!wantsSeniorEligibility);
 
     // Generate payment reference
     const paymentReference = generateReference('REG');

@@ -393,6 +393,83 @@ export const verifyPayment = async (req, res) => {
 
     // Handle membership payment (new subscription system or legacy)
     if (referencePrefix === 'MEM') {
+      // Senior-eligibility top-up: applies a per-player upgrade against an
+      // existing junior subscription rather than activating a new sub.
+      if (reference.includes('-TOPUP-')) {
+        const pendingTopUps = await MembershipSubscription.find({
+          paymentReference: reference,
+          membershipTypeCode: 'zpin_junior_senior'
+        });
+        if (pendingTopUps.length === 0) {
+          return res.status(404).json({ success: false, message: 'No top-ups found for this reference' });
+        }
+
+        const upgraded = [];
+        let totalAmount = 0;
+        for (const pending of pendingTopUps) {
+          if (pending.status === 'cancelled') continue;
+          const juniorSub = pending.previousSubscription
+            ? await MembershipSubscription.findById(pending.previousSubscription)
+            : null;
+          if (juniorSub && juniorSub.membershipTypeCode === 'zpin_junior') {
+            juniorSub.membershipType = pending.membershipType;
+            juniorSub.membershipTypeName = pending.membershipTypeName;
+            juniorSub.membershipTypeCode = pending.membershipTypeCode;
+            juniorSub.amount = (juniorSub.amount || 0) + pending.amount;
+            juniorSub.notes = (juniorSub.notes || '') + ` | Upgraded to senior-eligible via top-up ${reference} on ${new Date().toISOString().slice(0, 10)}`;
+            await juniorSub.save();
+            await User.findByIdAndUpdate(juniorSub.entityId, {
+              membershipType: 'junior',
+              membershipStatus: 'active'
+            }, { runValidators: false });
+          }
+          pending.status = 'cancelled';
+          pending.transactionId = transactionId;
+          pending.paymentDate = new Date();
+          pending.paymentMethod = 'online';
+          pending.notes = (pending.notes || '') + ` | Applied to junior sub ${juniorSub?._id || '(missing)'}`;
+          await pending.save();
+          if (juniorSub) {
+            upgraded.push({ playerId: juniorSub.entityId, playerName: juniorSub.entityName, subscriptionId: juniorSub._id });
+            totalAmount += pending.amount;
+          }
+        }
+
+        let txn = await Transaction.findOne({ reference });
+        if (!txn && upgraded.length > 0) {
+          const firstPending = pendingTopUps[0];
+          try {
+            txn = await createTransactionAndSendReceipt({
+              reference,
+              transactionId,
+              type: 'membership',
+              amount: totalAmount,
+              payerName: firstPending?.payer?.name || 'Top-Up Payer',
+              payerEmail: firstPending?.payer?.email || null,
+              relatedId: firstPending?._id,
+              relatedModel: 'MembershipSubscription',
+              description: `Senior-eligibility top-up - ${upgraded.length} player(s)`,
+              metadata: { topUp: true, playerCount: upgraded.length, players: upgraded }
+            });
+          } catch (txnErr) {
+            console.error('verifyPayment: Failed to create top-up transaction:', txnErr);
+          }
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: `Senior-eligibility top-up applied for ${upgraded.length} player(s).`,
+          data: {
+            reference,
+            transactionId,
+            amount: totalAmount,
+            type: 'topup',
+            players: upgraded,
+            receiptNumber: txn?.receiptNumber || null,
+          }
+        });
+      }
+
       // Check if this is a bulk payment (MEM-BULK-*)
       const isBulkPayment = reference.includes('-BULK-');
 
@@ -1097,8 +1174,91 @@ export const handleWebhook = async (req, res) => {
 
       if (referencePrefix === 'MEM') {
         const isBulkPayment = reference.includes('-BULK-');
+        const isTopUp = reference.includes('-TOPUP-');
 
-        if (isBulkPayment) {
+        if (isTopUp) {
+          // Senior-eligibility top-up: each pending sub linked to an
+          // existing junior sub via `previousSubscription`. We upgrade the
+          // junior in place and discard the pending sub once applied.
+          const pendingTopUps = await MembershipSubscription.find({
+            paymentReference: reference,
+            membershipTypeCode: 'zpin_junior_senior'
+          });
+
+          if (!pendingTopUps.length) {
+            console.log(`Webhook: No pending top-ups found for reference ${reference}`);
+          } else {
+            const upgraded = [];
+            let totalAmount = 0;
+            for (const pending of pendingTopUps) {
+              if (pending.status !== 'pending') continue;
+              const juniorSub = pending.previousSubscription
+                ? await MembershipSubscription.findById(pending.previousSubscription)
+                : null;
+              if (!juniorSub || juniorSub.membershipTypeCode !== 'zpin_junior') {
+                console.warn(`Webhook: previousSubscription missing or not junior for top-up ${pending._id}`);
+                pending.status = 'cancelled';
+                pending.notes = (pending.notes || '') + ` | Top-up could not be applied: junior subscription not found`;
+                await pending.save();
+                continue;
+              }
+              // Upgrade the existing junior sub in place
+              juniorSub.membershipType = pending.membershipType;
+              juniorSub.membershipTypeName = pending.membershipTypeName;
+              juniorSub.membershipTypeCode = pending.membershipTypeCode;
+              juniorSub.amount = (juniorSub.amount || 0) + pending.amount;
+              juniorSub.notes = (juniorSub.notes || '') + ` | Upgraded to senior-eligible via top-up ${reference} on ${new Date().toISOString().slice(0, 10)}`;
+              await juniorSub.save();
+
+              // Sync the player User record
+              await User.findByIdAndUpdate(
+                juniorSub.entityId,
+                { membershipType: 'junior', membershipStatus: 'active' },
+                { runValidators: false }
+              );
+
+              // Mark the pending top-up as applied (cancelled = consumed)
+              pending.status = 'cancelled';
+              pending.transactionId = transaction_id;
+              pending.paymentDate = new Date();
+              pending.paymentMethod = 'online';
+              pending.notes = (pending.notes || '') + ` | Applied to junior sub ${juniorSub._id}`;
+              await pending.save();
+
+              upgraded.push({
+                playerId: juniorSub.entityId,
+                playerName: juniorSub.entityName,
+                subscriptionId: juniorSub._id,
+              });
+              totalAmount += pending.amount;
+            }
+
+            if (upgraded.length > 0) {
+              const firstPending = pendingTopUps[0];
+              try {
+                await createTransactionAndSendReceipt({
+                  reference,
+                  transactionId: transaction_id,
+                  type: 'membership',
+                  amount: totalAmount,
+                  payerName: firstPending?.payer?.name || 'Top-Up Payer',
+                  payerEmail: firstPending?.payer?.email || null,
+                  relatedId: firstPending?._id,
+                  relatedModel: 'MembershipSubscription',
+                  description: `Senior-eligibility top-up - ${upgraded.length} player(s)`,
+                  metadata: {
+                    topUp: true,
+                    playerCount: upgraded.length,
+                    players: upgraded
+                  }
+                });
+              } catch (txnErr) {
+                console.error('Webhook: Failed to create top-up transaction:', txnErr);
+              }
+            }
+            console.log(`Webhook: Applied ${upgraded.length} top-up(s) for ${reference}`);
+          }
+        } else if (isBulkPayment) {
           // Bulk membership payment
           const subscriptions = await MembershipSubscription.find({ paymentReference: reference });
 

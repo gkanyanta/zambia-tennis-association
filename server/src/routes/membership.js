@@ -16,6 +16,7 @@ import {
   searchPlayersForPayment,
   getPlayerPaymentDetails,
   initializeBulkPayment,
+  initializeSeniorTopUp,
   verifyBulkPayment,
   searchClubsForPayment,
   initializePublicClubPayment,
@@ -53,6 +54,9 @@ router.post('/bulk-payment/initialize', initializeBulkPayment);
 
 // Verify bulk ZPIN payment (public)
 router.post('/bulk-payment/verify', verifyBulkPayment);
+
+// Initialize senior-eligibility top-up for one or more juniors (public)
+router.post('/top-up/initialize', initializeSeniorTopUp);
 
 // ============================================
 // PUBLIC CLUB SEARCH & AFFILIATION PAYMENT

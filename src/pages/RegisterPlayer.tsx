@@ -41,6 +41,7 @@ export function RegisterPlayer() {
     email: '',
     club: '',
     isInternational: false,
+    wantsSeniorEligibility: false,
     parentGuardianName: '',
     parentGuardianPhone: '',
     parentGuardianEmail: '',
@@ -82,8 +83,11 @@ export function RegisterPlayer() {
   const membershipLabel = useMemo(() => {
     if (formData.isInternational) return 'International ZPIN (K500)'
     if (age === null) return ''
-    return age < 18 ? 'Junior ZPIN (K100)' : 'Senior ZPIN (K250)'
-  }, [age, formData.isInternational])
+    if (age < 18) return formData.wantsSeniorEligibility
+      ? 'Junior ZPIN — Senior Eligible (K250)'
+      : 'Junior ZPIN (K100)'
+    return 'Senior ZPIN (K250)'
+  }, [age, formData.isInternational, formData.wantsSeniorEligibility])
 
   const filteredClubs = useMemo(() => {
     if (!clubSearch) return clubs
@@ -189,6 +193,8 @@ export function RegisterPlayer() {
       email: formData.email?.trim() || undefined,
       club: formData.club || undefined,
       isInternational: formData.isInternational || false,
+      wantsSeniorEligibility:
+        !formData.isInternational && isJunior ? !!formData.wantsSeniorEligibility : false,
     }
     if (isJunior) {
       data.parentGuardianName = formData.parentGuardianName
@@ -510,6 +516,25 @@ export function RegisterPlayer() {
                         </div>
                       </label>
                     </div>
+
+                    {!formData.isInternational && isJunior && (
+                      <label className="mt-3 flex items-start gap-2 p-3 rounded-lg border-2 border-muted hover:border-muted-foreground/30 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formData.wantsSeniorEligibility}
+                          onChange={(e) => updateField('wantsSeniorEligibility', e.target.checked)}
+                          className="h-4 w-4 mt-0.5"
+                        />
+                        <div>
+                          <p className="font-medium text-sm">
+                            This player will participate in senior-category tournaments
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Junior ZPIN with senior eligibility — K250 (instead of K100). Required for any junior who plans to play in senior categories.
+                          </p>
+                        </div>
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -725,7 +750,11 @@ export function RegisterPlayer() {
                         <p className="text-sm text-muted-foreground">Annual ZPIN Registration</p>
                       </div>
                       <p className="text-2xl font-bold text-primary">
-                        K{formData.isInternational ? '500' : (age !== null && age < 18 ? '100' : '250')}
+                        K{formData.isInternational
+                          ? '500'
+                          : age !== null && age < 18
+                            ? (formData.wantsSeniorEligibility ? '250' : '100')
+                            : '250'}
                       </p>
                     </div>
                   </div>

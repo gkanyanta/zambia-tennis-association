@@ -46,6 +46,7 @@ export interface RegistrationSubmitData {
   email?: string;
   club?: string;
   isInternational?: boolean;
+  wantsSeniorEligibility?: boolean;
   parentGuardianName?: string;
   parentGuardianPhone?: string;
   parentGuardianEmail?: string;

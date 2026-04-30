@@ -53,6 +53,7 @@ const colorMap: Record<string, string> = {
 interface SelectedPlayer extends PlayerSearchResult {
   selected: boolean
   nationalityOverride?: boolean // true = international, false = zambian
+  wantsSeniorEligibility?: boolean // junior who wants to play senior categories
 }
 
 interface PendingPlayer extends PlayerSearchResult {
@@ -85,6 +86,14 @@ export function ZPINPayment() {
   const [dupChecking, setDupChecking] = useState(false)
   const [dupResult, setDupResult] = useState<DuplicateCheckResponse | null>(null)
   const [dupError, setDupError] = useState<string | null>(null)
+
+  // Senior-eligibility top-up flow (single-player)
+  const [topUpPlayer, setTopUpPlayer] = useState<PlayerSearchResult | null>(null)
+  const [topUpPayerName, setTopUpPayerName] = useState('')
+  const [topUpPayerEmail, setTopUpPayerEmail] = useState('')
+  const [topUpPayerPhone, setTopUpPayerPhone] = useState('')
+  const [topUpProcessing, setTopUpProcessing] = useState(false)
+  const [topUpError, setTopUpError] = useState<string | null>(null)
 
   const currentYear = new Date().getFullYear()
 
@@ -170,6 +179,56 @@ export function ZPINPayment() {
     navigate(`/register-player?${params.toString()}`)
   }
 
+  const handleStartTopUp = (player: PlayerSearchResult) => {
+    setTopUpPlayer(player)
+    setTopUpPayerName('')
+    setTopUpPayerEmail('')
+    setTopUpPayerPhone('')
+    setTopUpError(null)
+  }
+
+  const handleSubmitTopUp = async () => {
+    if (!topUpPlayer) return
+    setTopUpError(null)
+    if (!topUpPayerName.trim()) {
+      setTopUpError('Please enter your name')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(topUpPayerEmail.trim())) {
+      setTopUpError('Please enter a valid email address')
+      return
+    }
+    try {
+      setTopUpProcessing(true)
+      const result = await membershipService.initializeSeniorTopUp({
+        playerIds: [topUpPlayer._id],
+        payer: {
+          name: topUpPayerName.trim(),
+          email: topUpPayerEmail.trim(),
+          phone: topUpPayerPhone.trim() || undefined,
+        },
+      })
+      await initializeLencoWidget({
+        key: result.publicKey,
+        reference: result.reference,
+        email: topUpPayerEmail.trim(),
+        amount: result.totalAmount,
+        currency: (result.currency || 'ZMW') as 'ZMW' | 'USD',
+        channels: ['mobile-money'],
+        onSuccess: (response) => {
+          navigate(`/payment/verify?reference=${response.reference}&type=topup`)
+        },
+        onClose: () => setTopUpProcessing(false),
+        onConfirmationPending: () => {
+          navigate(`/payment/verify?reference=${result.reference}&type=topup&pending=true`)
+        },
+      })
+    } catch (err: any) {
+      setTopUpError(err.message || 'Failed to initialize top-up payment')
+      setTopUpProcessing(false)
+    }
+  }
+
   // Auto-scroll to payer form when it becomes visible
   useEffect(() => {
     if (showPayerForm && payerFormRef.current) {
@@ -202,28 +261,44 @@ export function ZPINPayment() {
     setError(null)
   }
 
-  const confirmNationality = (isInternational: boolean) => {
+  const confirmNationality = (isInternational: boolean, wantsSeniorEligibility = false) => {
     if (!pendingPlayer) return
 
-    // Recalculate membership type based on nationality choice
+    // Recalculate membership type based on nationality + (for juniors)
+    // senior-tournament eligibility opt-in.
+    const isJunior = pendingPlayer.age !== null && pendingPlayer.age <= 18
     let membershipType = pendingPlayer.membershipType
-    if (membershipType) {
-      if (isInternational && membershipType.code !== 'zpin_international') {
-        membershipType = {
-          ...membershipType,
-          code: 'zpin_international',
-          name: 'International ZPIN',
-          amount: 500
-        }
-      } else if (!isInternational && membershipType.code === 'zpin_international') {
-        // Revert to age-based type
-        const isJunior = pendingPlayer.age !== null && pendingPlayer.age <= 18
-        membershipType = {
-          ...membershipType,
-          code: isJunior ? 'zpin_junior' : 'zpin_senior',
-          name: isJunior ? 'Junior ZPIN' : 'Senior ZPIN',
-          amount: isJunior ? 100 : 250
-        }
+    if (isInternational) {
+      membershipType = {
+        ...(membershipType || {}),
+        _id: membershipType?._id || '',
+        code: 'zpin_international',
+        name: 'International ZPIN',
+        amount: 500
+      }
+    } else if (isJunior && wantsSeniorEligibility) {
+      membershipType = {
+        ...(membershipType || {}),
+        _id: membershipType?._id || '',
+        code: 'zpin_junior_senior',
+        name: 'Junior ZPIN (Senior Eligible)',
+        amount: 250
+      }
+    } else if (isJunior) {
+      membershipType = {
+        ...(membershipType || {}),
+        _id: membershipType?._id || '',
+        code: 'zpin_junior',
+        name: 'Junior ZPIN',
+        amount: 100
+      }
+    } else {
+      membershipType = {
+        ...(membershipType || {}),
+        _id: membershipType?._id || '',
+        code: 'zpin_senior',
+        name: 'Senior ZPIN',
+        amount: 250
       }
     }
 
@@ -232,6 +307,7 @@ export function ZPINPayment() {
       membershipType,
       isInternational,
       nationalityOverride: isInternational,
+      wantsSeniorEligibility: !isInternational && isJunior ? wantsSeniorEligibility : undefined,
       selected: true
     }])
     setPendingPlayer(null)
@@ -277,17 +353,23 @@ export function ZPINPayment() {
 
     try {
       const playerIds = selectedPlayers.map(p => p._id)
-      // Build nationality overrides for players whose nationality was changed
+      // Build overrides for players whose nationality / senior-eligibility
+      // were chosen at the prompt.
       const nationalityOverrides: Record<string, boolean> = {}
+      const seniorEligibilityOverrides: Record<string, boolean> = {}
       selectedPlayers.forEach(p => {
         if (p.nationalityOverride !== undefined) {
           nationalityOverrides[p._id] = p.nationalityOverride
+        }
+        if (p.wantsSeniorEligibility !== undefined) {
+          seniorEligibilityOverrides[p._id] = p.wantsSeniorEligibility
         }
       })
 
       const paymentData = await membershipService.initializeBulkPayment({
         playerIds,
         nationalityOverrides: Object.keys(nationalityOverrides).length > 0 ? nationalityOverrides : undefined,
+        seniorEligibilityOverrides: Object.keys(seniorEligibilityOverrides).length > 0 ? seniorEligibilityOverrides : undefined,
         payer: {
           name: payerName.trim(),
           email: payerEmail.trim(),
@@ -460,10 +542,21 @@ export function ZPINPayment() {
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0">
                               {player.hasActiveSubscription ? (
-                                <Badge variant="secondary" className="bg-green-100 text-green-700">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Active
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Active
+                                  </Badge>
+                                  {player.activeMembershipTypeCode === 'zpin_junior' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleStartTopUp(player)}
+                                    >
+                                      Upgrade to senior eligibility (K150)
+                                    </Button>
+                                  )}
+                                </div>
                               ) : (
                                 <Button
                                   size="sm"
@@ -663,57 +756,165 @@ export function ZPINPayment() {
                 </CardContent>
               </Card>
 
-              {/* Nationality Confirmation Prompt */}
-              {pendingPlayer && (
-                <Card className="mb-8 border-primary/50 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe className="h-5 w-5" />
-                      Confirm Nationality
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Is <span className="font-semibold text-foreground">{pendingPlayer.fullName}</span> a Zambian or non-Zambian player?
-                      This determines the registration fee.
-                    </p>
-                    <div className="flex gap-4">
-                      <button
-                        onClick={() => confirmNationality(false)}
-                        className="flex-1 flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-green-500 hover:bg-green-500/5 transition-colors text-left"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                          <User className="h-5 w-5 text-white" />
+              {/* Nationality + senior-eligibility confirmation prompt */}
+              {pendingPlayer && (() => {
+                const isJunior = pendingPlayer.age !== null && pendingPlayer.age <= 18
+                return (
+                  <Card className="mb-8 border-primary/50 shadow-lg">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Globe className="h-5 w-5" />
+                        {isJunior ? 'Choose ZPIN tier' : 'Confirm Nationality'}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Choose the right tier for{' '}
+                        <span className="font-semibold text-foreground">{pendingPlayer.fullName}</span>.
+                        {isJunior && ' Juniors who plan to enter senior-category tournaments must pay the senior rate.'}
+                      </p>
+                      <div className="grid gap-3">
+                        {isJunior ? (
+                          <>
+                            <button
+                              onClick={() => confirmNationality(false, false)}
+                              className="flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-green-500 hover:bg-green-500/5 transition-colors text-left"
+                            >
+                              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                                <User className="h-5 w-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="font-semibold">Zambian — Junior categories only</p>
+                                <p className="text-sm text-muted-foreground">Junior ZPIN — K100. Cannot enter senior-category tournaments.</p>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => confirmNationality(false, true)}
+                              className="flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-emerald-600 hover:bg-emerald-600/5 transition-colors text-left"
+                            >
+                              <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                                <Users className="h-5 w-5 text-white" />
+                              </div>
+                              <div>
+                                <p className="font-semibold">Zambian — Junior + senior eligible</p>
+                                <p className="text-sm text-muted-foreground">Junior ZPIN (Senior Eligible) — K250. Can enter junior AND senior-category tournaments.</p>
+                              </div>
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => confirmNationality(false, false)}
+                            className="flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-green-500 hover:bg-green-500/5 transition-colors text-left"
+                          >
+                            <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                              <User className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                              <p className="font-semibold">Zambian</p>
+                              <p className="text-sm text-muted-foreground">Senior ZPIN — K250</p>
+                            </div>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => confirmNationality(true, false)}
+                          className="flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-purple-500 hover:bg-purple-500/5 transition-colors text-left"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+                            <Globe className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">Non-Zambian</p>
+                            <p className="text-sm text-muted-foreground">International ZPIN — K500. Senior eligibility included.</p>
+                          </div>
+                        </button>
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <Button variant="ghost" size="sm" onClick={() => setPendingPlayer(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })()}
+
+              {/* Senior-eligibility top-up dialog */}
+              {topUpPlayer && (
+                <div
+                  className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                  onClick={() => !topUpProcessing && setTopUpPlayer(null)}
+                >
+                  <Card className="max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                    <CardHeader>
+                      <CardTitle>Upgrade to senior eligibility</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-sm">
+                        Pay <strong>K150</strong> to upgrade <strong>{topUpPlayer.fullName}</strong>'s
+                        Junior ZPIN to Junior (Senior Eligible). The new tier lets them enter
+                        senior-category tournaments for the rest of {currentYear}.
+                      </p>
+                      <div className="grid gap-2">
+                        <Label htmlFor="topUpName">Your Name *</Label>
+                        <Input
+                          id="topUpName"
+                          value={topUpPayerName}
+                          onChange={(e) => setTopUpPayerName(e.target.value)}
+                          placeholder="Full name"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="topUpEmail">Email *</Label>
+                        <Input
+                          id="topUpEmail"
+                          type="email"
+                          value={topUpPayerEmail}
+                          onChange={(e) => setTopUpPayerEmail(e.target.value)}
+                          placeholder="you@example.com"
+                        />
+                        <p className="text-xs text-muted-foreground">Receipt will be sent here</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="topUpPhone">Phone (optional)</Label>
+                        <Input
+                          id="topUpPhone"
+                          value={topUpPayerPhone}
+                          onChange={(e) => setTopUpPayerPhone(e.target.value)}
+                          placeholder="0977..."
+                        />
+                      </div>
+                      {topUpError && (
+                        <div className="text-sm text-destructive flex items-start gap-2">
+                          <AlertCircle className="h-4 w-4 mt-0.5" />
+                          {topUpError}
                         </div>
-                        <div>
-                          <p className="font-semibold">Zambian</p>
-                          <p className="text-sm text-muted-foreground">
-                            {pendingPlayer.age !== null && pendingPlayer.age <= 18
-                              ? 'Junior - K100'
-                              : 'Senior - K250'}
-                          </p>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => confirmNationality(true)}
-                        className="flex-1 flex items-center gap-3 p-4 rounded-lg border-2 border-muted hover:border-purple-500 hover:bg-purple-500/5 transition-colors text-left"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
-                          <Globe className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-semibold">Non-Zambian</p>
-                          <p className="text-sm text-muted-foreground">International - K500</p>
-                        </div>
-                      </button>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <Button variant="ghost" size="sm" onClick={() => setPendingPlayer(null)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                      )}
+                      <MobileMoneyOnlyNotice />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setTopUpPlayer(null)}
+                          disabled={topUpProcessing}
+                        >
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSubmitTopUp} disabled={topUpProcessing}>
+                          {topUpProcessing ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Processing…
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Pay K150
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               )}
 
               {/* Selected Players */}

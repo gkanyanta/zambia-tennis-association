@@ -42,6 +42,23 @@ const membershipTypes = [
     ]
   },
   {
+    name: 'Junior ZPIN (Senior Eligible)',
+    code: 'zpin_junior_senior',
+    description: 'Annual player registration for juniors (under 18) who plan to compete in senior-category tournaments. Same age as Junior ZPIN but priced at the senior rate.',
+    category: 'player',
+    amount: 250,
+    currency: 'ZMW',
+    sortOrder: 2,
+    isActive: true,
+    maxAge: 17,
+    benefits: [
+      'Official ZPIN number',
+      'Tournament eligibility (junior AND senior categories)',
+      'National ranking inclusion',
+      'Junior development programs access'
+    ]
+  },
+  {
     name: 'International ZPIN',
     code: 'zpin_international',
     description: 'Annual registration for international players residing in Zambia.',

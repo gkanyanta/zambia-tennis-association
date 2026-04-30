@@ -97,6 +97,7 @@ export interface PlayerSearchResult {
   lastName: string;
   fullName: string;
   zpin: string | null;
+  activeMembershipTypeCode?: string | null;
   dateOfBirth: string | null;
   age: number | null;
   club: string | null;
@@ -443,6 +444,7 @@ export const membershipService = {
   async initializeBulkPayment(data: {
     playerIds: string[];
     nationalityOverrides?: Record<string, boolean>;
+    seniorEligibilityOverrides?: Record<string, boolean>;
     payer: {
       name: string;
       email: string;
@@ -451,6 +453,27 @@ export const membershipService = {
     };
   }): Promise<BulkPaymentInitResponse> {
     const response = await apiFetch('/membership/bulk-payment/initialize', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  /**
+   * Initialize a senior-eligibility top-up payment for one or more juniors
+   * (each player has an active zpin_junior subscription that gets upgraded
+   * to zpin_junior_senior on payment success). Flat K150 per player.
+   */
+  async initializeSeniorTopUp(data: {
+    playerIds: string[];
+    payer: {
+      name: string;
+      email: string;
+      phone?: string;
+      relation?: string;
+    };
+  }): Promise<BulkPaymentInitResponse> {
+    const response = await apiFetch('/membership/top-up/initialize', {
       method: 'POST',
       body: JSON.stringify(data),
     });

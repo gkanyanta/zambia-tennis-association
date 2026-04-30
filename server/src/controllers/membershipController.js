@@ -225,8 +225,11 @@ const calculateAge = (dateOfBirth) => {
   return currentYear - birthYear;
 };
 
-// Determine appropriate membership type based on player age and international status
-const determinePlayerMembershipType = async (player) => {
+// Determine appropriate membership type based on player age, nationality,
+// and (for juniors) whether they want senior-tournament eligibility.
+// `wantsSeniorEligibility` is only meaningful for Zambian under-18s; it
+// routes them to zpin_junior_senior (K250) instead of zpin_junior (K100).
+const determinePlayerMembershipType = async (player, wantsSeniorEligibility = false) => {
   const age = calculateAge(player.dateOfBirth);
   const isInternational = player.isInternational || false;
 
@@ -236,7 +239,7 @@ const determinePlayerMembershipType = async (player) => {
     isActive: true
   }).sort({ sortOrder: 1 });
 
-  // International players
+  // International players — single rate regardless of age or eligibility
   if (isInternational) {
     const intlType = membershipTypes.find(t => t.code === 'zpin_international');
     if (intlType) return intlType;
@@ -244,6 +247,10 @@ const determinePlayerMembershipType = async (player) => {
 
   // Junior (18 or under)
   if (age !== null && age <= 18) {
+    if (wantsSeniorEligibility) {
+      const upgradedType = membershipTypes.find(t => t.code === 'zpin_junior_senior');
+      if (upgradedType) return upgradedType;
+    }
     const juniorType = membershipTypes.find(t => t.code === 'zpin_junior');
     if (juniorType) return juniorType;
   }
@@ -325,6 +332,7 @@ export const searchPlayersForPayment = async (req, res) => {
         lastName: player.lastName,
         fullName: `${player.firstName} ${player.lastName}`,
         zpin: hasActiveSubscription ? player.zpin : null,
+        activeMembershipTypeCode: activeSubscription?.membershipTypeCode || null,
         dateOfBirth: player.dateOfBirth,
         age,
         club: player.club,
@@ -424,7 +432,7 @@ export const getPlayerPaymentDetails = async (req, res) => {
 // @access  Public
 export const initializeBulkPayment = async (req, res) => {
   try {
-    const { playerIds, payer, nationalityOverrides } = req.body;
+    const { playerIds, payer, nationalityOverrides, seniorEligibilityOverrides } = req.body;
 
     // Extract payer details from nested object
     const payerName = payer?.name;
@@ -497,8 +505,14 @@ export const initializeBulkPayment = async (req, res) => {
         }
       }
 
-      // Determine membership type based on age and nationality
-      const membershipType = await determinePlayerMembershipType(player);
+      // Determine membership type based on age, nationality, and (for
+      // juniors) whether the parent opted in to senior-tournament eligibility.
+      const wantsSeniorEligibility = !!(
+        seniorEligibilityOverrides &&
+        Object.prototype.hasOwnProperty.call(seniorEligibilityOverrides, playerId.toString()) &&
+        seniorEligibilityOverrides[playerId.toString()]
+      );
+      const membershipType = await determinePlayerMembershipType(player, wantsSeniorEligibility);
 
       if (!membershipType) {
         return res.status(400).json({
@@ -596,6 +610,136 @@ export const initializeBulkPayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: `Failed to initialize bulk payment: ${error.message}`,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Initialize a senior-eligibility top-up payment for one or more
+//          junior players. The flat top-up fee is K150 per player and
+//          upgrades their existing zpin_junior subscription to
+//          zpin_junior_senior on payment success.
+// @route   POST /api/membership/top-up/initialize
+// @access  Public
+const TOP_UP_AMOUNT = 150;
+export const initializeSeniorTopUp = async (req, res) => {
+  try {
+    const { playerIds, payer } = req.body;
+    const payerName = payer?.name;
+    const payerEmail = payer?.email;
+    const payerPhone = payer?.phone;
+    const payerRelation = payer?.relation;
+
+    if (!Array.isArray(playerIds) || playerIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Please provide at least one player ID' });
+    }
+    if (playerIds.length > 20) {
+      return res.status(400).json({ success: false, message: 'Maximum 20 players per transaction' });
+    }
+    if (!payerName || !payerEmail) {
+      return res.status(400).json({ success: false, message: 'Payer name and email are required' });
+    }
+
+    const currentYear = MembershipSubscription.getCurrentYear();
+    const upgradedType = await MembershipType.findOne({ code: 'zpin_junior_senior', isActive: true });
+    if (!upgradedType) {
+      return res.status(500).json({
+        success: false,
+        message: 'Senior-eligibility membership type is not configured. Run the membershipTypes seed.'
+      });
+    }
+
+    const reference = `MEM-TOPUP-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const pendingTopUps = [];
+    let totalAmount = 0;
+
+    for (const playerId of playerIds) {
+      const player = await User.findOne({ _id: playerId, role: 'player' });
+      if (!player) {
+        return res.status(404).json({ success: false, message: `Player not found: ${playerId}` });
+      }
+
+      const activeJunior = await MembershipSubscription.findOne({
+        entityId: player._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'active',
+        membershipTypeCode: 'zpin_junior'
+      });
+      if (!activeJunior) {
+        return res.status(400).json({
+          success: false,
+          message: `${player.firstName} ${player.lastName} does not have an active Junior ZPIN to upgrade. Existing senior-eligible or expired players are not eligible for top-up.`
+        });
+      }
+
+      // Don't double-bill if a previous top-up is mid-flight for this player
+      const existingPending = await MembershipSubscription.findOne({
+        entityId: player._id,
+        entityType: 'player',
+        year: currentYear,
+        status: 'pending',
+        membershipTypeCode: 'zpin_junior_senior'
+      });
+      if (existingPending) {
+        return res.status(400).json({
+          success: false,
+          message: `A senior-eligibility top-up for ${player.firstName} ${player.lastName} is already pending. Complete or cancel it before retrying.`
+        });
+      }
+
+      // Pending sub for the upgrade. previousSubscription links it to the
+      // existing junior sub so the webhook knows what to upgrade in place.
+      const pending = new MembershipSubscription({
+        entityType: 'player',
+        entityId: player._id,
+        entityModel: 'User',
+        entityName: `${player.firstName} ${player.lastName}`,
+        membershipType: upgradedType._id,
+        membershipTypeName: upgradedType.name,
+        membershipTypeCode: upgradedType.code,
+        year: currentYear,
+        startDate: new Date(),
+        endDate: MembershipSubscription.getYearEndDate(currentYear),
+        amount: TOP_UP_AMOUNT,
+        currency: upgradedType.currency || 'ZMW',
+        paymentReference: reference,
+        status: 'pending',
+        previousSubscription: activeJunior._id,
+        payer: { name: payerName, email: payerEmail, phone: payerPhone, relation: payerRelation },
+        notes: `Senior-eligibility top-up for existing Junior ZPIN ${activeJunior._id}`,
+      });
+      await pending.save();
+
+      pendingTopUps.push({
+        topUpId: pending._id,
+        playerId: player._id,
+        playerName: `${player.firstName} ${player.lastName}`,
+        zpin: player.zpin,
+        existingJuniorSubscriptionId: activeJunior._id,
+        amount: TOP_UP_AMOUNT,
+      });
+      totalAmount += TOP_UP_AMOUNT;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reference,
+        totalAmount,
+        currency: 'ZMW',
+        playerCount: pendingTopUps.length,
+        publicKey: process.env.LENCO_PUBLIC_KEY,
+        payer: { name: payerName, email: payerEmail, phone: payerPhone, relation: payerRelation },
+        topUps: pendingTopUps,
+        year: currentYear,
+      }
+    });
+  } catch (error) {
+    console.error('Initialize senior top-up error:', error);
+    res.status(500).json({
+      success: false,
+      message: `Failed to initialize top-up: ${error.message}`,
       error: error.message
     });
   }

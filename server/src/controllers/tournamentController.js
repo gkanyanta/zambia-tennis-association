@@ -388,6 +388,26 @@ export const submitEntry = async (req, res) => {
       };
     }
 
+    // Senior-eligibility gate: a junior holding only zpin_junior cannot
+    // enter senior-category tournaments without first paying the K150
+    // top-up to upgrade to zpin_junior_senior.
+    if (category.type === 'senior') {
+      const activeSub = await MembershipSubscription.findOne({
+        entityId: player._id,
+        entityType: 'player',
+        year: MembershipSubscription.getCurrentYear(),
+        status: 'active'
+      });
+      if (activeSub && activeSub.membershipTypeCode === 'zpin_junior') {
+        return res.status(403).json({
+          success: false,
+          code: 'SENIOR_TOPUP_REQUIRED',
+          message: `${player.firstName} ${player.lastName} holds a Junior ZPIN. Pay the K150 senior-eligibility top-up before entering a senior category.`,
+          data: { playerId: player._id, playerName: `${player.firstName} ${player.lastName}` }
+        });
+      }
+    }
+
     // Calculate tennis age (year subtraction — official Dec 31 rule)
     const tournamentYear = new Date(tournament.startDate).getFullYear();
     const ageOnDec31 = calculateTennisAge(player.dateOfBirth, tournamentYear);
@@ -2078,6 +2098,26 @@ export const publicRegister = async (req, res) => {
         : false;
       let entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
+      // Senior-eligibility gate: a junior holding only zpin_junior cannot
+      // enter senior-category tournaments without paying the K150 top-up.
+      if (category.type === 'senior' && !isNewPlayerEntry && playerData._id) {
+        const playerSub = await MembershipSubscription.findOne({
+          entityId: playerData._id,
+          entityType: 'player',
+          year: MembershipSubscription.getCurrentYear(),
+          status: 'active'
+        });
+        if (playerSub && playerSub.membershipTypeCode === 'zpin_junior') {
+          errors.push({
+            playerId: playerData._id,
+            playerName: `${playerData.firstName} ${playerData.lastName}`,
+            code: 'SENIOR_TOPUP_REQUIRED',
+            error: `${playerData.firstName} ${playerData.lastName} holds a Junior ZPIN. Pay the K150 senior-eligibility top-up before entering a senior category.`
+          });
+          continue;
+        }
+      }
+
       // Process doubles partner if this is a doubles/mixed_doubles category
       let partnerInfo = {};
       let partnerFee = 0;
@@ -2128,6 +2168,25 @@ export const publicRegister = async (req, res) => {
           ? await MembershipSubscription.hasActiveSubscription(partnerData._id, 'player')
           : false;
         partnerFee = partnerZpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+
+        // Same senior-eligibility gate for the doubles partner
+        if (category.type === 'senior' && !isNewPartnerEntry && partnerData._id) {
+          const partnerSub = await MembershipSubscription.findOne({
+            entityId: partnerData._id,
+            entityType: 'player',
+            year: MembershipSubscription.getCurrentYear(),
+            status: 'active'
+          });
+          if (partnerSub && partnerSub.membershipTypeCode === 'zpin_junior') {
+            errors.push({
+              playerId: playerData._id,
+              playerName: `${playerData.firstName} ${playerData.lastName}`,
+              code: 'SENIOR_TOPUP_REQUIRED',
+              error: `Doubles partner ${partnerData.firstName} ${partnerData.lastName} holds a Junior ZPIN. They need the K150 senior-eligibility top-up before entering a senior category.`
+            });
+            continue;
+          }
+        }
 
         partnerInfo = {
           partnerId: isNewPartnerEntry ? null : partnerData._id?.toString(),
