@@ -1,4 +1,5 @@
 import Tournament from '../models/Tournament.js';
+import Tie from '../models/Tie.js';
 import User from '../models/User.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
 import { iterDrawMatches } from '../utils/iterDrawMatches.js';
@@ -22,6 +23,32 @@ const lockedPlayerMatchesResponse = (playerId) => ({
 const isWalkinId = (id) => typeof id === 'string' && id.startsWith('walkin-');
 
 const isDoublesFormat = (fmt) => fmt === 'doubles' || fmt === 'mixed_doubles';
+
+const isLeagueDoubles = (rubber) => rubber.type === 'doubles1' || rubber.type === 'doubles2';
+
+const buildLeagueScoreString = (rubber) => {
+  if (rubber.status === 'walkover') return 'W/O';
+  if (rubber.status === 'defaulted') return 'DEF';
+  if (!rubber.sets || rubber.sets.length === 0) return '';
+  return rubber.sets
+    .map((set) => {
+      let s = `${set.homeGames}-${set.awayGames}`;
+      if (set.tiebreak?.played) {
+        const loserPts = Math.min(set.tiebreak.homePoints ?? 0, set.tiebreak.awayPoints ?? 0);
+        s += `(${loserPts})`;
+      }
+      return s;
+    })
+    .join(' ');
+};
+
+function* iterCompletedLeagueRubbers(tie) {
+  for (const rubber of tie.rubbers || []) {
+    if (!rubber.winner) continue;
+    if (!['completed', 'retired', 'walkover', 'defaulted'].includes(rubber.status)) continue;
+    yield rubber;
+  }
+}
 
 /**
  * Build a lookup of playerId -> their partner for a category, derived from
@@ -95,6 +122,120 @@ const projectMatch = (tournament, category, match, stage, playerId, partnerMap) 
   };
 };
 
+const projectLeagueMatch = (tie, league, rubber, playerId, userMap) => {
+  if (!league) return null;
+  const isDoubles = isLeagueDoubles(rubber);
+  const pidStr = String(playerId);
+  const getName = (id) => {
+    if (!id) return null;
+    const u = userMap.get(String(id));
+    return u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : null;
+  };
+
+  let isHome, opponentId, partnerId, opponentPartnerId;
+  if (isDoubles) {
+    const homeIds = (rubber.homePlayers || []).map(String);
+    const awayIds = (rubber.awayPlayers || []).map(String);
+    isHome = homeIds.includes(pidStr);
+    const myTeam = isHome ? homeIds : awayIds;
+    const oppTeam = isHome ? awayIds : homeIds;
+    partnerId = myTeam.find((id) => id !== pidStr) || null;
+    opponentId = oppTeam[0] || null;
+    opponentPartnerId = oppTeam[1] || null;
+  } else {
+    isHome = String(rubber.homePlayer) === pidStr;
+    opponentId = isHome ? String(rubber.awayPlayer) : String(rubber.homePlayer);
+    partnerId = null;
+    opponentPartnerId = null;
+  }
+
+  const won = (rubber.winner === 'home') === isHome;
+  return {
+    source: 'league',
+    leagueId: league._id,
+    leagueName: league.name,
+    tieId: tie._id,
+    tournamentId: tie._id,
+    tournamentName: league.name,
+    tournamentStart: league.startDate,
+    tournamentEnd: league.endDate,
+    categoryId: null,
+    categoryName: rubber.type,
+    categoryFormat: isDoubles ? 'doubles' : 'singles',
+    matchId: `${tie._id}-r${rubber.rubberNumber}`,
+    round: tie.round,
+    roundName: tie.roundName || `Round ${tie.round}`,
+    stage: 'league',
+    playerName: getName(playerId),
+    partnerId,
+    partnerName: getName(partnerId),
+    opponent: {
+      id: opponentId,
+      name: getName(opponentId),
+      isWalkin: false,
+      partnerId: opponentPartnerId,
+      partnerName: getName(opponentPartnerId),
+    },
+    score: buildLeagueScoreString(rubber),
+    won,
+    completedTime: rubber.completedAt || tie.completedAt || null,
+  };
+};
+
+const projectLeagueMatchForH2H = (tie, league, rubber, playerA, playerB, userMap) => {
+  if (!league) return null;
+  const isDoubles = isLeagueDoubles(rubber);
+  const aStr = String(playerA);
+  const bStr = String(playerB);
+  const getName = (id) => {
+    if (!id) return null;
+    const u = userMap.get(String(id));
+    return u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : null;
+  };
+
+  let aIsHome, aPartnerId, bPartnerId;
+  if (isDoubles) {
+    const homeIds = (rubber.homePlayers || []).map(String);
+    const awayIds = (rubber.awayPlayers || []).map(String);
+    aIsHome = homeIds.includes(aStr);
+    const aTeam = aIsHome ? homeIds : awayIds;
+    const bTeam = aIsHome ? awayIds : homeIds;
+    aPartnerId = aTeam.find((id) => id !== aStr) || null;
+    bPartnerId = bTeam.find((id) => id !== bStr) || null;
+  } else {
+    aIsHome = String(rubber.homePlayer) === aStr;
+    aPartnerId = null;
+    bPartnerId = null;
+  }
+
+  const aWon = (rubber.winner === 'home') === aIsHome;
+  return {
+    source: 'league',
+    leagueId: league._id,
+    leagueName: league.name,
+    tieId: tie._id,
+    tournamentId: tie._id,
+    tournamentName: league.name,
+    tournamentStart: league.startDate,
+    tournamentEnd: league.endDate,
+    categoryId: null,
+    categoryName: rubber.type,
+    categoryFormat: isDoubles ? 'doubles' : 'singles',
+    matchId: `${tie._id}-r${rubber.rubberNumber}`,
+    round: tie.round,
+    roundName: tie.roundName || `Round ${tie.round}`,
+    stage: 'league',
+    playerAName: getName(playerA),
+    playerBName: getName(playerB),
+    playerAPartnerName: getName(aPartnerId),
+    playerBPartnerName: getName(bPartnerId),
+    score: buildLeagueScoreString(rubber),
+    winner: aWon ? playerA : playerB,
+    aWon,
+    completedTime: rubber.completedAt || tie.completedAt || null,
+  };
+};
+
 // @desc    Get every completed match a player has played, plus a H2H
 //          summary row per distinct opponent.
 // @route   GET /api/players/:playerId/matches
@@ -124,6 +265,49 @@ export const getPlayerMatches = async (req, res) => {
       for (const { category, match, stage, partnerMap } of iterCompletedMatches(t)) {
         if (match.player1.id !== playerId && match.player2.id !== playerId) continue;
         matches.push(projectMatch(t, category, match, stage, playerId, partnerMap));
+      }
+    }
+
+    // Also include league rubbers
+    const leagueTies = await Tie.find(
+      {
+        $or: [
+          { 'rubbers.homePlayer': playerId },
+          { 'rubbers.awayPlayer': playerId },
+          { 'rubbers.homePlayers': playerId },
+          { 'rubbers.awayPlayers': playerId },
+        ],
+      },
+      'league round roundName rubbers completedAt'
+    ).populate('league', 'name startDate endDate').lean();
+
+    if (leagueTies.length) {
+      const leaguePlayerIds = new Set([playerId]);
+      for (const tie of leagueTies) {
+        for (const rubber of tie.rubbers || []) {
+          if (rubber.homePlayer) leaguePlayerIds.add(String(rubber.homePlayer));
+          if (rubber.awayPlayer) leaguePlayerIds.add(String(rubber.awayPlayer));
+          for (const id of rubber.homePlayers || []) leaguePlayerIds.add(String(id));
+          for (const id of rubber.awayPlayers || []) leaguePlayerIds.add(String(id));
+        }
+      }
+      const leagueUsers = await User.find(
+        { _id: { $in: [...leaguePlayerIds] } },
+        'firstName lastName'
+      ).lean();
+      const leagueUserMap = new Map(leagueUsers.map((u) => [u._id.toString(), u]));
+
+      for (const tie of leagueTies) {
+        const league = tie.league;
+        const pidStr = String(playerId);
+        for (const rubber of iterCompletedLeagueRubbers(tie)) {
+          const inRubber = isLeagueDoubles(rubber)
+            ? [...(rubber.homePlayers || []), ...(rubber.awayPlayers || [])].map(String).includes(pidStr)
+            : String(rubber.homePlayer) === pidStr || String(rubber.awayPlayer) === pidStr;
+          if (!inRubber) continue;
+          const projected = projectLeagueMatch(tie, league, rubber, playerId, leagueUserMap);
+          if (projected) matches.push(projected);
+        }
       }
     }
 
@@ -274,6 +458,59 @@ export const getHeadToHead = async (req, res) => {
           aWon: match.winner === playerA,
           completedTime: match.completedTime || null,
         });
+      }
+    }
+
+    // Also include league rubbers where A and B faced each other
+    const leagueTies = await Tie.find(
+      {
+        $or: [
+          { rubbers: { $elemMatch: { homePlayer: playerA, awayPlayer: playerB } } },
+          { rubbers: { $elemMatch: { homePlayer: playerB, awayPlayer: playerA } } },
+          { rubbers: { $elemMatch: { homePlayers: playerA, awayPlayers: playerB } } },
+          { rubbers: { $elemMatch: { homePlayers: playerB, awayPlayers: playerA } } },
+        ],
+      },
+      'league round roundName rubbers completedAt'
+    ).populate('league', 'name startDate endDate').lean();
+
+    if (leagueTies.length) {
+      const leaguePlayerIds = new Set([playerA, playerB]);
+      for (const tie of leagueTies) {
+        for (const rubber of tie.rubbers || []) {
+          if (rubber.homePlayer) leaguePlayerIds.add(String(rubber.homePlayer));
+          if (rubber.awayPlayer) leaguePlayerIds.add(String(rubber.awayPlayer));
+          for (const id of rubber.homePlayers || []) leaguePlayerIds.add(String(id));
+          for (const id of rubber.awayPlayers || []) leaguePlayerIds.add(String(id));
+        }
+      }
+      const leagueUsers = await User.find(
+        { _id: { $in: [...leaguePlayerIds] } },
+        'firstName lastName'
+      ).lean();
+      const leagueUserMap = new Map(leagueUsers.map((u) => [u._id.toString(), u]));
+
+      for (const tie of leagueTies) {
+        const league = tie.league;
+        const aStr = String(playerA);
+        const bStr = String(playerB);
+        for (const rubber of iterCompletedLeagueRubbers(tie)) {
+          let inRubber;
+          if (isLeagueDoubles(rubber)) {
+            const homeIds = (rubber.homePlayers || []).map(String);
+            const awayIds = (rubber.awayPlayers || []).map(String);
+            inRubber =
+              (homeIds.includes(aStr) && awayIds.includes(bStr)) ||
+              (homeIds.includes(bStr) && awayIds.includes(aStr));
+          } else {
+            inRubber =
+              (String(rubber.homePlayer) === aStr && String(rubber.awayPlayer) === bStr) ||
+              (String(rubber.homePlayer) === bStr && String(rubber.awayPlayer) === aStr);
+          }
+          if (!inRubber) continue;
+          const projected = projectLeagueMatchForH2H(tie, league, rubber, playerA, playerB, leagueUserMap);
+          if (projected) matches.push(projected);
+        }
       }
     }
 
