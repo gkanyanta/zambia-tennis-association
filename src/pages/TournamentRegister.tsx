@@ -630,9 +630,15 @@ export function TournamentRegister() {
         if (catGender === 'womens' && playerGender !== 'female') return false
       }
 
-      // Senior-eligibility gate: junior-only players cannot enter senior categories
-      if (category.type === 'senior' && selectedPlayer.activeMembershipTypeCode === 'zpin_junior') {
-        return false
+      // Senior-eligibility gate: under-14s (tennis age) are ineligible regardless
+      // of ZPIN tier; 14+ juniors still need the senior-eligibility tier.
+      if (category.type === 'senior') {
+        if (selectedPlayer.dateOfBirth) {
+          const tournamentYear = new Date(tournament.startDate).getFullYear()
+          const tennisAge = tournamentYear - new Date(selectedPlayer.dateOfBirth).getFullYear()
+          if (tennisAge < 14) return false
+        }
+        if (selectedPlayer.activeMembershipTypeCode === 'zpin_junior') return false
       }
 
       // Check age for junior categories using tennis age (year subtraction)

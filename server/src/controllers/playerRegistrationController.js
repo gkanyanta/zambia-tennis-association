@@ -19,15 +19,20 @@ const calculateAge = (dob) => {
 // Helper: determine membership type from age + international + senior-
 // eligibility opt-in for juniors. International rate is flat K500; juniors
 // who want to enter senior-category tournaments pay K250 (zpin_junior_senior).
-const determineMembershipType = async (age, isInternational, wantsSeniorEligibility = false) => {
+const determineMembershipType = async (age, isInternational, wantsSeniorEligibility = false, dateOfBirth = null) => {
   if (isInternational) {
     const mt = await MembershipType.findOne({ code: 'zpin_international', isActive: true });
     return mt || { code: 'zpin_international', name: 'International ZPIN', amount: 500 };
   }
   if (age < 18) {
     if (wantsSeniorEligibility) {
-      const upgraded = await MembershipType.findOne({ code: 'zpin_junior_senior', isActive: true });
-      if (upgraded) return upgraded;
+      const tennisAge = dateOfBirth
+        ? new Date().getFullYear() - new Date(dateOfBirth).getFullYear()
+        : null;
+      if (tennisAge !== null && tennisAge >= 14) {
+        const upgraded = await MembershipType.findOne({ code: 'zpin_junior_senior', isActive: true });
+        if (upgraded) return upgraded;
+      }
     }
     const mt = await MembershipType.findOne({ code: 'zpin_junior', isActive: true });
     return mt || { code: 'zpin_junior', name: 'Junior ZPIN', amount: 100 };
@@ -206,7 +211,7 @@ export const submitRegistration = async (req, res) => {
     }
 
     // Determine membership type and amount
-    const membershipType = await determineMembershipType(age, isInternational, !!wantsSeniorEligibility);
+    const membershipType = await determineMembershipType(age, isInternational, !!wantsSeniorEligibility, dateOfBirth);
 
     const registration = new PlayerRegistration({
       firstName,
@@ -294,7 +299,7 @@ export const submitAndPay = async (req, res) => {
     }
 
     // Determine membership type and amount
-    const membershipType = await determineMembershipType(age, isInternational, !!wantsSeniorEligibility);
+    const membershipType = await determineMembershipType(age, isInternational, !!wantsSeniorEligibility, dateOfBirth);
 
     // Generate payment reference
     const paymentReference = generateReference('REG');

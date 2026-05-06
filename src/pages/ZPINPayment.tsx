@@ -547,7 +547,9 @@ export function ZPINPayment() {
                                     <CheckCircle2 className="h-3 w-3 mr-1" />
                                     Active
                                   </Badge>
-                                  {player.activeMembershipTypeCode === 'zpin_junior' && (
+                                  {player.activeMembershipTypeCode === 'zpin_junior' &&
+                                    player.dateOfBirth &&
+                                    new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear() >= 14 && (
                                     <Button
                                       size="sm"
                                       variant="outline"

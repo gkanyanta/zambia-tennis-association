@@ -78,6 +78,10 @@ export function RegisterPlayer() {
   }, [formData.dateOfBirth])
 
   const isJunior = age !== null && age < 18
+  const tennisAge = formData.dateOfBirth
+    ? new Date().getFullYear() - new Date(formData.dateOfBirth).getFullYear()
+    : null
+  const isSeniorEligibleAge = tennisAge !== null && tennisAge >= 14
   const needsStep2 = isJunior
 
   const membershipLabel = useMemo(() => {
@@ -517,7 +521,7 @@ export function RegisterPlayer() {
                       </label>
                     </div>
 
-                    {!formData.isInternational && isJunior && (
+                    {!formData.isInternational && isJunior && isSeniorEligibleAge && (
                       <label className="mt-3 flex items-start gap-2 p-3 rounded-lg border-2 border-muted hover:border-muted-foreground/30 cursor-pointer">
                         <input
                           type="checkbox"

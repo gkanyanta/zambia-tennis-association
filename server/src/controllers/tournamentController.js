@@ -388,10 +388,19 @@ export const submitEntry = async (req, res) => {
       };
     }
 
-    // Senior-eligibility gate: a junior holding only zpin_junior cannot
-    // enter senior-category tournaments without first paying the K150
-    // top-up to upgrade to zpin_junior_senior.
+    // Senior-eligibility gate: under-14s are ineligible; 14+ juniors holding
+    // only zpin_junior must pay the K150 top-up to enter senior categories.
     if (category.type === 'senior') {
+      const tournamentYear = new Date(tournament.startDate).getFullYear();
+      const playerTennisAge = calculateTennisAge(player.dateOfBirth, tournamentYear);
+      if (playerTennisAge < 14) {
+        return res.status(403).json({
+          success: false,
+          code: 'TOO_YOUNG_FOR_SENIOR',
+          message: `${player.firstName} ${player.lastName} must be at least 14 years old (tennis age) to enter a senior category.`,
+          data: { playerId: player._id, playerName: `${player.firstName} ${player.lastName}` }
+        });
+      }
       const activeSub = await MembershipSubscription.findOne({
         entityId: player._id,
         entityType: 'player',
@@ -2098,9 +2107,20 @@ export const publicRegister = async (req, res) => {
         : false;
       let entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
-      // Senior-eligibility gate: a junior holding only zpin_junior cannot
-      // enter senior-category tournaments without paying the K150 top-up.
+      // Senior-eligibility gate: under-14s are ineligible; 14+ juniors holding
+      // only zpin_junior must pay the K150 top-up to enter senior categories.
       if (category.type === 'senior' && !isNewPlayerEntry && playerData._id) {
+        const tournamentYear = new Date(tournament.startDate).getFullYear();
+        const playerTennisAge = calculateTennisAge(playerData.dateOfBirth, tournamentYear);
+        if (playerTennisAge < 14) {
+          errors.push({
+            playerId: playerData._id,
+            playerName: `${playerData.firstName} ${playerData.lastName}`,
+            code: 'TOO_YOUNG_FOR_SENIOR',
+            error: `${playerData.firstName} ${playerData.lastName} must be at least 14 years old (tennis age) to enter a senior category.`
+          });
+          continue;
+        }
         const playerSub = await MembershipSubscription.findOne({
           entityId: playerData._id,
           entityType: 'player',
@@ -2171,6 +2191,17 @@ export const publicRegister = async (req, res) => {
 
         // Same senior-eligibility gate for the doubles partner
         if (category.type === 'senior' && !isNewPartnerEntry && partnerData._id) {
+          const tournamentYear = new Date(tournament.startDate).getFullYear();
+          const partnerTennisAge = calculateTennisAge(partnerData.dateOfBirth, tournamentYear);
+          if (partnerTennisAge < 14) {
+            errors.push({
+              playerId: playerData._id,
+              playerName: `${playerData.firstName} ${playerData.lastName}`,
+              code: 'TOO_YOUNG_FOR_SENIOR',
+              error: `Doubles partner ${partnerData.firstName} ${partnerData.lastName} must be at least 14 years old (tennis age) to enter a senior category.`
+            });
+            continue;
+          }
           const partnerSub = await MembershipSubscription.findOne({
             entityId: partnerData._id,
             entityType: 'player',

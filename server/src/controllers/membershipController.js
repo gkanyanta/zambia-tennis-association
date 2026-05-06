@@ -247,7 +247,7 @@ const determinePlayerMembershipType = async (player, wantsSeniorEligibility = fa
 
   // Junior (18 or under)
   if (age !== null && age <= 18) {
-    if (wantsSeniorEligibility) {
+    if (wantsSeniorEligibility && age >= 14) {
       const upgradedType = membershipTypes.find(t => t.code === 'zpin_junior_senior');
       if (upgradedType) return upgradedType;
     }
@@ -657,6 +657,14 @@ export const initializeSeniorTopUp = async (req, res) => {
       const player = await User.findOne({ _id: playerId, role: 'player' });
       if (!player) {
         return res.status(404).json({ success: false, message: `Player not found: ${playerId}` });
+      }
+
+      const playerTennisAge = calculateAge(player.dateOfBirth);
+      if (playerTennisAge === null || playerTennisAge < 14) {
+        return res.status(400).json({
+          success: false,
+          message: `${player.firstName} ${player.lastName} must be at least 14 years old (tennis age) to be eligible for senior tournaments.`
+        });
       }
 
       const activeJunior = await MembershipSubscription.findOne({
