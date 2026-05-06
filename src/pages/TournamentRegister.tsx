@@ -114,6 +114,7 @@ export function TournamentRegister() {
   // Submission
   const [submitting, setSubmitting] = useState(false)
   const [payNow, setPayNow] = useState(false)
+  const [seniorTopUpRequired, setSeniorTopUpRequired] = useState(false)
 
   const payerFormRef = useRef<HTMLDivElement>(null)
 
@@ -520,6 +521,7 @@ export function TournamentRegister() {
     setSubmitting(true)
     setPayNow(payImmediately)
     setError(null)
+    setSeniorTopUpRequired(false)
 
     try {
       // Submit entries to backend
@@ -568,6 +570,9 @@ export function TournamentRegister() {
       const data = await response.json()
 
       if (!response.ok) {
+        if (data.code === 'SENIOR_TOPUP_REQUIRED') {
+          setSeniorTopUpRequired(true)
+        }
         throw new Error(data.message || 'Failed to submit entries')
       }
 
@@ -623,6 +628,11 @@ export function TournamentRegister() {
         if (catGender === 'girls' && playerGender !== 'female') return false
         if (catGender === 'mens' && playerGender !== 'male') return false
         if (catGender === 'womens' && playerGender !== 'female') return false
+      }
+
+      // Senior-eligibility gate: junior-only players cannot enter senior categories
+      if (category.type === 'senior' && selectedPlayer.activeMembershipTypeCode === 'zpin_junior') {
+        return false
       }
 
       // Check age for junior categories using tennis age (year subtraction)
@@ -1644,9 +1654,16 @@ export function TournamentRegister() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-              <p className="text-sm text-destructive">{error}</p>
+            <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-destructive">{error}</p>
+                {seniorTopUpRequired && (
+                  <Button size="sm" className="mt-2" onClick={() => navigate('/register-zpin')}>
+                    Pay senior-eligibility top-up
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
