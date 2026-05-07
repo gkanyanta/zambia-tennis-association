@@ -657,18 +657,22 @@ function PublicEntriesView({ tournament }: { tournament: Tournament }) {
                         <td className="px-4 py-2.5 text-muted-foreground">{idx + 1}</td>
                         <td className="px-4 py-2.5">
                           <p className="font-medium">{entry.playerName}</p>
-                          {entry.playerZpin && entry.playerZpin !== 'PENDING' && (
-                            <p className="text-xs text-muted-foreground font-mono">{entry.playerZpin}</p>
-                          )}
+                          {entry.playerZpin && entry.playerZpin !== 'PENDING' ? (
+                            entry.zpinPaidUp
+                              ? <p className="text-xs text-muted-foreground font-mono">{entry.playerZpin}</p>
+                              : <p className="text-xs text-muted-foreground font-mono tracking-widest">••••••••</p>
+                          ) : null}
                         </td>
                         {isDoubles && (
                           <td className="px-4 py-2.5">
                             {entry.partnerName ? (
                               <>
                                 <p className="font-medium">{entry.partnerName}</p>
-                                {entry.partnerZpin && entry.partnerZpin !== 'PENDING' && (
-                                  <p className="text-xs text-muted-foreground font-mono">{entry.partnerZpin}</p>
-                                )}
+                                {entry.partnerZpin && entry.partnerZpin !== 'PENDING' ? (
+                                  entry.partnerZpinPaidUp
+                                    ? <p className="text-xs text-muted-foreground font-mono">{entry.partnerZpin}</p>
+                                    : <p className="text-xs text-muted-foreground font-mono tracking-widest">••••••••</p>
+                                ) : null}
                               </>
                             ) : (
                               <span className="text-muted-foreground">—</span>
