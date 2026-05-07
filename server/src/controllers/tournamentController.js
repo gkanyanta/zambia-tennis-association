@@ -2088,9 +2088,18 @@ export const publicRegister = async (req, res) => {
       // Check ZPIN paid-up status and calculate per-entry fee
       // Per-category fee overrides tournament-level fee
       const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
-      const zpinPaidUp = !isNewPlayerEntry && playerData._id
-        ? await MembershipSubscription.hasActiveSubscription(playerData._id, 'player')
-        : false;
+      let zpinPaidUp = false;
+      if (!isNewPlayerEntry && playerData._id) {
+        const activeSub = await MembershipSubscription.findOne({
+          userId: playerData._id,
+          userType: 'player',
+          status: 'active'
+        });
+        // zpin_junior holders pay surcharge in senior categories (top-up is voluntary)
+        zpinPaidUp = activeSub
+          ? category.type !== 'senior' || activeSub.membershipTypeCode !== 'zpin_junior'
+          : false;
+      }
       let entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
       // Senior-eligibility gate: under-14s (tennis age) are ineligible.
@@ -2155,9 +2164,18 @@ export const publicRegister = async (req, res) => {
         }
 
         // Calculate partner fee with independent surcharge check
-        const partnerZpinPaidUp = !isNewPartnerEntry && partnerData._id
-          ? await MembershipSubscription.hasActiveSubscription(partnerData._id, 'player')
-          : false;
+        // zpin_junior holders pay surcharge in senior categories
+        let partnerZpinPaidUp = false;
+        if (!isNewPartnerEntry && partnerData._id) {
+          const partnerActiveSub = await MembershipSubscription.findOne({
+            userId: partnerData._id,
+            userType: 'player',
+            status: 'active'
+          });
+          partnerZpinPaidUp = partnerActiveSub
+            ? category.type !== 'senior' || partnerActiveSub.membershipTypeCode !== 'zpin_junior'
+            : false;
+        }
         partnerFee = partnerZpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
         // Same senior-eligibility gate for the doubles partner

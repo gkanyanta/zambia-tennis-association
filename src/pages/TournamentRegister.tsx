@@ -289,13 +289,21 @@ export function TournamentRegister() {
       return
     }
 
-    const zpinPaidUp = !!(selectedPlayer as PlayerSearchResult).hasActiveSubscription
+    const player = selectedPlayer as PlayerSearchResult
+    const isSeniorCategory = category.type === 'senior'
+    // zpin_junior holders are treated as not-paid-up for senior categories (50% surcharge applies)
+    const zpinPaidUp = player.hasActiveSubscription
+      ? !isSeniorCategory || player.activeMembershipTypeCode !== 'zpin_junior'
+      : false
     const baseFee = getCategoryBaseFee(category)
     const fee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5)
 
     let partnerData: Partial<SelectedEntry> = {}
     if (doublesCategory && selectedPartner) {
-      const partnerZpinPaidUp = !!(selectedPartner as PlayerSearchResult).hasActiveSubscription
+      const partner = selectedPartner as PlayerSearchResult
+      const partnerZpinPaidUp = partner.hasActiveSubscription
+        ? !isSeniorCategory || partner.activeMembershipTypeCode !== 'zpin_junior'
+        : false
       partnerData = {
         partner: selectedPartner,
         partnerFee: partnerZpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5),
@@ -1205,6 +1213,47 @@ export function TournamentRegister() {
                         </p>
                       )}
                     </div>
+
+                    {/* Senior ZPIN upgrade prompt */}
+                    {selectedCategory && selectedPlayer && (() => {
+                      const cat = tournament.categories.find(c => c._id === selectedCategory)
+                      const pl = selectedPlayer as PlayerSearchResult
+                      if (!cat || cat.type !== 'senior') return null
+                      const hasJuniorOnly = pl.hasActiveSubscription && pl.activeMembershipTypeCode === 'zpin_junior'
+                      const hasNoZpin = !pl.hasActiveSubscription
+                      if (!hasJuniorOnly && !hasNoZpin) return null
+                      return (
+                        <div className="p-4 border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 rounded-lg space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                            <div className="text-sm text-amber-800 dark:text-amber-200">
+                              <p className="font-semibold mb-1">Senior ZPIN required for standard entry fee</p>
+                              {hasJuniorOnly ? (
+                                <p>This player has a Junior ZPIN. To enter at the standard rate, upgrade to a Senior-eligible ZPIN:</p>
+                              ) : (
+                                <p>This player has no active ZPIN. To enter at the standard rate, register a Senior ZPIN:</p>
+                              )}
+                              <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                                {hasJuniorOnly && <li>K150 top-up to add senior eligibility to existing Junior ZPIN</li>}
+                                <li>K250 new Senior ZPIN</li>
+                              </ul>
+                              <p className="mt-2 text-amber-700 dark:text-amber-300 font-medium">
+                                Entering without a Senior ZPIN incurs a 50% surcharge on the entry fee.
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-400 text-amber-700 hover:bg-amber-100"
+                            onClick={() => navigate('/register-zpin')}
+                          >
+                            Pay for Senior ZPIN
+                          </Button>
+                        </div>
+                      )
+                    })()}
 
                     {/* Doubles Partner Selection */}
                     {selectedCategory && (() => {
