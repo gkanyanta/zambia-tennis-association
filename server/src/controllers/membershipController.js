@@ -6,6 +6,7 @@ import Club from '../models/Club.js';
 import Transaction from '../models/Transaction.js';
 import { generateReceipt } from '../utils/generateReceipt.js';
 import sendEmail from '../utils/sendEmail.js';
+import { updateTournamentEntryZpinStatus } from '../utils/updateTournamentZpin.js';
 
 // ============================================
 // ADMIN: CONFIRM PENDING SUBSCRIPTION
@@ -98,6 +99,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
 
         subscription.zpin = updatedPlayer.zpin;
         entityEmail = updatedPlayer.email;
+        await updateTournamentEntryZpinStatus(subscription.entityId);
       }
     } else if (subscription.entityType === 'club') {
       const club = await Club.findById(subscription.entityId);
@@ -883,6 +885,7 @@ export const verifyBulkPayment = async (req, res) => {
         const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
 
         subscription.zpin = updatedPlayer.zpin;
+        await updateTournamentEntryZpinStatus(subscription.entityId);
       }
 
       await subscription.save();
@@ -1723,6 +1726,7 @@ export const verifyMembershipPayment = async (req, res) => {
         const updatedUser = await User.findByIdAndUpdate(user._id, updates, { new: true });
 
         subscription.zpin = updatedUser.zpin;
+        await updateTournamentEntryZpinStatus(subscription.entityId);
         await subscription.save();
       }
     } else if (subscription.entityType === 'club') {
@@ -2026,6 +2030,7 @@ export const recordManualPayment = async (req, res) => {
       }
       const updatedEntity = await User.findByIdAndUpdate(entity._id, playerUpdates, { new: true });
       subscription.zpin = updatedEntity.zpin;
+      await updateTournamentEntryZpinStatus(entityId);
       await subscription.save();
     } else {
       entity.affiliationStatus = 'active';

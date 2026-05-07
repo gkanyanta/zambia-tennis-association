@@ -11,6 +11,7 @@ import MembershipSubscription from '../models/MembershipSubscription.js';
 import PlayerRegistration from '../models/PlayerRegistration.js';
 import sendEmail from '../utils/sendEmail.js';
 import { generateReceipt } from '../utils/generateReceipt.js';
+import { updateTournamentEntryZpinStatus } from '../utils/updateTournamentZpin.js';
 
 // Lenco API configuration
 const LENCO_BASE_URL = process.env.LENCO_BASE_URL || 'https://sandbox.lenco.co/access/v2/';
@@ -642,6 +643,7 @@ export const verifyPayment = async (req, res) => {
             }
             const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
             subscription.zpin = updatedPlayer.zpin;
+            await updateTournamentEntryZpinStatus(subscription.entityId);
           }
 
           await subscription.save();
@@ -800,6 +802,7 @@ export const verifyPayment = async (req, res) => {
             const updatedUser = await User.findByIdAndUpdate(user._id, updates, { new: true });
 
             subscription.zpin = updatedUser.zpin;
+            await updateTournamentEntryZpinStatus(subscription.entityId);
           }
         }
 
@@ -1400,6 +1403,7 @@ export const handleWebhook = async (req, res) => {
                 }
                 const updatedPlayer = await User.findByIdAndUpdate(player._id, updates, { new: true });
                 subscription.zpin = updatedPlayer.zpin;
+                await updateTournamentEntryZpinStatus(subscription.entityId);
               }
 
               await subscription.save();
@@ -1519,6 +1523,7 @@ export const handleWebhook = async (req, res) => {
                 }
                 const updatedUser = await User.findByIdAndUpdate(user._id, updates, { new: true });
                 subscription.zpin = updatedUser.zpin;
+                await updateTournamentEntryZpinStatus(subscription.entityId);
               }
             }
 
