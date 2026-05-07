@@ -15,3 +15,9 @@ services:
         sync: false
       - key: CLIENT_URL
         value: https://zambia-tennis-association.vercel.app
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
