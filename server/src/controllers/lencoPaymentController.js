@@ -1724,8 +1724,14 @@ const enrichTransactionMetadata = async (transaction) => {
     const subscription = await MembershipSubscription.findById(transaction.relatedId);
     if (subscription) {
       if (!transaction.metadata.playerName) transaction.metadata.playerName = subscription.entityName;
-      if (!transaction.metadata.zpin) transaction.metadata.zpin = subscription.zpin;
       if (!transaction.metadata.membershipType) transaction.metadata.membershipType = subscription.membershipTypeCode;
+      if (!transaction.metadata.membershipExpiry) transaction.metadata.membershipExpiry = subscription.endDate;
+      // Fill zpin from subscription; if still missing, look up the player directly
+      if (!transaction.metadata.zpin) transaction.metadata.zpin = subscription.zpin;
+      if (!transaction.metadata.zpin && subscription.entityType === 'player' && subscription.entityId) {
+        const player = await User.findById(subscription.entityId).select('zpin');
+        if (player?.zpin) transaction.metadata.zpin = player.zpin;
+      }
     }
   }
 
@@ -1746,16 +1752,22 @@ const enrichTransactionMetadata = async (transaction) => {
     const missingData = transaction.metadata.players.some(p => !p.zpin || !p.name);
     if (missingData) {
       const subscriptions = await MembershipSubscription.find({ paymentReference: transaction.reference });
+      const playerIds = transaction.metadata.players.filter(p => !p.zpin && p.id).map(p => p.id);
+      const usersWithZpin = playerIds.length > 0
+        ? await User.find({ _id: { $in: playerIds } }).select('_id zpin')
+        : [];
+      const userZpinMap = {};
+      for (const u of usersWithZpin) userZpinMap[u._id.toString()] = u.zpin;
+
       if (subscriptions.length > 0) {
         const subMap = {};
-        for (const sub of subscriptions) {
-          subMap[sub.entityId.toString()] = sub;
-        }
+        for (const sub of subscriptions) subMap[sub.entityId.toString()] = sub;
         for (const player of transaction.metadata.players) {
           const sub = subMap[player.id?.toString()];
           if (sub) {
             if (!player.name) player.name = sub.entityName;
-            if (!player.zpin) player.zpin = sub.zpin;
+            // Use subscription zpin first, then fall back to User record
+            if (!player.zpin) player.zpin = sub.zpin || userZpinMap[player.id?.toString()];
           }
         }
       }

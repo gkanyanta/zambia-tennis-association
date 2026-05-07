@@ -144,6 +144,7 @@ export const confirmSubscriptionPayment = async (req, res) => {
         metadata: {
           membershipType: subscription.membershipTypeCode,
           membershipYear: subscription.year,
+          membershipExpiry: subscription.endDate,
           entityType: subscription.entityType,
           confirmedBy: req.user.id,
           playerName: subscription.entityName,
@@ -2060,6 +2061,7 @@ export const recordManualPayment = async (req, res) => {
         metadata: {
           membershipType: membershipType.code,
           membershipYear: subscription.year,
+          membershipExpiry: subscription.endDate,
           entityType,
           recordedBy: req.user.id,
           playerName: entityName,
