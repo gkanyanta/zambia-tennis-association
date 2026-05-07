@@ -488,7 +488,7 @@ export const verifyPayment = async (req, res) => {
           pending.notes = (pending.notes || '') + ` | Applied to junior sub ${juniorSub?._id || '(missing)'}`;
           await pending.save();
           if (juniorSub) {
-            upgraded.push({ playerId: juniorSub.entityId, playerName: juniorSub.entityName, subscriptionId: juniorSub._id });
+            upgraded.push({ id: juniorSub.entityId, name: juniorSub.entityName, zpin: juniorSub.zpin });
             totalAmount += pending.amount;
           }
         }
@@ -1292,9 +1292,9 @@ export const handleWebhook = async (req, res) => {
               await pending.save();
 
               upgraded.push({
-                playerId: juniorSub.entityId,
-                playerName: juniorSub.entityName,
-                subscriptionId: juniorSub._id,
+                id: juniorSub.entityId,
+                name: juniorSub.entityName,
+                zpin: juniorSub.zpin,
               });
               totalAmount += pending.amount;
             }
@@ -1747,8 +1747,14 @@ const enrichTransactionMetadata = async (transaction) => {
     }
   }
 
-  // Enrich existing bulk player entries that may have missing zpin/name
+  // Enrich existing bulk/top-up player entries that may have missing zpin/name
   if (transaction.metadata.players && transaction.metadata.players.length > 0) {
+    // Normalise legacy format: { playerId, playerName } → { id, name }
+    for (const player of transaction.metadata.players) {
+      if (!player.id && player.playerId) player.id = player.playerId;
+      if (!player.name && player.playerName) player.name = player.playerName;
+    }
+
     const missingData = transaction.metadata.players.some(p => !p.zpin || !p.name);
     if (missingData) {
       const subscriptions = await MembershipSubscription.find({ paymentReference: transaction.reference });
@@ -1766,9 +1772,13 @@ const enrichTransactionMetadata = async (transaction) => {
           const sub = subMap[player.id?.toString()];
           if (sub) {
             if (!player.name) player.name = sub.entityName;
-            // Use subscription zpin first, then fall back to User record
             if (!player.zpin) player.zpin = sub.zpin || userZpinMap[player.id?.toString()];
           }
+        }
+      } else {
+        // No subscriptions via paymentReference — use User lookup directly
+        for (const player of transaction.metadata.players) {
+          if (!player.zpin && player.id) player.zpin = userZpinMap[player.id.toString()];
         }
       }
     }
