@@ -53,7 +53,7 @@ export const generateReceipt = (transaction) => {
         .text('Zambia Tennis Association', 350, 50, { align: 'right' })
         .text('Olympic Youth Development Centre', 350, 65, { align: 'right' })
         .text('Independence Stadium, Lusaka', 350, 80, { align: 'right' })
-        .text('info@zambiatennis.com', 350, 95, { align: 'right' })
+        .text('admin@zambiatennis.com', 350, 95, { align: 'right' })
         .text('+260 979 326 778', 350, 110, { align: 'right' });
 
       // Line separator
@@ -92,7 +92,7 @@ export const generateReceipt = (transaction) => {
       // Payment details box
       const boxTop = 310;
       doc
-        .roundedRect(50, boxTop, 495, 200, 8)
+        .roundedRect(50, boxTop, 495, 235, 8)
         .fillColor('#F9FAFB')
         .fill();
 
@@ -149,8 +149,8 @@ export const generateReceipt = (transaction) => {
         .fillColor('#1F2937')
         .text(formatPaymentMethod(transaction.paymentMethod), valuesLeft, currentY);
 
-      // Amount box — spans full width of the payment details box
-      currentY = boxTop + 160;
+      // Amount box — below all detail rows, still inside the outer box
+      currentY = boxTop + 195;
       const amountBoxLeft = 50;
       const amountBoxWidth = 495;
       doc
@@ -172,8 +172,8 @@ export const generateReceipt = (transaction) => {
       // Reset font
       doc.font('Helvetica');
 
-      // Type-specific details
-      let detailsY = 530;
+      // Type-specific details (start below the outer box bottom: boxTop+235+20)
+      let detailsY = 565;
       if (transaction.metadata) {
         const metadata = transaction.metadata;
 
@@ -192,7 +192,7 @@ export const generateReceipt = (transaction) => {
             .fillColor('#6B7280')
             .text('Membership Type:', 50, detailsY)
             .fillColor('#1F2937')
-            .text(metadata.membershipType.charAt(0).toUpperCase() + metadata.membershipType.slice(1), 180, detailsY);
+            .text(formatMembershipType(metadata.membershipType), 180, detailsY);
 
           if (metadata.membershipExpiry) {
             detailsY += 20;
@@ -284,7 +284,7 @@ export const generateReceipt = (transaction) => {
         )
         .fontSize(9)
         .text(
-          'For any queries, please contact us at info@zambiatennis.com',
+          'For any queries, please contact us at admin@zambiatennis.com',
           50, footerY + 55,
           { align: 'center' }
         );
@@ -301,6 +301,22 @@ export const generateReceipt = (transaction) => {
     }
   });
 };
+
+/**
+ * Format membership type code for display
+ */
+function formatMembershipType(code) {
+  const types = {
+    zpin_senior: 'Senior ZPIN',
+    zpin_junior: 'Junior ZPIN',
+    zpin_junior_senior: 'Senior-eligible Junior ZPIN',
+    zpin_international: 'International ZPIN',
+    adult: 'Adult Membership',
+    junior: 'Junior Membership',
+    family: 'Family Membership',
+  };
+  return types[code] || (code ? code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Membership');
+}
 
 /**
  * Format payment type for display
