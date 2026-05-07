@@ -19,8 +19,11 @@ import {
   CreditCard,
   Loader2,
   CheckCircle2,
-  FileDown
+  FileDown,
+  Search,
+  ListChecks
 } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { tournamentService, Tournament } from '@/services/tournamentService'
 import { PublicOrderOfPlay } from '@/components/PublicOrderOfPlay'
 import { lencoPaymentService } from '@/services/lencoPaymentService'
@@ -240,6 +243,16 @@ export function TournamentDetail() {
           <Tabs defaultValue="details" className="w-full">
             <TabsList className="mb-6">
               <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="entries">
+                Entries
+                {(() => {
+                  const total = tournament.categories?.reduce((sum: number, c: any) =>
+                    sum + (c.entries?.filter((e: any) => e.status !== 'withdrawn').length || 0), 0) || 0
+                  return total > 0 ? (
+                    <Badge variant="secondary" className="ml-2 text-xs">{total}</Badge>
+                  ) : null
+                })()}
+              </TabsTrigger>
               <TabsTrigger value="draws">
                 Draws
                 {tournament.categories?.some((c: any) => c.draw) && (
@@ -529,6 +542,10 @@ export function TournamentDetail() {
               </div>
             </TabsContent>
 
+            <TabsContent value="entries">
+              <PublicEntriesView tournament={tournament} />
+            </TabsContent>
+
             <TabsContent value="draws">
               <PublicDrawsView tournament={tournament} />
             </TabsContent>
@@ -543,6 +560,147 @@ export function TournamentDetail() {
           </Tabs>
         </div>
       </section>
+    </div>
+  )
+}
+
+function PublicEntriesView({ tournament }: { tournament: Tournament }) {
+  const [search, setSearch] = useState('')
+
+  const categoriesWithEntries = (tournament.categories || [])
+    .map((c: any) => ({
+      ...c,
+      visibleEntries: (c.entries || []).filter((e: any) => e.status !== 'withdrawn')
+    }))
+    .filter((c: any) => c.visibleEntries.length > 0)
+
+  const q = search.trim().toLowerCase()
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case 'accepted':
+        return <Badge className="bg-green-600 text-white text-xs">Accepted</Badge>
+      case 'pending':
+        return <Badge variant="outline" className="text-blue-600 border-blue-400 text-xs">Confirmed</Badge>
+      case 'pending_payment':
+        return <Badge variant="outline" className="text-amber-600 border-amber-400 text-xs">Pending Payment</Badge>
+      default:
+        return <Badge variant="outline" className="text-xs">{status}</Badge>
+    }
+  }
+
+  const totalEntries = categoriesWithEntries.reduce((sum, c) => sum + c.visibleEntries.length, 0)
+
+  if (totalEntries === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <ListChecks className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p className="text-lg font-medium mb-2">No entries yet</p>
+          <p className="text-sm">Entries will appear here as players register for the tournament.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by player name or ZPIN..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Per-category tables */}
+      {categoriesWithEntries.map((category: any) => {
+        const filtered = q
+          ? category.visibleEntries.filter((e: any) =>
+              e.playerName?.toLowerCase().includes(q) ||
+              e.playerZpin?.toLowerCase().includes(q) ||
+              e.partnerName?.toLowerCase().includes(q) ||
+              e.partnerZpin?.toLowerCase().includes(q)
+            )
+          : category.visibleEntries
+
+        if (filtered.length === 0) return null
+
+        const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles'
+
+        return (
+          <Card key={category._id}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">{category.name}</CardTitle>
+                <Badge variant="secondary">{filtered.length} / {category.maxEntries}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40">
+                      <th className="text-left px-4 py-2 font-medium">#</th>
+                      <th className="text-left px-4 py-2 font-medium">Player</th>
+                      {isDoubles && <th className="text-left px-4 py-2 font-medium">Partner</th>}
+                      <th className="text-left px-4 py-2 font-medium">Club</th>
+                      <th className="text-left px-4 py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((entry: any, idx: number) => (
+                      <tr key={entry._id || idx} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="px-4 py-2.5 text-muted-foreground">{idx + 1}</td>
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium">{entry.playerName}</p>
+                          {entry.playerZpin && entry.playerZpin !== 'PENDING' && (
+                            <p className="text-xs text-muted-foreground font-mono">{entry.playerZpin}</p>
+                          )}
+                        </td>
+                        {isDoubles && (
+                          <td className="px-4 py-2.5">
+                            {entry.partnerName ? (
+                              <>
+                                <p className="font-medium">{entry.partnerName}</p>
+                                {entry.partnerZpin && entry.partnerZpin !== 'PENDING' && (
+                                  <p className="text-xs text-muted-foreground font-mono">{entry.partnerZpin}</p>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-2.5 text-muted-foreground">{entry.clubName || '—'}</td>
+                        <td className="px-4 py-2.5">{statusBadge(entry.status)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })}
+
+      {q && categoriesWithEntries.every((c: any) => {
+        const filtered = c.visibleEntries.filter((e: any) =>
+          e.playerName?.toLowerCase().includes(q) ||
+          e.playerZpin?.toLowerCase().includes(q) ||
+          e.partnerName?.toLowerCase().includes(q)
+        )
+        return filtered.length === 0
+      }) && (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No entries found matching "{search}"
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
