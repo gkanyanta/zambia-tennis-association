@@ -543,7 +543,11 @@ export function TournamentDetail() {
             </TabsContent>
 
             <TabsContent value="entries">
-              <PublicEntriesView tournament={tournament} />
+              <PublicEntriesView
+                tournament={tournament}
+                onPayNow={tournament.entryFee > 0 ? handlePayEntryFee : undefined}
+                payingEntryFee={payingEntryFee}
+              />
             </TabsContent>
 
             <TabsContent value="draws">
@@ -564,7 +568,17 @@ export function TournamentDetail() {
   )
 }
 
-function PublicEntriesView({ tournament }: { tournament: Tournament }) {
+function PublicEntriesView({
+  tournament,
+  onPayNow,
+  payingEntryFee = false
+}: {
+  tournament: Tournament
+  onPayNow?: () => void
+  payingEntryFee?: boolean
+}) {
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
   const categoriesWithEntries = (tournament.categories || [])
@@ -680,7 +694,33 @@ function PublicEntriesView({ tournament }: { tournament: Tournament }) {
                           </td>
                         )}
                         <td className="px-4 py-2.5 text-muted-foreground">{entry.clubName || '—'}</td>
-                        <td className="px-4 py-2.5">{statusBadge(entry.status)}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-col gap-1.5 items-start">
+                            {statusBadge(entry.status)}
+                            {entry.status === 'pending_payment' && onPayNow && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                                disabled={payingEntryFee}
+                                onClick={() => {
+                                  if (!isAuthenticated) {
+                                    navigate(`/login?redirect=/tournaments/${(tournament as any)._id}`)
+                                    return
+                                  }
+                                  onPayNow()
+                                }}
+                              >
+                                {payingEntryFee ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <CreditCard className="h-3 w-3 mr-1" />
+                                )}
+                                Pay Now
+                              </Button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
