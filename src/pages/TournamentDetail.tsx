@@ -701,7 +701,7 @@ function PublicEntriesView({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                                className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
                                 disabled={payingEntryFee}
                                 onClick={() => {
                                   if (!isAuthenticated) {
