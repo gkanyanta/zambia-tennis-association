@@ -284,6 +284,15 @@ export const initializeTournamentPayment = async (req, res) => {
     // Generate unique reference
     const reference = generateReference('TOUR');
 
+    // Tag the player's pending_payment entries in this tournament with the reference
+    // so verifyPayment knows which entries to activate on success.
+    const userId = user._id.toString();
+    await Tournament.updateMany(
+      { _id: tournament._id, 'categories.entries.playerId': userId, 'categories.entries.status': 'pending_payment' },
+      { $set: { 'categories.$[].entries.$[e].paymentReference': reference } },
+      { arrayFilters: [{ 'e.playerId': userId, 'e.status': 'pending_payment' }] }
+    );
+
     res.status(200).json({
       success: true,
       data: {
@@ -1032,16 +1041,71 @@ export const verifyPayment = async (req, res) => {
 
     // Handle tournament payment
     if (referencePrefix === 'TOUR') {
-      // Find tournament registration and update
-      // Implementation depends on tournament registration structure
+      const tournament = await Tournament.findOne({ 'categories.entries.paymentReference': reference });
+
+      if (!tournament) {
+        return res.status(404).json({ success: false, message: 'Tournament payment reference not found' });
+      }
+
+      // Idempotency: check if already processed
+      const existingTxn = await Transaction.findOne({ reference });
+      if (existingTxn) {
+        return res.status(200).json({
+          success: true,
+          message: 'Tournament payment already processed',
+          data: { reference, transactionId, amount: amountPaid, status: 'successful', receiptNumber: existingTxn.receiptNumber }
+        });
+      }
+
+      let totalAmount = 0;
+      let payerName = null;
+      let payerEmail = null;
+      const updatedEntries = [];
+
+      for (const category of tournament.categories) {
+        for (const entry of category.entries) {
+          if (entry.paymentReference === reference && entry.status === 'pending_payment') {
+            entry.status = 'pending';
+            entry.paymentStatus = 'paid';
+            entry.paymentDate = new Date();
+            entry.paymentMethod = 'online';
+            const fee = entry.entryFee || tournament.entryFee || 0;
+            totalAmount += fee;
+            if (!payerName) {
+              payerName = entry.payer?.name || entry.playerName;
+              payerEmail = entry.payer?.email;
+            }
+            updatedEntries.push({ playerName: entry.playerName, category: category.name });
+          }
+        }
+      }
+      await tournament.save();
+
+      const transaction = await createTransactionAndSendReceipt({
+        reference,
+        transactionId,
+        lencoData: lencoResponse.data,
+        type: 'tournament',
+        amount: totalAmount || amountPaid,
+        payerName: payerName || 'Tournament Entrant',
+        payerEmail,
+        relatedId: tournament._id,
+        relatedModel: 'Tournament',
+        description: `Tournament Entry Fee - ${tournament.name}`,
+        metadata: { tournamentName: tournament.name, entries: updatedEntries }
+      });
+
       return res.status(200).json({
         success: true,
         message: 'Tournament payment verified successfully',
         data: {
           reference,
           transactionId,
-          amount: amountPaid,
-          status: 'successful'
+          amount: totalAmount || amountPaid,
+          status: 'successful',
+          receiptNumber: transaction.receiptNumber,
+          tournamentName: tournament.name,
+          entries: updatedEntries
         }
       });
     }
@@ -1690,6 +1754,63 @@ export const handleWebhook = async (req, res) => {
           }
 
           console.log(`Registration ${registration.referenceNumber} updated via webhook`);
+        }
+      }
+
+      if (referencePrefix === 'TOUR') {
+        const tournament = await Tournament.findOne({ 'categories.entries.paymentReference': reference });
+        if (!tournament) {
+          console.log(`Webhook: No tournament found for TOUR reference ${reference}`);
+        } else {
+          const existingTxn = await Transaction.findOne({ reference });
+          if (existingTxn) {
+            console.log(`Webhook: TOUR transaction already exists for ${reference}`);
+          } else {
+            let totalAmount = 0;
+            let payerName = null;
+            let payerEmail = null;
+            const updatedEntries = [];
+
+            for (const category of tournament.categories) {
+              for (const entry of category.entries) {
+                if (entry.paymentReference === reference && entry.status === 'pending_payment') {
+                  entry.status = 'pending';
+                  entry.paymentStatus = 'paid';
+                  entry.paymentDate = new Date();
+                  entry.paymentMethod = 'online';
+                  const fee = entry.entryFee || tournament.entryFee || 0;
+                  totalAmount += fee;
+                  if (!payerName) {
+                    payerName = entry.payer?.name || entry.playerName;
+                    payerEmail = entry.payer?.email;
+                  }
+                  updatedEntries.push({ playerName: entry.playerName, category: category.name });
+                }
+              }
+            }
+            await tournament.save();
+
+            if (updatedEntries.length > 0) {
+              try {
+                await createTransactionAndSendReceipt({
+                  reference,
+                  transactionId: transaction_id,
+                  lencoData: data,
+                  type: 'tournament',
+                  amount: totalAmount || amount,
+                  payerName: payerName || 'Tournament Entrant',
+                  payerEmail,
+                  relatedId: tournament._id,
+                  relatedModel: 'Tournament',
+                  description: `Tournament Entry Fee - ${tournament.name}`,
+                  metadata: { tournamentName: tournament.name, entries: updatedEntries }
+                });
+              } catch (txnError) {
+                console.error('Webhook: Failed to create TOUR transaction record:', txnError);
+              }
+              console.log(`Webhook: Activated ${updatedEntries.length} tournament entry/entries for ${reference}`);
+            }
+          }
         }
       }
 
