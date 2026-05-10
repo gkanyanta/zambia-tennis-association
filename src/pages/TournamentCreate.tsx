@@ -83,6 +83,10 @@ export function TournamentCreate() {
   const [allowMultipleCategories, setAllowMultipleCategories] = useState(false)
   const [requirePaymentUpfront, setRequirePaymentUpfront] = useState(false)
 
+  // Ranking settings
+  const [rankingTournament, setRankingTournament] = useState(false)
+  const [grade, setGrade] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('B')
+
   // Fetch tournament data for edit mode
   useEffect(() => {
     if (!tournamentId) return
@@ -108,6 +112,8 @@ export function TournamentCreate() {
         setAllowPublicRegistration((t as any).allowPublicRegistration ?? true)
         setAllowMultipleCategories((t as any).allowMultipleCategories ?? false)
         setRequirePaymentUpfront((t as any).requirePaymentUpfront ?? false)
+        setRankingTournament((t as any).rankingTournament ?? false)
+        setGrade((t as any).grade || 'B')
 
         // Determine tournament type from categories
         if (t.categories?.length > 0) {
@@ -284,7 +290,10 @@ export function TournamentCreate() {
         tournamentLevel,
         allowPublicRegistration,
         allowMultipleCategories,
-        requirePaymentUpfront
+        requirePaymentUpfront,
+        // Ranking settings
+        rankingTournament,
+        grade
       } as any
 
       if (isEditMode) {
@@ -929,6 +938,53 @@ export function TournamentCreate() {
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
                 </div>
+              </div>
+
+              {/* Ranking Settings */}
+              <div className="border-t pt-6 space-y-4">
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-yellow-500" />
+                  Ranking Settings
+                </h4>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <div className="font-medium">Ranking Tournament</div>
+                    <div className="text-sm text-muted-foreground">
+                      Points are automatically awarded to players when each category is finalised
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rankingTournament}
+                      onChange={(e) => setRankingTournament(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                {rankingTournament && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Tournament Grade</label>
+                    <select
+                      value={grade}
+                      onChange={(e) => setGrade(e.target.value as any)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="A">Grade A — ITF / CAT / WTA / ATP (Winner: 130 pts)</option>
+                      <option value="B">Grade B — National Championship (Winner: 100 pts)</option>
+                      <option value="C">Grade C — Regional (Winner: 50 pts)</option>
+                      <option value="D">Grade D — School / University (Winner: 25 pts)</option>
+                      <option value="E">Grade E — Round Robin event (Winner: 10 pts)</option>
+                      <option value="F">Grade F — Junior ball competitions (Winner: 5 pts)</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Determines how many ranking points are awarded per finishing position.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Info about registration flow */}
