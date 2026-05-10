@@ -11,7 +11,7 @@ const tournamentResultSchema = new mongoose.Schema({
 const rankingSchema = new mongoose.Schema({
   playerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Player'
+    ref: 'User'
   },
   playerName: {
     type: String,
