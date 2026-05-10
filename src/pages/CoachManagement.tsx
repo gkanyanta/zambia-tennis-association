@@ -197,15 +197,15 @@ export function CoachManagement() {
   }
 
   const filteredCoaches = coaches.filter(coach => {
-    const matchesSearch =
-      coach.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      coach.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      coach.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      coach.club.name.toLowerCase().includes(searchTerm.toLowerCase())
-
+    const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const matchesSearch = tokens.length === 0 || tokens.every(t =>
+      coach.firstName.toLowerCase().includes(t) ||
+      coach.lastName.toLowerCase().includes(t) ||
+      coach.email.toLowerCase().includes(t) ||
+      coach.club.name.toLowerCase().includes(t)
+    )
     const matchesStatus = filterStatus === 'all' || coach.status === filterStatus
     const matchesListingStatus = filterListingStatus === 'all' || coach.listingStatus === filterListingStatus
-
     return matchesSearch && matchesStatus && matchesListingStatus
   })
 

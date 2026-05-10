@@ -415,14 +415,14 @@ export function PlayerManagement() {
   }
 
   const filteredPlayers = players.filter(player => {
-    const matchesSearch =
-      player.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      player.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (player.zpin?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (player.club?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-
+    const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const matchesSearch = tokens.length === 0 || tokens.every(t =>
+      player.firstName.toLowerCase().includes(t) ||
+      player.lastName.toLowerCase().includes(t) ||
+      (player.zpin?.toLowerCase() || '').includes(t) ||
+      (player.club?.toLowerCase() || '').includes(t)
+    )
     const matchesType = filterType === 'all' || player.membershipType === filterType
-
     return matchesSearch && matchesType
   })
 

@@ -47,14 +47,14 @@ export function Players() {
   }
 
   const filteredPlayers = players.filter(player => {
-    const matchesSearch =
-      player.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      player.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (player.zpin?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (player.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-
+    const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const matchesSearch = tokens.length === 0 || tokens.every(t =>
+      player.firstName.toLowerCase().includes(t) ||
+      player.lastName.toLowerCase().includes(t) ||
+      (player.zpin?.toLowerCase() || '').includes(t) ||
+      (player.email?.toLowerCase() || '').includes(t)
+    )
     const matchesCategory = selectedCategory === 'all' || player.membershipType === selectedCategory
-
     return matchesSearch && matchesCategory
   })
 

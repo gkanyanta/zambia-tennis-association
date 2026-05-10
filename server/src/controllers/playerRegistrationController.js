@@ -526,13 +526,24 @@ export const getRegistrations = async (req, res) => {
     }
 
     if (search) {
-      query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
-        { referenceNumber: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
-      ];
+      const tokens = search.trim().split(/\s+/).filter(Boolean);
+      if (tokens.length === 1) {
+        const t = tokens[0];
+        query.$or = [
+          { firstName: { $regex: t, $options: 'i' } },
+          { lastName: { $regex: t, $options: 'i' } },
+          { phone: { $regex: t, $options: 'i' } },
+          { referenceNumber: { $regex: t, $options: 'i' } },
+          { email: { $regex: t, $options: 'i' } },
+        ];
+      } else {
+        query.$and = tokens.map(t => ({
+          $or: [
+            { firstName: { $regex: t, $options: 'i' } },
+            { lastName: { $regex: t, $options: 'i' } },
+          ]
+        }));
+      }
     }
 
     const total = await PlayerRegistration.countDocuments(query);
