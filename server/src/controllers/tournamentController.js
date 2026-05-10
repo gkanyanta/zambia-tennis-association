@@ -438,7 +438,7 @@ export const submitEntry = async (req, res) => {
 
     // Calculate fee and ZPIN status
     const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
-    const activeSub = await MembershipSubscription.findOne({ userId: player._id, userType: 'player', status: 'active' });
+    const activeSub = await MembershipSubscription.findOne({ entityId: player._id, entityType: 'player', status: 'active' });
     const zpinPaidUp = activeSub
       ? category.type !== 'senior' || activeSub.membershipTypeCode !== 'zpin_junior'
       : false;
@@ -2288,8 +2288,8 @@ export const publicRegister = async (req, res) => {
       let zpinPaidUp = false;
       if (!isNewPlayerEntry && playerData._id) {
         const activeSub = await MembershipSubscription.findOne({
-          userId: playerData._id,
-          userType: 'player',
+          entityId: playerData._id,
+          entityType: 'player',
           status: 'active'
         });
         // zpin_junior holders pay surcharge in senior categories (top-up is voluntary)
@@ -2365,8 +2365,8 @@ export const publicRegister = async (req, res) => {
         let partnerZpinPaidUp = false;
         if (!isNewPartnerEntry && partnerData._id) {
           const partnerActiveSub = await MembershipSubscription.findOne({
-            userId: partnerData._id,
-            userType: 'player',
+            entityId: partnerData._id,
+            entityType: 'player',
             status: 'active'
           });
           partnerZpinPaidUp = partnerActiveSub

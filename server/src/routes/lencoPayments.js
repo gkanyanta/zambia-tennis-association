@@ -13,13 +13,13 @@ import {
   exportTransactionsExcel,
   repairMissingTransactions
 } from '../controllers/lencoPaymentController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Initialize payments
 router.post('/membership/initialize', protect, initializeMembershipPayment);
-router.post('/tournament/:tournamentId/initialize', protect, initializeTournamentPayment);
+router.post('/tournament/:tournamentId/initialize', optionalAuth, initializeTournamentPayment);
 router.post('/donation/initialize', initializeDonation); // Public
 router.post('/coach-listing/initialize', protect, initializeCoachListingPayment);
 

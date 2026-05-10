@@ -124,11 +124,6 @@ export function TournamentDetail() {
   }
 
   const handlePayEntryFee = async (entryReferenceNumber?: string) => {
-    if (!isAuthenticated) {
-      navigate(`/login?redirect=/tournaments/${id}`)
-      return
-    }
-
     try {
       setPayingEntryFee(true)
 
@@ -704,13 +699,7 @@ function PublicEntriesView({
                                 variant="outline"
                                 className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white border-green-600"
                                 disabled={payingEntryFee}
-                                onClick={() => {
-                                  if (!isAuthenticated) {
-                                    navigate(`/login?redirect=/tournaments/${(tournament as any)._id}`)
-                                    return
-                                  }
-                                  onPayNow((entry as any).entryReferenceNumber)
-                                }}
+                                onClick={() => onPayNow((entry as any).entryReferenceNumber)}
                               >
                                 {payingEntryFee ? (
                                   <Loader2 className="h-3 w-3 mr-1 animate-spin" />

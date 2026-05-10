@@ -252,35 +252,36 @@ export const initializeMembershipPayment = async (req, res) => {
 export const initializeTournamentPayment = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.tournamentId);
-    const user = await User.findById(req.user.id);
-
     if (!tournament) {
       return res.status(404).json({ success: false, message: 'Tournament not found' });
     }
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
 
-    // entryReferenceNumber narrows the payment to one specific batch of entries
-    // (used when a parent/coach pays for someone else's entry)
     const { entryReferenceNumber } = req.body;
 
-    // Collect the entries we will tag with the payment reference
+    // Must have either a logged-in user or a specific entry reference to pay
+    if (!entryReferenceNumber && !req.user) {
+      return res.status(400).json({ success: false, message: 'Entry reference number is required.' });
+    }
+
     let totalAmount = 0;
     const entriesToTag = [];
+    let payerEmail = req.user?.email ?? null;
 
     for (const cat of tournament.categories) {
       for (const entry of cat.entries) {
         if (entry.status !== 'pending_payment') continue;
         if (entryReferenceNumber) {
-          // Tag only the specific batch the payer clicked Pay Now on
           if (entry.entryReferenceNumber === entryReferenceNumber) {
             entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entry.entryFee });
             totalAmount += entry.entryFee || 0;
+            // Resolve payer email from entry data when no logged-in user
+            if (!payerEmail) {
+              payerEmail = entry.payer?.email || entry.newPlayerContact?.email || null;
+            }
           }
         } else {
           // Fallback: tag all pending_payment entries for the logged-in player
-          if (entry.playerId && entry.playerId.toString() === user._id.toString()) {
+          if (entry.playerId && entry.playerId.toString() === req.user._id.toString()) {
             entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entry.entryFee });
             totalAmount += entry.entryFee || 0;
           }
@@ -292,13 +293,20 @@ export const initializeTournamentPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No pending payment entries found for this tournament.' });
     }
 
-    // Use actual entry fees (already includes the surcharge calculated at registration)
-    const amount = totalAmount || tournament.entryFee;
+    // If still no email, look up the registered player by playerId
+    if (!payerEmail) {
+      const firstTagged = tournament.categories
+        .flatMap(c => c.entries)
+        .find(e => e._id.toString() === entriesToTag[0].entryId);
+      if (firstTagged?.playerId) {
+        const playerUser = await User.findById(firstTagged.playerId).select('email');
+        payerEmail = playerUser?.email ?? null;
+      }
+    }
 
-    // Generate unique reference
+    const amount = totalAmount || tournament.entryFee;
     const reference = generateReference('TOUR');
 
-    // Tag the matched entries so the webhook can identify them on callback
     await Tournament.updateOne(
       { _id: tournament._id },
       { $set: Object.fromEntries(entriesToTag.map(({ catId, entryId }) => {
@@ -313,7 +321,7 @@ export const initializeTournamentPayment = async (req, res) => {
       data: {
         reference,
         amount,
-        email: user.email,
+        email: payerEmail,
         publicKey: LENCO_PUBLIC_KEY,
         tournamentId: tournament._id,
         tournamentName: tournament.name,

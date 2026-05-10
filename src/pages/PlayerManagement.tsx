@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Search, Edit, Trash2, Download, Plus, Eye, CheckCircle2, XCircle,
-  CreditCard, Loader2, FileText, ExternalLink
+  CreditCard, Loader2, FileText, ExternalLink, Zap
 } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { clubService, type Club } from '@/services/clubService'
@@ -20,6 +20,7 @@ import {
   type RegistrationNameMatch,
   type RegistrationsListResponse
 } from '@/services/playerRegistrationService'
+import { membershipService, type MembershipType } from '@/services/membershipService'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -51,6 +52,21 @@ export function PlayerManagement() {
   })
   const [calculatedAge, setCalculatedAge] = useState<number | null>(null)
   const [suggestedMembershipType, setSuggestedMembershipType] = useState<string>('')
+
+  // Activate ZPIN modal
+  const [activatePlayer, setActivatePlayer] = useState<User | null>(null)
+  const [membershipTypes, setMembershipTypes] = useState<MembershipType[]>([])
+  const [activateForm, setActivateForm] = useState({
+    membershipTypeId: '',
+    year: new Date().getFullYear().toString(),
+    paymentMethod: 'cash' as 'cash' | 'bank_transfer' | 'mobile_money' | 'cheque',
+    transactionReference: '',
+    amount: '',
+    notes: '',
+  })
+  const [activateLoading, setActivateLoading] = useState(false)
+  const [activateResult, setActivateResult] = useState<string | null>(null)
+  const [activateError, setActivateError] = useState<string | null>(null)
 
   // Applications tab state
   const [appData, setAppData] = useState<RegistrationsListResponse | null>(null)
@@ -368,6 +384,71 @@ export function PlayerManagement() {
     }
   }
 
+  const openActivateModal = async (player: User) => {
+    setActivatePlayer(player)
+    setActivateResult(null)
+    setActivateError(null)
+    setActivateForm({
+      membershipTypeId: '',
+      year: new Date().getFullYear().toString(),
+      paymentMethod: 'cash',
+      transactionReference: '',
+      amount: '',
+      notes: '',
+    })
+    // Load membership types if not already loaded
+    if (membershipTypes.length === 0) {
+      try {
+        const types = await membershipService.getPlayerMembershipTypes()
+        setMembershipTypes(types)
+        // Pre-select type matching player's membershipType
+        const match = types.find(t =>
+          player.membershipType === 'junior' ? t.code?.toLowerCase().includes('junior') || t.name?.toLowerCase().includes('junior')
+          : t.code?.toLowerCase().includes('adult') || t.name?.toLowerCase().includes('adult') || t.category === 'player'
+        )
+        if (match) {
+          setActivateForm(f => ({ ...f, membershipTypeId: match._id, amount: String(match.amount) }))
+        }
+      } catch (err) {
+        console.error('Failed to load membership types', err)
+      }
+    } else {
+      const match = membershipTypes.find(t =>
+        player.membershipType === 'junior' ? t.code?.toLowerCase().includes('junior') || t.name?.toLowerCase().includes('junior')
+        : t.code?.toLowerCase().includes('adult') || t.name?.toLowerCase().includes('adult') || t.category === 'player'
+      )
+      if (match) {
+        setActivateForm(f => ({ ...f, membershipTypeId: match._id, amount: String(match.amount) }))
+      }
+    }
+  }
+
+  const handleActivateSubmit = async () => {
+    if (!activatePlayer || !activateForm.membershipTypeId) return
+    setActivateLoading(true)
+    setActivateError(null)
+    try {
+      const result = await membershipService.recordManualPayment({
+        entityType: 'player',
+        entityId: activatePlayer._id,
+        membershipTypeId: activateForm.membershipTypeId,
+        year: parseInt(activateForm.year, 10),
+        paymentMethod: activateForm.paymentMethod,
+        transactionReference: activateForm.transactionReference || undefined,
+        amount: activateForm.amount ? parseFloat(activateForm.amount) : undefined,
+        notes: activateForm.notes || undefined,
+      })
+      setActivateResult(
+        `Activated! Receipt: ${result.transaction?.receiptNumber || 'N/A'}${result.zpin ? ` · ZPIN: ${result.zpin}` : ''}`
+      )
+      fetchData()
+    } catch (err: any) {
+      setActivateError(err.message || 'Failed to activate ZPIN')
+    } finally {
+      setActivateLoading(false)
+    }
+  }
+
   const handleExportToExcel = async () => {
     try {
       setExporting(true)
@@ -596,6 +677,116 @@ export function PlayerManagement() {
 
   return (
     <div className="flex flex-col">
+      {/* Activate ZPIN Modal */}
+      {activatePlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            {activateResult ? (
+              <>
+                <div className="text-center py-4">
+                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                  <h3 className="font-semibold text-lg mb-2">ZPIN Activated</h3>
+                  <p className="text-sm text-muted-foreground">{activateResult}</p>
+                </div>
+                <Button className="w-full mt-4" onClick={() => setActivatePlayer(null)}>Done</Button>
+              </>
+            ) : (
+              <>
+                <h3 className="font-semibold text-lg mb-1">Activate ZPIN</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Recording manual payment for <span className="font-medium text-foreground">{activatePlayer.firstName} {activatePlayer.lastName}</span>
+                  {activatePlayer.zpin && <span className="font-mono ml-1">({activatePlayer.zpin})</span>}
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs">Membership Type <span className="text-red-500">*</span></Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+                      value={activateForm.membershipTypeId}
+                      onChange={e => {
+                        const t = membershipTypes.find(m => m._id === e.target.value)
+                        setActivateForm(f => ({ ...f, membershipTypeId: e.target.value, amount: t ? String(t.amount) : f.amount }))
+                      }}
+                    >
+                      <option value="">Select...</option>
+                      {membershipTypes.map(t => (
+                        <option key={t._id} value={t._id}>{t.name} — K{t.amount}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Year <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="number"
+                        min="2024"
+                        max="2030"
+                        value={activateForm.year}
+                        onChange={e => setActivateForm(f => ({ ...f, year: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Amount (K)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Auto"
+                        value={activateForm.amount}
+                        onChange={e => setActivateForm(f => ({ ...f, amount: e.target.value }))}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Payment Method <span className="text-red-500">*</span></Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+                      value={activateForm.paymentMethod}
+                      onChange={e => setActivateForm(f => ({ ...f, paymentMethod: e.target.value as any }))}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="mobile_money">Mobile Money</option>
+                      <option value="cheque">Cheque</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Transaction Reference</Label>
+                    <Input
+                      placeholder="Receipt / slip number"
+                      value={activateForm.transactionReference}
+                      onChange={e => setActivateForm(f => ({ ...f, transactionReference: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Notes</Label>
+                    <Input
+                      placeholder="Optional"
+                      value={activateForm.notes}
+                      onChange={e => setActivateForm(f => ({ ...f, notes: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                {activateError && <p className="text-sm text-destructive mt-3">{activateError}</p>}
+                <div className="flex gap-2 mt-5">
+                  <Button
+                    className="flex-1"
+                    onClick={handleActivateSubmit}
+                    disabled={activateLoading || !activateForm.membershipTypeId}
+                  >
+                    {activateLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Activating...</> : 'Activate & Record Payment'}
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={() => setActivatePlayer(null)}>Cancel</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <Hero title="Player Management" description="Edit players and manage registration applications" gradient />
 
       <section className="py-16">
@@ -744,6 +935,15 @@ export function PlayerManagement() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  title="Activate ZPIN / Record Payment"
+                                  className="text-yellow-600 border-yellow-400 hover:bg-yellow-50"
+                                  onClick={() => openActivateModal(player)}
+                                >
+                                  <Zap className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"
