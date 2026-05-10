@@ -43,7 +43,8 @@ import {
   scheduleMatches,
   updateUmpirePool,
   saveOrderOfPlay,
-  downloadOrderOfPlayPDF
+  downloadOrderOfPlayPDF,
+  linkEntryToPlayer
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -76,6 +77,7 @@ router.get('/:tournamentId/categories/:categoryId/check-eligibility/:playerId', 
 router.post('/:tournamentId/entries/bulk', protect, authorize('admin', 'staff'), bulkEntryAction);
 router.post('/:tournamentId/categories/:categoryId/entries', protect, submitEntry);
 router.put('/:tournamentId/categories/:categoryId/entries/:entryId', protect, authorize('admin', 'staff'), updateEntryStatus);
+router.patch('/:tournamentId/categories/:categoryId/entries/:entryId/link-player', protect, authorize('admin', 'staff'), linkEntryToPlayer);
 router.put('/:tournamentId/categories/:categoryId/seeds', protect, authorize('admin', 'staff'), bulkUpdateSeeds);
 router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authorize('admin', 'staff'), autoSeedCategory);
 

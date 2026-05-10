@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle } from 'lucide-react'
+import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus } from 'lucide-react'
 import type { TournamentCategory } from '@/types/tournament'
 
 interface EntryManagementProps {
@@ -13,15 +13,30 @@ interface EntryManagementProps {
   onAutoSeed: () => Promise<void>
   onBulkAction?: (entryIds: string[], action: 'APPROVE' | 'CONFIRM_PAYMENT' | 'WAIVE_PAYMENT' | 'WAIVE_SURCHARGE' | 'WAIVE_PARTNER_SURCHARGE') => Promise<{ succeeded: number; failed: number; results: Array<{ entryId: string; success: boolean; error?: string; playerName?: string }> }>
   onBulkUpdateSeeds?: (seeds: Array<{ entryId: string; seedNumber: number }>) => Promise<void>
+  onLinkPlayer?: (entryId: string, zpin: string) => Promise<void>
+  onCreateAccount?: (entryId: string, data: Record<string, any>) => Promise<{ zpin: string }>
 }
 
-export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAction, onBulkUpdateSeeds }: EntryManagementProps) {
+export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAction, onBulkUpdateSeeds, onLinkPlayer, onCreateAccount }: EntryManagementProps) {
   const [selectedEntries, setSelectedEntries] = useState<string[]>([])
   const [filter, setFilter] = useState<'all' | 'pending_payment' | 'pending' | 'accepted' | 'rejected'>('all')
   const [seedingMode, setSeedingMode] = useState(false)
   const [seedValues, setSeedValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [bulkResult, setBulkResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Link player modal
+  const [linkModal, setLinkModal] = useState<{ entryId: string; playerName: string } | null>(null)
+  const [linkZpin, setLinkZpin] = useState('')
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkError, setLinkError] = useState('')
+
+  // Create account modal
+  const [createModal, setCreateModal] = useState<{ entryId: string; entry: any } | null>(null)
+  const [createForm, setCreateForm] = useState<Record<string, any>>({})
+  const [createLoading, setCreateLoading] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [createdZpin, setCreatedZpin] = useState('')
 
   const filteredEntries = category.entries.filter(entry => {
     if (filter === 'all') return true
@@ -233,8 +248,192 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
     return entry?.status === 'pending_payment' && (entry as any).zpinPaidUp === false && (entry as any).surchargeWaived !== true
   })
 
+  const openCreateModal = (entry: any) => {
+    const nameParts = (entry.playerName || '').trim().split(' ')
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+    const contact = entry.newPlayerContact || {}
+    const isJunior = (entry.ageOnDec31 ?? entry.age ?? 99) < 18
+    setCreateForm({
+      firstName,
+      lastName,
+      dateOfBirth: entry.dateOfBirth ? entry.dateOfBirth.slice(0, 10) : '',
+      gender: entry.gender || '',
+      email: contact.email || '',
+      phone: contact.phone || '',
+      club: entry.clubName || '',
+      membershipType: isJunior ? 'junior' : 'adult',
+      parentGuardianName: '',
+      parentGuardianPhone: '',
+    })
+    setCreateModal({ entryId: (entry as any)._id, entry })
+    setCreatedZpin('')
+    setCreateError('')
+  }
+
+  const handleLinkPlayer = async () => {
+    if (!linkModal || !linkZpin.trim() || !onLinkPlayer) return
+    setLinkLoading(true)
+    setLinkError('')
+    try {
+      await onLinkPlayer(linkModal.entryId, linkZpin.trim())
+      setLinkModal(null)
+      setLinkZpin('')
+    } catch (err: any) {
+      setLinkError(err.message || 'Player not found. Check the ZPIN and try again.')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
+  const handleCreateAccount = async () => {
+    if (!createModal || !onCreateAccount) return
+    setCreateLoading(true)
+    setCreateError('')
+    try {
+      const result = await onCreateAccount(createModal.entryId, createForm)
+      setCreatedZpin(result.zpin)
+    } catch (err: any) {
+      setCreateError(err.message || 'Failed to create account')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Link Player Modal */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-lg mb-1">Link to Existing Account</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Enter the ZPIN of the registered account for <span className="font-medium text-foreground">{linkModal.playerName}</span>.
+            </p>
+            <Input
+              placeholder="e.g. ZTAS0021"
+              value={linkZpin}
+              onChange={e => { setLinkZpin(e.target.value.toUpperCase()); setLinkError('') }}
+              onKeyDown={e => e.key === 'Enter' && handleLinkPlayer()}
+              autoFocus
+              className="mb-2"
+            />
+            {linkError && <p className="text-sm text-destructive mb-2">{linkError}</p>}
+            <div className="flex gap-2 mt-4">
+              <Button className="flex-1" onClick={handleLinkPlayer} disabled={linkLoading || !linkZpin.trim()}>
+                {linkLoading ? 'Linking...' : 'Link'}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => { setLinkModal(null); setLinkZpin(''); setLinkError('') }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Account Modal */}
+      {createModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            {createdZpin ? (
+              <>
+                <div className="text-center py-4">
+                  <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                  <h3 className="font-semibold text-lg mb-1">Account Created</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    The player account has been created and linked to this entry.
+                  </p>
+                  <div className="bg-muted rounded-lg p-4 mb-4">
+                    <div className="text-xs text-muted-foreground mb-1">ZPIN assigned</div>
+                    <div className="text-2xl font-mono font-bold">{createdZpin}</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Share this ZPIN with the player so they can log in.</p>
+                </div>
+                <Button className="w-full" onClick={() => setCreateModal(null)}>Done</Button>
+              </>
+            ) : (
+              <>
+                <h3 className="font-semibold text-lg mb-1">Create Player Account</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Creating account for <span className="font-medium text-foreground">{createModal.entry.playerName}</span>. A ZPIN will be auto-generated.
+                </p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">First Name <span className="text-red-500">*</span></label>
+                      <Input value={createForm.firstName} onChange={e => setCreateForm({ ...createForm, firstName: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">Last Name <span className="text-red-500">*</span></label>
+                      <Input value={createForm.lastName} onChange={e => setCreateForm({ ...createForm, lastName: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">Date of Birth <span className="text-red-500">*</span></label>
+                      <Input type="date" value={createForm.dateOfBirth} onChange={e => setCreateForm({ ...createForm, dateOfBirth: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">Gender <span className="text-red-500">*</span></label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={createForm.gender} onChange={e => setCreateForm({ ...createForm, gender: e.target.value })}>
+                        <option value="">Select...</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">Email</label>
+                      <Input type="email" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} placeholder="optional" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">Phone</label>
+                      <Input value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} placeholder="optional" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">Club</label>
+                      <Input value={createForm.club} onChange={e => setCreateForm({ ...createForm, club: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">Membership Type <span className="text-red-500">*</span></label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={createForm.membershipType} onChange={e => setCreateForm({ ...createForm, membershipType: e.target.value })}>
+                        <option value="junior">Junior (ZTAJ####)</option>
+                        <option value="adult">Adult (ZTAS####)</option>
+                      </select>
+                    </div>
+                  </div>
+                  {createForm.membershipType === 'junior' && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-md space-y-3">
+                      <p className="text-xs font-medium text-blue-800 dark:text-blue-200">Parent / Guardian (required for juniors)</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium">Guardian Name <span className="text-red-500">*</span></label>
+                          <Input value={createForm.parentGuardianName} onChange={e => setCreateForm({ ...createForm, parentGuardianName: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium">Guardian Phone <span className="text-red-500">*</span></label>
+                          <Input value={createForm.parentGuardianPhone} onChange={e => setCreateForm({ ...createForm, parentGuardianPhone: e.target.value })} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {createError && <p className="text-sm text-destructive mt-3">{createError}</p>}
+                <div className="flex gap-2 mt-5">
+                  <Button className="flex-1" onClick={handleCreateAccount} disabled={createLoading || !createForm.firstName || !createForm.lastName || !createForm.dateOfBirth || !createForm.gender}>
+                    {createLoading ? 'Creating...' : 'Create Account & Link'}
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={() => { setCreateModal(null); setCreateError('') }}>Cancel</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
@@ -575,6 +774,33 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2 justify-center flex-wrap">
+                            {/* Link / Create Account buttons for unregistered entries */}
+                            {(entry as any).playerZpin === 'PENDING' && (
+                              <>
+                                {onCreateAccount && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-blue-600 border-blue-400 hover:bg-blue-50"
+                                    title="Create ZTA account for this player"
+                                    onClick={() => openCreateModal(entry)}
+                                  >
+                                    <UserPlus className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {onLinkPlayer && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-amber-600 border-amber-400 hover:bg-amber-50"
+                                    title="Link to existing ZPIN account"
+                                    onClick={() => { setLinkModal({ entryId: (entry as any)._id, playerName: entry.playerName }); setLinkZpin(''); setLinkError('') }}
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </>
+                            )}
                             {entry.status === 'pending_payment' && (
                               <>
                                 <Button

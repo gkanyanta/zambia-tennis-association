@@ -3634,3 +3634,51 @@ export const downloadOrderOfPlayPDF = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Link a tournament entry to a registered player account by ZPIN
+// @route   PATCH /api/tournaments/:tournamentId/categories/:categoryId/entries/:entryId/link-player
+// @access  Private/Admin
+export const linkEntryToPlayer = async (req, res) => {
+  try {
+    const { tournamentId, categoryId, entryId } = req.params;
+    const { zpin } = req.body;
+
+    if (!zpin) {
+      return res.status(400).json({ success: false, message: 'ZPIN is required' });
+    }
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
+    }
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    const entry = category.entries.id(entryId);
+    if (!entry) {
+      return res.status(404).json({ success: false, message: 'Entry not found' });
+    }
+
+    const user = await User.findOne({ zpin: zpin.trim().toUpperCase() });
+    if (!user) {
+      return res.status(404).json({ success: false, message: `No player found with ZPIN ${zpin.trim().toUpperCase()}` });
+    }
+
+    entry.playerId = user._id;
+    entry.playerZpin = user.zpin;
+    entry.zpinPaidUp = user.zpinPaidUp ?? false;
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Linked to ${user.firstName} ${user.lastName} (${user.zpin})`,
+      data: entry
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

@@ -378,6 +378,45 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
     window.location.reload()
   }
 
+  const handleLinkPlayer = async (entryId: string, zpin: string) => {
+    if (!selectedCategory) throw new Error('No category selected')
+    await apiFetch(`/tournaments/${tournament._id}/categories/${selectedCategory._id}/entries/${entryId}/link-player`, {
+      method: 'PATCH',
+      body: JSON.stringify({ zpin }),
+    })
+    window.location.reload()
+  }
+
+  const handleCreateAccount = async (entryId: string, data: Record<string, any>) => {
+    // 1. Create the user account
+    const userResp = await apiFetch('/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        dateOfBirth: data.dateOfBirth,
+        gender: data.gender,
+        email: data.email || undefined,
+        phone: data.phone || undefined,
+        club: data.club || undefined,
+        membershipType: data.membershipType,
+        role: 'player',
+        membershipStatus: 'active',
+        parentGuardianName: data.parentGuardianName || undefined,
+        parentGuardianPhone: data.parentGuardianPhone || undefined,
+      }),
+    })
+    const newUser = userResp.data
+    // 2. Link the entry to the new account
+    if (!selectedCategory) throw new Error('No category selected')
+    await apiFetch(`/tournaments/${tournament._id}/categories/${selectedCategory._id}/entries/${entryId}/link-player`, {
+      method: 'PATCH',
+      body: JSON.stringify({ zpin: newUser.zpin }),
+    })
+    window.location.reload()
+    return { zpin: newUser.zpin }
+  }
+
   if (!selectedCategory) {
     return (
       <Card>
@@ -420,6 +459,8 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
         onAutoSeed={handleAutoSeed}
         onBulkAction={handleBulkAction}
         onBulkUpdateSeeds={handleBulkUpdateSeeds}
+        onLinkPlayer={handleLinkPlayer}
+        onCreateAccount={handleCreateAccount}
       />
     </div>
   )
