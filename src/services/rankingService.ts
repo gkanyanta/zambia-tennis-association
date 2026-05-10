@@ -115,6 +115,13 @@ export const rankingService = {
     });
   },
 
+  async deleteTournamentResult(rankingId: string, resultId: string): Promise<Ranking> {
+    const response = await apiFetch(`/rankings/${rankingId}/tournament/${resultId}`, {
+      method: 'DELETE',
+    });
+    return response.data;
+  },
+
   async linkPlayer(rankingId: string, zpin: string): Promise<Ranking> {
     const response = await apiFetch(`/rankings/${rankingId}/link-player`, {
       method: 'PATCH',

@@ -5,6 +5,7 @@ import {
   getPlayerRankings,
   createOrUpdateRanking,
   updateTournamentPoints,
+  deleteTournamentResult,
   importRankings,
   deleteRanking,
   recalculateRankings,
@@ -23,6 +24,7 @@ router.get('/player/:playerId', getPlayerRankings);
 router.post('/', protect, authorize('admin', 'staff'), createOrUpdateRanking);
 router.post('/import', protect, authorize('admin', 'staff'), importRankings);
 router.put('/:id/tournament', protect, authorize('admin', 'staff'), updateTournamentPoints);
+router.delete('/:id/tournament/:resultId', protect, authorize('admin', 'staff'), deleteTournamentResult);
 router.patch('/:id/link-player', protect, authorize('admin', 'staff'), linkPlayerToRanking);
 router.post('/recalculate/:category', protect, authorize('admin', 'staff'), recalculateRankings);
 router.delete('/:id', protect, authorize('admin'), deleteRanking);

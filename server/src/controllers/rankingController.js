@@ -192,6 +192,39 @@ export const updateTournamentPoints = async (req, res) => {
   }
 };
 
+// @desc    Delete a single tournament result from a ranking record
+// @route   DELETE /api/rankings/:id/tournament/:resultId
+// @access  Private/Admin
+export const deleteTournamentResult = async (req, res) => {
+  try {
+    const { id, resultId } = req.params;
+
+    const ranking = await Ranking.findById(id);
+    if (!ranking) {
+      return res.status(404).json({ success: false, message: 'Ranking not found' });
+    }
+
+    const before = ranking.tournamentResults.length;
+    ranking.tournamentResults = ranking.tournamentResults.filter(
+      r => r._id.toString() !== resultId
+    );
+
+    if (ranking.tournamentResults.length === before) {
+      return res.status(404).json({ success: false, message: 'Tournament result not found' });
+    }
+
+    ranking.calculateTotalPoints();
+    ranking.lastUpdated = Date.now();
+    await ranking.save();
+
+    await Ranking.updateRankings(ranking.category, ranking.rankingPeriod);
+
+    res.status(200).json({ success: true, data: ranking });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Bulk import rankings from CSV data
 // @route   POST /api/rankings/import
 // @access  Private/Admin

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
-import { RefreshCw, Plus, Trash2, Upload, Link, ChevronDown, ChevronRight, Pencil, Globe } from 'lucide-react';
+import { RefreshCw, Plus, Trash2, Upload, Link, ChevronDown, ChevronRight, Pencil, Globe, X } from 'lucide-react';
 
 type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u' | 'madalas_overall' | 'madalas_ladies';
 
@@ -138,6 +138,16 @@ export function Rankings() {
       alert(err.message || 'Failed to save');
     } finally {
       setEditResultLoading(false);
+    }
+  };
+
+  const handleDeleteResult = async (rankingId: string, resultId: string, tournamentName: string) => {
+    if (!confirm(`Delete "${tournamentName}" result? This will recalculate the player's total points.`)) return;
+    try {
+      await rankingService.deleteTournamentResult(rankingId, resultId);
+      await fetchRankings();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete result');
     }
   };
 
@@ -536,9 +546,14 @@ export function Rankings() {
                                             <td className="py-1.5 text-center text-muted-foreground">{result.year}</td>
                                             <td className="py-1.5 text-right font-mono font-medium">{result.points}</td>
                                             <td className="py-1.5 text-right">
-                                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>
-                                                <Pencil className="h-3 w-3" />
-                                              </Button>
+                                              <div className="flex items-center justify-end gap-1">
+                                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>
+                                                  <Pencil className="h-3 w-3" />
+                                                </Button>
+                                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteResult(player._id!, result._id, result.tournamentName)}>
+                                                  <X className="h-3 w-3" />
+                                                </Button>
+                                              </div>
                                             </td>
                                           </tr>
                                         ))}
