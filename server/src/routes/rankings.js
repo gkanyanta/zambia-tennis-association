@@ -7,7 +7,8 @@ import {
   updateTournamentPoints,
   importRankings,
   deleteRanking,
-  recalculateRankings
+  recalculateRankings,
+  linkPlayerToRanking
 } from '../controllers/rankingController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -22,6 +23,7 @@ router.get('/player/:playerId', getPlayerRankings);
 router.post('/', protect, authorize('admin', 'staff'), createOrUpdateRanking);
 router.post('/import', protect, authorize('admin', 'staff'), importRankings);
 router.put('/:id/tournament', protect, authorize('admin', 'staff'), updateTournamentPoints);
+router.patch('/:id/link-player', protect, authorize('admin', 'staff'), linkPlayerToRanking);
 router.post('/recalculate/:category', protect, authorize('admin', 'staff'), recalculateRankings);
 router.delete('/:id', protect, authorize('admin'), deleteRanking);
 

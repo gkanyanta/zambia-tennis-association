@@ -13,6 +13,7 @@ import {
   getAllJuniorCategories
 } from '../utils/tournamentEligibility.js';
 import { generateDrawPDF } from '../utils/generateDrawPDF.js';
+import { getPoints, roundToPosition, rankingCategoryFor } from '../utils/rankingPoints.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
 import { generateOrderOfPlayPDF } from '../utils/generateOrderOfPlayPDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
@@ -1582,6 +1583,124 @@ export const generateKnockoutStage = async (req, res) => {
   }
 };
 
+// Award ranking points to all participants in a single_elimination or round_robin category.
+// Only called when tournament.rankingTournament === true.
+const awardRankingPoints = async (tournament, category) => {
+  const rankingCat = rankingCategoryFor(category);
+  if (!rankingCat) return;
+
+  const grade = tournament.grade || 'B';
+  const tournamentYear = new Date(tournament.startDate).getFullYear();
+  const rankingPeriod = String(tournamentYear);
+  const tournamentName = tournament.name;
+  const tournamentDate = tournament.startDate;
+
+  // Build map: playerId → { playerName, playerZpin, position }
+  const playerPositions = {};
+
+  if (category.draw.type === 'single_elimination') {
+    const totalRounds = category.draw.numberOfRounds;
+    const matches = category.draw.matches.filter(m => m.status === 'completed' && m.winner);
+
+    for (const match of matches) {
+      // Loser exits at this round
+      const loserId = match.player1?.id === match.winner ? match.player2?.id : match.player1?.id;
+      const loser   = match.player1?.id === match.winner ? match.player2 : match.player1;
+      if (loserId && loser && !loser.isBye) {
+        const pos = roundToPosition(match.round, totalRounds);
+        if (pos && !playerPositions[loserId]) {
+          playerPositions[loserId] = { playerName: loser.name, position: pos };
+        }
+      }
+    }
+
+    // Winner of the final
+    const finalMatch = matches.find(m => m.round === totalRounds);
+    if (finalMatch?.winner) {
+      const winner = finalMatch.player1?.id === finalMatch.winner ? finalMatch.player1 : finalMatch.player2;
+      if (winner) {
+        playerPositions[finalMatch.winner] = { playerName: winner.name, position: 'W' };
+      }
+    }
+  }
+
+  if (category.draw.type === 'round_robin') {
+    // Use group standings: 1st in group → QF equivalent based on draw size
+    // Simple mapping: overall group position 1 = W, 2 = F, 3/4 = SF etc.
+    const allStandings = [];
+    for (const group of (category.draw.roundRobinGroups || [])) {
+      for (let i = 0; i < (group.standings || []).length; i++) {
+        allStandings.push({ ...group.standings[i], groupRank: i + 1 });
+      }
+    }
+    // Sort overall by points then wins
+    allStandings.sort((a, b) => (b.points - a.points) || (b.won - a.won));
+    const posMap = ['W', 'F', 'SF', 'SF', 'QF', 'QF', 'QF', 'QF'];
+    for (let i = 0; i < allStandings.length; i++) {
+      const s = allStandings[i];
+      if (s.playerId) {
+        playerPositions[s.playerId] = { playerName: s.playerName, position: posMap[i] || 'R16' };
+      }
+    }
+  }
+
+  // Look up ZPINs from entries
+  const entryByPlayerId = {};
+  for (const entry of (category.entries || [])) {
+    if (entry.playerId) entryByPlayerId[entry.playerId.toString()] = entry;
+  }
+
+  for (const [pid, { playerName, position }] of Object.entries(playerPositions)) {
+    const pts = getPoints(grade, position);
+    if (pts <= 0) continue;
+
+    const playerZpin = entryByPlayerId[pid]?.playerZpin || null;
+
+    const tournamentResult = {
+      tournamentName,
+      tournamentDate,
+      points: pts,
+      position,
+      year: tournamentYear
+    };
+
+    // Find or create ranking record
+    const query = playerZpin
+      ? { playerZpin, category: rankingCat, rankingPeriod, isActive: true }
+      : { playerName, category: rankingCat, rankingPeriod, isActive: true };
+
+    let ranking = await Ranking.findOne(query);
+    if (!ranking) {
+      ranking = new Ranking({
+        playerName,
+        playerZpin,
+        category: rankingCat,
+        rank: 9999,
+        totalPoints: 0,
+        rankingPeriod,
+        tournamentResults: [],
+        isActive: true
+      });
+    }
+
+    // Replace existing result for this tournament (idempotent) or push new
+    const existingIdx = ranking.tournamentResults.findIndex(
+      r => r.tournamentName === tournamentName && r.year === tournamentYear
+    );
+    if (existingIdx >= 0) {
+      ranking.tournamentResults[existingIdx] = tournamentResult;
+    } else {
+      ranking.tournamentResults.push(tournamentResult);
+    }
+
+    ranking.calculateTotalPoints();
+    await ranking.save();
+  }
+
+  // Re-sort ranks for this category
+  await Ranking.updateRankings(rankingCat, rankingPeriod);
+};
+
 export const finalizeResults = async (req, res) => {
   try {
     const { tournamentId, categoryId } = req.params;
@@ -1633,6 +1752,10 @@ export const finalizeResults = async (req, res) => {
         runnerUp: runnerUp ? { id: runnerUp.id, name: runnerUp.name } : null,
         semiFinalists: semiLosers.map(p => ({ id: p.id, name: p.name }))
       };
+
+      if (tournament.rankingTournament) {
+        await awardRankingPoints(tournament, category);
+      }
     }
 
     // For mixer (madalas), verify all courts completed and compute winners
@@ -1772,6 +1895,10 @@ export const finalizeResults = async (req, res) => {
         });
 
         group.standings = Object.values(standings).sort((a, b) => b.points - a.points || b.won - a.won);
+      }
+
+      if (tournament.rankingTournament) {
+        await awardRankingPoints(tournament, category);
       }
     }
 

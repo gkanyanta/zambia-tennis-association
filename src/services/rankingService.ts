@@ -114,6 +114,14 @@ export const rankingService = {
       method: 'DELETE',
     });
   },
+
+  async linkPlayer(rankingId: string, zpin: string): Promise<Ranking> {
+    const response = await apiFetch(`/rankings/${rankingId}/link-player`, {
+      method: 'PATCH',
+      body: JSON.stringify({ zpin }),
+    });
+    return response.data;
+  },
   
   getCategoryLabel(category: string): string {
     const cat = rankingCategories.find(c => c.value === category);

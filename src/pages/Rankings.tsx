@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
-import { RefreshCw, Plus, Trash2, Upload } from 'lucide-react';
+import { RefreshCw, Plus, Trash2, Upload, Link } from 'lucide-react';
 
 type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u' | 'madalas_overall' | 'madalas_ladies';
 
@@ -42,6 +42,10 @@ export function Rankings() {
     totalPoints: 0,
     rankingPeriod: '2025'
   });
+  const [linkModal, setLinkModal] = useState<{ rankingId: string; playerName: string } | null>(null);
+  const [linkZpin, setLinkZpin] = useState('');
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState('');
 
   useEffect(() => {
     fetchRankings();
@@ -76,6 +80,22 @@ export function Rankings() {
     }
   };
 
+  const handleLinkPlayer = async () => {
+    if (!linkModal || !linkZpin.trim()) return;
+    setLinkLoading(true);
+    setLinkError('');
+    try {
+      await rankingService.linkPlayer(linkModal.rankingId, linkZpin.trim());
+      setLinkModal(null);
+      setLinkZpin('');
+      await fetchRankings();
+    } catch (err: any) {
+      setLinkError(err.message || 'Player not found. Check the ZPIN and try again.');
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this ranking?')) return;
     try {
@@ -89,6 +109,35 @@ export function Rankings() {
 
   return (
     <div className="flex flex-col">
+      {/* Link Player Modal */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-lg mb-1">Link Player Account</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Linking <span className="font-medium text-foreground">{linkModal.playerName}</span> to a registered ZPIN account.
+            </p>
+            <Input
+              placeholder="Enter ZPIN (e.g. ZTAS0021)"
+              value={linkZpin}
+              onChange={e => { setLinkZpin(e.target.value.toUpperCase()); setLinkError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleLinkPlayer()}
+              className="mb-2"
+              autoFocus
+            />
+            {linkError && <p className="text-sm text-destructive mb-2">{linkError}</p>}
+            <div className="flex gap-2 mt-4">
+              <Button className="flex-1" onClick={handleLinkPlayer} disabled={linkLoading || !linkZpin.trim()}>
+                {linkLoading ? 'Linking...' : 'Link'}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => { setLinkModal(null); setLinkZpin(''); setLinkError(''); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Hero
         title="National Rankings"
         description="Official ZTA rankings across all categories, updated bi-monthly"
@@ -209,6 +258,9 @@ export function Rankings() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="font-semibold text-foreground">{player.playerName}</div>
+                            {isAdmin && !player.playerZpin && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-muted-foreground">{player.club || '-'}</span>
@@ -218,13 +270,26 @@ export function Rankings() {
                           </td>
                           {isAdmin && (
                             <td className="px-6 py-4 text-center">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDelete(player._id!)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="flex items-center justify-center gap-1">
+                                {!player.playerZpin && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-amber-600 border-amber-400 hover:bg-amber-50"
+                                    title="Link to ZPIN account"
+                                    onClick={() => setLinkModal({ rankingId: player._id!, playerName: player.playerName })}
+                                  >
+                                    <Link className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDelete(player._id!)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </td>
                           )}
                         </tr>

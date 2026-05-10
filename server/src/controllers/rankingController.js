@@ -287,6 +287,40 @@ export const deleteRanking = async (req, res) => {
   }
 };
 
+// @desc    Link a ranking record to a registered player account by ZPIN
+// @route   PATCH /api/rankings/:id/link-player
+// @access  Private/Admin
+export const linkPlayerToRanking = async (req, res) => {
+  try {
+    const ranking = await Ranking.findById(req.params.id);
+    if (!ranking) {
+      return res.status(404).json({ success: false, message: 'Ranking not found' });
+    }
+
+    const { zpin } = req.body;
+    if (!zpin) {
+      return res.status(400).json({ success: false, message: 'ZPIN is required' });
+    }
+
+    const user = await User.findOne({ zpin: zpin.trim().toUpperCase() });
+    if (!user) {
+      return res.status(404).json({ success: false, message: `No player found with ZPIN ${zpin}` });
+    }
+
+    ranking.playerId  = user._id;
+    ranking.playerZpin = user.zpin;
+    await ranking.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Linked to ${user.firstName} ${user.lastName} (${user.zpin})`,
+      data: ranking
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Recalculate rankings for a category
 // @route   POST /api/rankings/recalculate/:category
 // @access  Private/Admin

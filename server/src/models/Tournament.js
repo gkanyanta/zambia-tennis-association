@@ -423,6 +423,15 @@ const tournamentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  grade: {
+    type: String,
+    enum: ['A', 'B', 'C', 'D', 'E', 'F'],
+    default: 'B'
+  },
+  rankingTournament: {
+    type: Boolean,
+    default: false
+  },
   courts: { type: [String], default: [] },
   umpirePool: [{
     userId: String,

@@ -77,8 +77,23 @@ rankingSchema.index({ category: 1, rankingPeriod: 1, rank: 1 });
 rankingSchema.index({ playerId: 1, category: 1 });
 rankingSchema.index({ playerName: 1 });
 rankingSchema.index({ isActive: 1 });
+rankingSchema.index({ playerZpin: 1, category: 1, rankingPeriod: 1 });
 
 // Compound index for common queries
 rankingSchema.index({ category: 1, rankingPeriod: 1, isActive: 1 });
+
+rankingSchema.methods.calculateTotalPoints = function () {
+  this.totalPoints = this.tournamentResults.reduce((sum, r) => sum + (r.points || 0), 0);
+};
+
+rankingSchema.statics.updateRankings = async function (category, rankingPeriod) {
+  const all = await this.find({ category, rankingPeriod, isActive: true }).sort({ totalPoints: -1 });
+  for (let i = 0; i < all.length; i++) {
+    all[i].previousRank = all[i].rank;
+    all[i].rank = i + 1;
+    await all[i].save();
+  }
+  return all;
+};
 
 export default mongoose.models.Ranking || mongoose.model('Ranking', rankingSchema);
