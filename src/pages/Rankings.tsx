@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Hero } from '@/components/Hero';
 import { Card, CardContent } from '@/components/ui/card';
@@ -453,8 +453,8 @@ export function Rankings() {
                       rankings.map((player, index) => {
                         const isExpanded = expandedRows.has(player._id!);
                         return (
-                          <>
-                            <tr key={player._id || index} className="hover:bg-muted/30 transition-colors">
+                          <React.Fragment key={player._id || index}>
+                            <tr className="hover:bg-muted/30 transition-colors">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <span className="text-2xl font-bold text-muted-foreground">{player.rank}</span>
@@ -466,21 +466,25 @@ export function Rankings() {
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <button
-                                  className="text-left w-full"
-                                  onClick={() => toggleRow(player._id!)}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    {isAdmin && (isExpanded
-                                      ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                                      : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                {isAdmin ? (
+                                  <button
+                                    className="text-left w-full"
+                                    onClick={() => toggleRow(player._id!)}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      {isExpanded
+                                        ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                        : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                      }
+                                      <span className="font-semibold text-foreground">{player.playerName}</span>
+                                    </div>
+                                    {!player.playerZpin && (
+                                      <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
                                     )}
-                                    <span className="font-semibold text-foreground">{player.playerName}</span>
-                                  </div>
-                                  {isAdmin && !player.playerZpin && (
-                                    <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
-                                  )}
-                                </button>
+                                  </button>
+                                ) : (
+                                  <span className="font-semibold text-foreground">{player.playerName}</span>
+                                )}
                               </td>
                               <td className="px-6 py-4">
                                 <span className="text-muted-foreground">{player.club || '-'}</span>
@@ -544,7 +548,7 @@ export function Rankings() {
                                 </td>
                               </tr>
                             )}
-                          </>
+                          </React.Fragment>
                         );
                       })
                     )}
