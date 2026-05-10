@@ -18,6 +18,29 @@ import { generateOrderOfPlayPDF } from '../utils/generateOrderOfPlayPDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
 import { generateEntryReference } from '../utils/generateEntryReference.js';
 
+// Automatically advance tournament status based on dates.
+// Does not override statuses that are already correctly set or manually advanced.
+const syncTournamentStatus = async (tournament) => {
+  const now = new Date();
+  const current = tournament.status;
+  let next = current;
+
+  if (now > new Date(tournament.endDate)) {
+    next = 'completed';
+  } else if (now >= new Date(tournament.startDate)) {
+    if (['upcoming', 'entries_open', 'entries_closed'].includes(current)) next = 'in_progress';
+  } else if (tournament.entryDeadline && now > new Date(tournament.entryDeadline)) {
+    if (current === 'entries_open') next = 'entries_closed';
+  }
+
+  if (next !== current) {
+    tournament.status = next;
+    await tournament.save();
+    console.log(`Tournament "${tournament.name}" status auto-updated: ${current} → ${next}`);
+  }
+  return tournament;
+};
+
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
 // @access  Public
@@ -26,6 +49,8 @@ export const getTournaments = async (req, res) => {
     const tournaments = await Tournament.find()
       .select('-budget -expenses -manualIncome')
       .sort({ createdAt: -1 });
+
+    await Promise.all(tournaments.map(t => syncTournamentStatus(t)));
 
     res.status(200).json({
       success: true,
@@ -53,6 +78,8 @@ export const getTournament = async (req, res) => {
         message: 'Tournament not found'
       });
     }
+
+    await syncTournamentStatus(tournament);
 
     res.status(200).json({
       success: true,
