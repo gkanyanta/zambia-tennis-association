@@ -103,9 +103,10 @@ export const lencoPaymentService = {
   /**
    * Initialize tournament payment
    */
-  async initializeTournamentPayment(tournamentId: string): Promise<LencoPaymentInitResponse> {
+  async initializeTournamentPayment(tournamentId: string, entryReferenceNumber?: string): Promise<LencoPaymentInitResponse> {
     const response = await apiFetch(`/lenco/tournament/${tournamentId}/initialize`, {
       method: 'POST',
+      body: JSON.stringify({ entryReferenceNumber }),
     });
     return response.data;
   },

@@ -123,7 +123,7 @@ export function TournamentDetail() {
     }
   }
 
-  const handlePayEntryFee = async () => {
+  const handlePayEntryFee = async (entryReferenceNumber?: string) => {
     if (!isAuthenticated) {
       navigate(`/login?redirect=/tournaments/${id}`)
       return
@@ -132,8 +132,9 @@ export function TournamentDetail() {
     try {
       setPayingEntryFee(true)
 
-      // Initialize payment with Lenco
-      const paymentData = await lencoPaymentService.initializeTournamentPayment(id!)
+      // Initialize payment with Lenco — pass the entry reference so the backend
+      // can tag exactly the right entry even when the payer is not the player
+      const paymentData = await lencoPaymentService.initializeTournamentPayment(id!, entryReferenceNumber)
 
       // Launch Lenco widget
       await initializeLencoWidget({
@@ -469,7 +470,7 @@ export function TournamentDetail() {
                                       <Button
                                         className="w-full"
                                         variant="outline"
-                                        onClick={handlePayEntryFee}
+                                        onClick={() => handlePayEntryFee()}
                                         disabled={payingEntryFee}
                                       >
                                         {payingEntryFee ? (
@@ -574,7 +575,7 @@ function PublicEntriesView({
   payingEntryFee = false
 }: {
   tournament: Tournament
-  onPayNow?: () => void
+  onPayNow?: (entryReferenceNumber?: string) => void
   payingEntryFee?: boolean
 }) {
   const { isAuthenticated } = useAuth()
@@ -708,7 +709,7 @@ function PublicEntriesView({
                                     navigate(`/login?redirect=/tournaments/${(tournament as any)._id}`)
                                     return
                                   }
-                                  onPayNow()
+                                  onPayNow((entry as any).entryReferenceNumber)
                                 }}
                               >
                                 {payingEntryFee ? (

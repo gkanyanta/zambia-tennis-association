@@ -255,42 +255,57 @@ export const initializeTournamentPayment = async (req, res) => {
     const user = await User.findById(req.user.id);
 
     if (!tournament) {
-      return res.status(404).json({
-        success: false,
-        message: 'Tournament not found'
-      });
+      return res.status(404).json({ success: false, message: 'Tournament not found' });
     }
-
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const baseFee = tournament.entryFee;
+    // entryReferenceNumber narrows the payment to one specific batch of entries
+    // (used when a parent/coach pays for someone else's entry)
+    const { entryReferenceNumber } = req.body;
 
-    if (!baseFee || baseFee <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid tournament entry fee'
-      });
+    // Collect the entries we will tag with the payment reference
+    let totalAmount = 0;
+    const entriesToTag = [];
+
+    for (const cat of tournament.categories) {
+      for (const entry of cat.entries) {
+        if (entry.status !== 'pending_payment') continue;
+        if (entryReferenceNumber) {
+          // Tag only the specific batch the payer clicked Pay Now on
+          if (entry.entryReferenceNumber === entryReferenceNumber) {
+            entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entry.entryFee });
+            totalAmount += entry.entryFee || 0;
+          }
+        } else {
+          // Fallback: tag all pending_payment entries for the logged-in player
+          if (entry.playerId && entry.playerId.toString() === user._id.toString()) {
+            entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entry.entryFee });
+            totalAmount += entry.entryFee || 0;
+          }
+        }
+      }
     }
 
-    // Check ZPIN paid-up status — non-paid-up players pay 1.5x
-    const zpinPaidUp = await MembershipSubscription.hasActiveSubscription(user._id, 'player');
-    const amount = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+    if (entriesToTag.length === 0) {
+      return res.status(400).json({ success: false, message: 'No pending payment entries found for this tournament.' });
+    }
+
+    // Use actual entry fees (already includes the surcharge calculated at registration)
+    const amount = totalAmount || tournament.entryFee;
 
     // Generate unique reference
     const reference = generateReference('TOUR');
 
-    // Tag the player's pending_payment entries in this tournament with the reference
-    // so verifyPayment knows which entries to activate on success.
-    const userId = user._id.toString();
-    await Tournament.updateMany(
-      { _id: tournament._id, 'categories.entries.playerId': userId, 'categories.entries.status': 'pending_payment' },
-      { $set: { 'categories.$[].entries.$[e].paymentReference': reference } },
-      { arrayFilters: [{ 'e.playerId': userId, 'e.status': 'pending_payment' }] }
+    // Tag the matched entries so the webhook can identify them on callback
+    await Tournament.updateOne(
+      { _id: tournament._id },
+      { $set: Object.fromEntries(entriesToTag.map(({ catId, entryId }) => {
+        const catIdx = tournament.categories.findIndex(c => c._id.toString() === catId);
+        const entIdx = tournament.categories[catIdx].entries.findIndex(e => e._id.toString() === entryId);
+        return [`categories.${catIdx}.entries.${entIdx}.paymentReference`, reference];
+      })) }
     );
 
     res.status(200).json({
@@ -298,8 +313,6 @@ export const initializeTournamentPayment = async (req, res) => {
       data: {
         reference,
         amount,
-        baseFee,
-        zpinPaidUp,
         email: user.email,
         publicKey: LENCO_PUBLIC_KEY,
         tournamentId: tournament._id,
