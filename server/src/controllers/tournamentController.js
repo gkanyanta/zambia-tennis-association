@@ -436,18 +436,34 @@ export const submitEntry = async (req, res) => {
     const ageOnDec31 = calculateTennisAge(player.dateOfBirth, tournamentYear);
     const currentAge = Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
 
+    // Calculate fee and ZPIN status
+    const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
+    const activeSub = await MembershipSubscription.findOne({ userId: player._id, userType: 'player', status: 'active' });
+    const zpinPaidUp = activeSub
+      ? category.type !== 'senior' || activeSub.membershipTypeCode !== 'zpin_junior'
+      : false;
+    const entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
+
+    // Generate a reference number for this entry so the player can pay later
+    const entryReferenceNumber = generateEntryReference();
+
     // Create entry data
     const entryData = {
       playerId: player._id.toString(),
       playerName: `${player.firstName} ${player.lastName}`,
-      playerZpin: player.zpin,
+      playerZpin: player.zpin || null,
       dateOfBirth: player.dateOfBirth,
       age: currentAge,
       ageOnDec31,
       gender: player.gender,
       clubName: player.club || 'Independent',
       eligibilityCheck,
-      status: 'pending'
+      status: 'pending_payment',
+      paymentStatus: 'unpaid',
+      entryFee,
+      zpinPaidUp,
+      entryReferenceNumber,
+      payer: { name: `${player.firstName} ${player.lastName}`, email: player.email, phone: player.phone || null, relationship: 'self' }
     };
 
     // Add entry
@@ -455,10 +471,37 @@ export const submitEntry = async (req, res) => {
     category.entryCount = category.entries.length;
     await tournament.save();
 
+    // Send confirmation email
+    try {
+      const webBaseUrl = process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com';
+      await sendEmail({
+        email: player.email,
+        subject: `Tournament Entry Submitted – ${tournament.name}`,
+        html: `
+          <h2>Entry Submitted</h2>
+          <p>Dear ${player.firstName},</p>
+          <p>Your entry for <strong>${tournament.name}</strong> has been submitted.</p>
+          <ul>
+            <li><strong>Category:</strong> ${category.name}</li>
+            <li><strong>Date:</strong> ${new Date(tournament.startDate).toLocaleDateString()} – ${new Date(tournament.endDate).toLocaleDateString()}</li>
+            <li><strong>Venue:</strong> ${tournament.venue}, ${tournament.city}</li>
+          </ul>
+          ${baseFee > 0 ? `
+          <p><strong>Entry Fee:</strong> K${entryFee}${!zpinPaidUp ? ' (includes 50% surcharge — activate your ZPIN to pay K' + baseFee + ')' : ''}</p>
+          <p><strong>Reference Number: ${entryReferenceNumber}</strong></p>
+          <p>Please use this reference number when paying. You can pay online at <a href="${webBaseUrl}/pay/tournament">${webBaseUrl}/pay/tournament</a>.</p>
+          ` : '<p>No entry fee is required for this category.</p>'}
+          <p>Thank you!</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Email sending failed for submitEntry:', emailError);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Entry submitted successfully',
-      data: entryData,
+      data: { ...entryData, entryReferenceNumber },
       warnings: eligibilityCheck.warnings
     });
   } catch (error) {

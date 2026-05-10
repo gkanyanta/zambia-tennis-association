@@ -294,8 +294,13 @@ export const searchPlayersForPayment = async (req, res) => {
       ]
     });
 
+    // Search all registered users (not just 'player' role) so that staff/admin
+    // accounts with player profiles can also be found for tournament entry.
+    // Require at least a dateOfBirth so that system accounts without player
+    // profiles don't pollute results.
+    const roleClause = { role: { $in: ['player', 'admin', 'staff'] }, dateOfBirth: { $exists: true, $ne: null } };
     const searchQuery = {
-      role: 'player',
+      ...roleClause,
       ...(tokens.length > 1
         ? { $and: tokens.map(tokenClause) }
         : tokenClause(tokens[0]))
