@@ -573,8 +573,6 @@ function PublicEntriesView({
   onPayNow?: (entryReferenceNumber?: string) => void
   payingEntryFee?: boolean
 }) {
-  const { isAuthenticated } = useAuth()
-  const navigate = useNavigate()
   const [search, setSearch] = useState('')
 
   const categoriesWithEntries = (tournament.categories || [])
