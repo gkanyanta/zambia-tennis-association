@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus } from 'lucide-react'
+import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus, ChevronUp, ChevronDown } from 'lucide-react'
 import type { TournamentCategory } from '@/types/tournament'
 
 interface EntryManagementProps {
@@ -24,6 +24,20 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
   const [seedValues, setSeedValues] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [bulkResult, setBulkResult] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // Sorting state
+  type SortField = 'name' | 'ranking' | 'entryDate' | 'status' | 'payment'
+  const [sortField, setSortField] = useState<SortField>('entryDate')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
 
   // Link player modal
   const [linkModal, setLinkModal] = useState<{ entryId: string; playerName: string } | null>(null)
@@ -51,6 +65,26 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
   const selectableEntries = filteredEntries.filter(e =>
     e.status === 'pending' || e.status === 'pending_payment'
   )
+
+  const sortedEntries = [...filteredEntries].sort((a, b) => {
+    let cmp = 0
+    if (sortField === 'name') {
+      cmp = a.playerName.localeCompare(b.playerName)
+    } else if (sortField === 'ranking') {
+      const ra = (a as any).ranking ?? 9999
+      const rb = (b as any).ranking ?? 9999
+      cmp = ra - rb
+    } else if (sortField === 'entryDate') {
+      cmp = new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+    } else if (sortField === 'status') {
+      const order = ['pending_payment', 'pending', 'accepted', 'rejected', 'withdrawn']
+      cmp = order.indexOf(a.status) - order.indexOf(b.status)
+    } else if (sortField === 'payment') {
+      const porder = ['unpaid', 'paid', 'waived']
+      cmp = porder.indexOf((a as any).paymentStatus || 'unpaid') - porder.indexOf((b as any).paymentStatus || 'unpaid')
+    }
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   const handleAccept = async (entryId: string) => {
     try {
@@ -640,29 +674,39 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                       />
                     )}
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">Player</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold cursor-pointer select-none" onClick={() => toggleSort('name')}>
+                    <div className="flex items-center gap-1">Player {sortField === 'name' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}</div>
+                  </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">ZPIN</th>
                   <th className="px-4 py-3 text-center text-sm font-semibold">Tennis Age</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold">Ranking</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold cursor-pointer select-none" onClick={() => toggleSort('ranking')}>
+                    <div className="flex items-center justify-center gap-1">Ranking {sortField === 'ranking' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}</div>
+                  </th>
                   {(filter === 'accepted' || seedingMode) && (
                     <th className="px-4 py-3 text-center text-sm font-semibold">Seed</th>
                   )}
-                  <th className="px-4 py-3 text-center text-sm font-semibold">Payment</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold">Status</th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold">Entry Date</th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold cursor-pointer select-none" onClick={() => toggleSort('payment')}>
+                    <div className="flex items-center justify-center gap-1">Payment {sortField === 'payment' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}</div>
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold cursor-pointer select-none" onClick={() => toggleSort('status')}>
+                    <div className="flex items-center justify-center gap-1">Status {sortField === 'status' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}</div>
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold cursor-pointer select-none" onClick={() => toggleSort('entryDate')}>
+                    <div className="flex items-center justify-center gap-1">Entry Date {sortField === 'entryDate' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}</div>
+                  </th>
                   <th className="px-4 py-3 text-center text-sm font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredEntries.length === 0 ? (
+                {sortedEntries.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
                       No entries found
                     </td>
                   </tr>
                 ) : (
-                  filteredEntries.map((entry) => {
+                  sortedEntries.map((entry) => {
                     const isSelectable = entry.status === 'pending' || entry.status === 'pending_payment'
                     return (
                       <tr key={(entry as any)._id} className="hover:bg-muted/50">

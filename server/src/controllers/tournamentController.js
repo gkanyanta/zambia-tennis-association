@@ -2394,6 +2394,33 @@ export const publicRegister = async (req, res) => {
       const ageOnDec31 = calculateTennisAge(playerData.dateOfBirth, tournamentYear);
       const currentAge = Math.floor((new Date() - new Date(playerData.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
 
+      // Look up player's current ranking for this category
+      let playerRank = null;
+      if (!isNewPlayerEntry && playerData.zpin) {
+        const rankingCat = rankingCategoryFor(category);
+        if (rankingCat) {
+          const rankingYear = String(new Date(tournament.startDate).getFullYear());
+          const rankDoc = await Ranking.findOne({
+            playerZpin: playerData.zpin,
+            category: rankingCat,
+            rankingPeriod: rankingYear,
+            isActive: true
+          }).select('rank');
+          // Fall back to searching by name if no ZPIN match
+          if (!rankDoc) {
+            const nameDoc = await Ranking.findOne({
+              playerName: { $regex: new RegExp(`^${playerData.firstName}\\s+${playerData.lastName}$`, 'i') },
+              category: rankingCat,
+              rankingPeriod: rankingYear,
+              isActive: true
+            }).select('rank');
+            playerRank = nameDoc?.rank ?? null;
+          } else {
+            playerRank = rankDoc.rank;
+          }
+        }
+      }
+
       // Create entry data
       const entryData = {
         playerId: isNewPlayerEntry ? null : playerData._id.toString(),
@@ -2422,6 +2449,7 @@ export const publicRegister = async (req, res) => {
         entryFee,
         zpinPaidUp,
         entryReferenceNumber,
+        ranking: playerRank,
         ...partnerInfo
       };
 
