@@ -15,13 +15,25 @@ export const getUsers = async (req, res) => {
       filter.role = req.query.role;
     }
 
-    // Search by name if provided
+    // Search by name or ZPIN
     if (req.query.search) {
-      const term = req.query.search.trim();
-      filter.$or = [
-        { firstName: { $regex: term, $options: 'i' } },
-        { lastName: { $regex: term, $options: 'i' } }
-      ];
+      const tokens = req.query.search.trim().split(/\s+/).filter(Boolean);
+      if (tokens.length === 1) {
+        const t = tokens[0];
+        filter.$or = [
+          { firstName: { $regex: t, $options: 'i' } },
+          { lastName: { $regex: t, $options: 'i' } },
+          { zpin: { $regex: t, $options: 'i' } },
+        ];
+      } else {
+        // Multiple tokens: every token must match firstName or lastName
+        filter.$and = tokens.map(t => ({
+          $or: [
+            { firstName: { $regex: t, $options: 'i' } },
+            { lastName: { $regex: t, $options: 'i' } },
+          ]
+        }));
+      }
     }
 
     const users = await User.find(filter).select('-password').sort({ createdAt: -1 });
