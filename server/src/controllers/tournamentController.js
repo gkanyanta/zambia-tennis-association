@@ -2393,7 +2393,7 @@ export const publicRegister = async (req, res) => {
         let partnerZpinPaidUp = false;
         if (!isNewPartnerEntry && partnerData._id) {
           const partnerActiveSub = await MembershipSubscription.findOne({
-            entityId: partnerData._id,
+            entityId: new mongoose.Types.ObjectId(partnerData._id.toString()),
             entityType: 'player',
             status: 'active'
           });
@@ -3769,7 +3769,23 @@ export const linkEntryToPlayer = async (req, res) => {
     entry.playerId = user._id;
     entry.playerZpin = user.zpin;
     entry.playerName = `${user.firstName} ${user.lastName}`;
-    entry.zpinPaidUp = user.zpinPaidUp ?? false;
+
+    // Determine correct zpinPaidUp via subscription lookup (same logic as submitEntry)
+    const linkedSub = await MembershipSubscription.findOne({
+      entityId: new mongoose.Types.ObjectId(user._id.toString()),
+      entityType: 'player',
+      status: 'active'
+    });
+    const linkedIsActiveMember = linkedSub !== null || user.membershipStatus === 'active';
+    const linkedIsJuniorSub = linkedSub?.membershipTypeCode === 'zpin_junior';
+    const linkedZpinPaidUp = linkedIsActiveMember ? category.type !== 'senior' || !linkedIsJuniorSub : false;
+    const wasNotPaidUp = !entry.zpinPaidUp;
+    entry.zpinPaidUp = linkedZpinPaidUp;
+
+    // If we just confirmed the player is paid-up, remove any surcharge on the stored fee
+    if (linkedZpinPaidUp && wasNotPaidUp && entry.paymentStatus === 'unpaid') {
+      entry.entryFee = category.entryFee ?? tournament.entryFee ?? 0;
+    }
 
     // Look up and attach the player's current ranking
     const rankingCat = rankingCategoryFor(category);
