@@ -56,14 +56,25 @@ export const getAllCategories = async (req, res) => {
 export const getPlayerRankings = async (req, res) => {
   try {
     const { playerId } = req.params;
-    
-    const rankings = await Ranking.find({ playerId, isActive: true })
+    const { zpin } = req.query;
+
+    const orClauses = [{ playerId, isActive: true }];
+    if (zpin) orClauses.push({ playerZpin: zpin.toUpperCase(), isActive: true });
+
+    const rankings = await Ranking.find({ $or: orClauses })
       .sort({ category: 1 });
+
+    // Deduplicate by category (prefer the record with playerId set)
+    const byCategory = new Map();
+    for (const r of rankings) {
+      const existing = byCategory.get(r.category);
+      if (!existing || r.playerId) byCategory.set(r.category, r);
+    }
 
     res.status(200).json({
       success: true,
-      count: rankings.length,
-      data: rankings
+      count: byCategory.size,
+      data: Array.from(byCategory.values())
     });
   } catch (error) {
     res.status(500).json({
@@ -340,8 +351,9 @@ export const linkPlayerToRanking = async (req, res) => {
       return res.status(404).json({ success: false, message: `No player found with ZPIN ${zpin}` });
     }
 
-    ranking.playerId  = user._id;
+    ranking.playerId = user._id;
     ranking.playerZpin = user.zpin;
+    ranking.playerName = `${user.firstName} ${user.lastName}`;
     await ranking.save();
 
     res.status(200).json({

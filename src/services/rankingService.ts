@@ -65,8 +65,11 @@ export const rankingService = {
     return response.data;
   },
 
-  async getPlayerRankings(playerId: string): Promise<Ranking[]> {
-    const response = await apiFetch(`/rankings/player/${playerId}`);
+  async getPlayerRankings(playerId: string, zpin?: string): Promise<Ranking[]> {
+    const url = zpin
+      ? `/rankings/player/${playerId}?zpin=${encodeURIComponent(zpin)}`
+      : `/rankings/player/${playerId}`;
+    const response = await apiFetch(url);
     return response.data;
   },
 

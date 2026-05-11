@@ -451,6 +451,25 @@ export const submitEntry = async (req, res) => {
     // Generate a reference number for this entry so the player can pay later
     const entryReferenceNumber = generateEntryReference();
 
+    // Look up player's current ranking for this category
+    let playerRank = null;
+    if (player.zpin) {
+      const rankingCat = rankingCategoryFor(category);
+      if (rankingCat) {
+        const rankingYear = String(tournamentYear);
+        const rankDoc = await Ranking.findOne({ playerZpin: player.zpin, category: rankingCat, rankingPeriod: rankingYear, isActive: true }).select('rank');
+        if (rankDoc) {
+          playerRank = rankDoc.rank;
+        } else {
+          const nameDoc = await Ranking.findOne({
+            playerName: { $regex: new RegExp(`^${player.firstName}\\s+${player.lastName}$`, 'i') },
+            category: rankingCat, rankingPeriod: rankingYear, isActive: true
+          }).select('rank');
+          playerRank = nameDoc?.rank ?? null;
+        }
+      }
+    }
+
     // Create entry data
     const entryData = {
       playerId: player._id.toString(),
@@ -467,6 +486,7 @@ export const submitEntry = async (req, res) => {
       entryFee,
       zpinPaidUp,
       entryReferenceNumber,
+      ranking: playerRank,
       payer: { name: `${player.firstName} ${player.lastName}`, email: player.email, phone: player.phone || null, relationship: 'self' }
     };
 
@@ -3748,7 +3768,24 @@ export const linkEntryToPlayer = async (req, res) => {
 
     entry.playerId = user._id;
     entry.playerZpin = user.zpin;
+    entry.playerName = `${user.firstName} ${user.lastName}`;
     entry.zpinPaidUp = user.zpinPaidUp ?? false;
+
+    // Look up and attach the player's current ranking
+    const rankingCat = rankingCategoryFor(category);
+    if (rankingCat && user.zpin) {
+      const rankingYear = String(new Date(tournament.startDate).getFullYear());
+      const rankDoc = await Ranking.findOne({ playerZpin: user.zpin, category: rankingCat, rankingPeriod: rankingYear, isActive: true }).select('rank');
+      if (rankDoc) {
+        entry.ranking = rankDoc.rank;
+      } else {
+        const nameDoc = await Ranking.findOne({
+          playerName: { $regex: new RegExp(`^${user.firstName}\\s+${user.lastName}$`, 'i') },
+          category: rankingCat, rankingPeriod: rankingYear, isActive: true
+        }).select('rank');
+        entry.ranking = nameDoc?.rank ?? null;
+      }
+    }
 
     await tournament.save();
 

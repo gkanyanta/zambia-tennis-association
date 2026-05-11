@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Search, UserPlus, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { PlayerMatchHistory } from '@/components/PlayerMatchHistory'
+import { rankingService, type Ranking } from '@/services/rankingService'
 
 const getMembershipBadge = (status?: string | null) => {
   switch (status) {
@@ -25,6 +26,8 @@ export function Players() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'junior' | 'adult'>('all')
   const [selectedPlayer, setSelectedPlayer] = useState<User | null>(null)
+  const [playerRankings, setPlayerRankings] = useState<Ranking[]>([])
+  const [rankingsLoading, setRankingsLoading] = useState(false)
   const [players, setPlayers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +35,22 @@ export function Players() {
   useEffect(() => {
     fetchPlayers()
   }, [])
+
+  const openPlayer = async (player: User) => {
+    setSelectedPlayer(player)
+    setPlayerRankings([])
+    if (player._id) {
+      setRankingsLoading(true)
+      try {
+        const data = await rankingService.getPlayerRankings(player._id, (player as any).zpin)
+        setPlayerRankings(data)
+      } catch {
+        setPlayerRankings([])
+      } finally {
+        setRankingsLoading(false)
+      }
+    }
+  }
 
   const fetchPlayers = async () => {
     try {
@@ -245,7 +264,7 @@ export function Players() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setSelectedPlayer(player)}
+                            onClick={() => openPlayer(player)}
                           >
                             View
                           </Button>
@@ -328,6 +347,28 @@ export function Players() {
                     <p className="font-medium">{new Date(selectedPlayer.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Rankings */}
+              <div>
+                <h4 className="font-semibold mb-3">Rankings</h4>
+                {rankingsLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading rankings…</p>
+                ) : playerRankings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">No ranking records found.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {playerRankings.map(r => (
+                      <div key={r._id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">{rankingService.getCategoryLabel(r.category)}</span>
+                        <div className="text-right">
+                          <span className="font-semibold">#{r.rank}</span>
+                          <span className="ml-1 text-xs text-muted-foreground">({r.totalPoints} pts)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Match history & head-to-head */}
