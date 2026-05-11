@@ -42,7 +42,7 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
   }
 
   // Link player modal
-  const [linkModal, setLinkModal] = useState<{ entryId: string; playerName: string } | null>(null)
+  const [linkModal, setLinkModal] = useState<{ entryId: string; playerName: string; currentZpin?: string } | null>(null)
   const [linkZpin, setLinkZpin] = useState('')
   const [linkLoading, setLinkLoading] = useState(false)
   const [linkError, setLinkError] = useState('')
@@ -386,9 +386,12 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
       {linkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="font-semibold text-lg mb-1">Link to Existing Account</h3>
+            <h3 className="font-semibold text-lg mb-1">{linkModal.currentZpin ? 'Change Linked Account' : 'Link to Existing Account'}</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Enter the ZPIN of the registered account for <span className="font-medium text-foreground">{linkModal.playerName}</span>.
+              {linkModal.currentZpin
+                ? <>Currently <span className="font-mono text-foreground">{linkModal.currentZpin}</span> for <span className="font-medium text-foreground">{linkModal.playerName}</span>. Enter the correct ZPIN to replace it.</>
+                : <>Enter the ZPIN of the registered account for <span className="font-medium text-foreground">{linkModal.playerName}</span>.</>
+              }
             </p>
             <Input
               placeholder="e.g. ZTAS0021"
@@ -919,6 +922,18 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
                                   </Button>
                                 )}
                               </>
+                            )}
+                            {/* Change ZPIN for already-linked entries */}
+                            {(entry as any).playerZpin && (entry as any).playerZpin !== 'PENDING' && onLinkPlayer && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-foreground"
+                                title={`Change linked account (currently ${(entry as any).playerZpin})`}
+                                onClick={() => { setLinkModal({ entryId: (entry as any)._id, playerName: entry.playerName, currentZpin: (entry as any).playerZpin }); setLinkZpin(''); setLinkError('') }}
+                              >
+                                <Link2 className="h-4 w-4" />
+                              </Button>
                             )}
                             {entry.status === 'pending_payment' && (
                               <>

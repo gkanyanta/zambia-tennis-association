@@ -578,7 +578,7 @@ function PublicEntriesView({
 }) {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [linkModal, setLinkModal] = useState<{ entryId: string; categoryId: string; playerName: string } | null>(null)
+  const [linkModal, setLinkModal] = useState<{ entryId: string; categoryId: string; playerName: string; currentZpin?: string } | null>(null)
   const [linkZpin, setLinkZpin] = useState('')
   const [linkLoading, setLinkLoading] = useState(false)
   const [linkError, setLinkError] = useState('')
@@ -649,9 +649,12 @@ function PublicEntriesView({
       {linkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="font-semibold text-lg mb-1">Link to Existing Account</h3>
+            <h3 className="font-semibold text-lg mb-1">{linkModal.currentZpin ? 'Change Linked Account' : 'Link to Existing Account'}</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Enter the ZPIN of the registered account for <span className="font-medium text-foreground">{linkModal.playerName}</span>.
+              {linkModal.currentZpin
+                ? <>Currently <span className="font-mono text-foreground">{linkModal.currentZpin}</span> for <span className="font-medium text-foreground">{linkModal.playerName}</span>. Enter the correct ZPIN to replace it.</>
+                : <>Enter the ZPIN of the registered account for <span className="font-medium text-foreground">{linkModal.playerName}</span>.</>
+              }
             </p>
             <Input
               placeholder="e.g. ZTAS0021"
@@ -728,9 +731,23 @@ function PublicEntriesView({
                         <td className="px-4 py-2.5">
                           <p className="font-medium">{entry.playerName}</p>
                           {entry.playerZpin && entry.playerZpin !== 'PENDING' ? (
-                            entry.zpinPaidUp
-                              ? <p className="text-xs text-muted-foreground font-mono">{entry.playerZpin}</p>
-                              : <p className="text-xs text-muted-foreground font-mono tracking-widest">••••••••</p>
+                            <div className="flex items-center gap-1.5">
+                              {entry.zpinPaidUp
+                                ? <p className="text-xs text-muted-foreground font-mono">{entry.playerZpin}</p>
+                                : <p className="text-xs text-muted-foreground font-mono tracking-widest">••••••••</p>
+                              }
+                              {isAdmin && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 text-xs px-1.5 text-muted-foreground hover:text-foreground"
+                                  title="Change linked account"
+                                  onClick={() => setLinkModal({ entryId: entry._id, categoryId: (category as any)._id, playerName: entry.playerName, currentZpin: entry.playerZpin })}
+                                >
+                                  Change
+                                </Button>
+                              )}
+                            </div>
                           ) : null}
                           {isAdmin && (!entry.playerZpin || entry.playerZpin === 'PENDING') && (
                             <div className="flex items-center gap-1.5 mt-1 flex-wrap">

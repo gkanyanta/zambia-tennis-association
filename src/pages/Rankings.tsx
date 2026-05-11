@@ -42,7 +42,7 @@ export function Rankings() {
     totalPoints: 0,
     rankingPeriod: '2025'
   });
-  const [linkModal, setLinkModal] = useState<{ rankingId: string; playerName: string } | null>(null);
+  const [linkModal, setLinkModal] = useState<{ rankingId: string; playerName: string; currentZpin?: string } | null>(null);
   const [linkZpin, setLinkZpin] = useState('');
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState('');
@@ -210,9 +210,12 @@ export function Rankings() {
       {linkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="font-semibold text-lg mb-1">Link Player Account</h3>
+            <h3 className="font-semibold text-lg mb-1">{linkModal.currentZpin ? 'Change Linked Account' : 'Link Player Account'}</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Linking <span className="font-medium text-foreground">{linkModal.playerName}</span> to a registered ZPIN account.
+              {linkModal.currentZpin
+                ? <>Currently <span className="font-mono text-foreground">{linkModal.currentZpin}</span> for <span className="font-medium text-foreground">{linkModal.playerName}</span>. Enter the correct ZPIN to replace it.</>
+                : <>Linking <span className="font-medium text-foreground">{linkModal.playerName}</span> to a registered ZPIN account.</>
+              }
             </p>
             <Input
               placeholder="Enter ZPIN (e.g. ZTAS0021)"
@@ -508,11 +511,9 @@ export function Rankings() {
                                     <Button size="sm" variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50" title="Add tournament result" onClick={() => setAddResultModal({ rankingId: player._id!, playerName: player.playerName })}>
                                       <Globe className="h-4 w-4" />
                                     </Button>
-                                    {!player.playerZpin && (
-                                      <Button size="sm" variant="outline" className="text-amber-600 border-amber-400 hover:bg-amber-50" title="Link to ZPIN account" onClick={() => setLinkModal({ rankingId: player._id!, playerName: player.playerName })}>
-                                        <Link className="h-4 w-4" />
-                                      </Button>
-                                    )}
+                                    <Button size="sm" variant="outline" className="text-amber-600 border-amber-400 hover:bg-amber-50" title={player.playerZpin ? `Change ZPIN (currently ${player.playerZpin})` : 'Link to ZPIN account'} onClick={() => setLinkModal({ rankingId: player._id!, playerName: player.playerName, currentZpin: player.playerZpin })}>
+                                      <Link className="h-4 w-4" />
+                                    </Button>
                                     <Button size="sm" variant="outline" onClick={() => handleDelete(player._id!)}>
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
