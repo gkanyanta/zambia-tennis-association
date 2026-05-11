@@ -48,9 +48,11 @@ const entrySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending_payment', 'pending', 'accepted', 'rejected', 'withdrawn'],
+    enum: ['pending_payment', 'pending', 'accepted', 'rejected', 'withdrawn', 'alternate'],
     default: 'pending_payment'
   },
+  // Position on the alternates list (1 = first in line). Set by cut-to-draw.
+  alternateNumber: { type: Number },
   paymentStatus: {
     type: String,
     enum: ['unpaid', 'paid', 'waived'],
@@ -269,6 +271,12 @@ const categorySchema = new mongoose.Schema({
   maxEntries: {
     type: Number,
     default: 32
+  },
+  // drawSize is the actual bracket size (power of 2). When omitted it equals
+  // maxEntries. maxEntries may be larger than drawSize to allow a waitlist/
+  // alternates pool above the draw size.
+  drawSize: {
+    type: Number
   },
   entries: [entrySchema],
   draw: drawSchema,

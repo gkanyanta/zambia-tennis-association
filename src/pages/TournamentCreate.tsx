@@ -73,6 +73,7 @@ export function TournamentCreate() {
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
+  const [drawSize, setDrawSize] = useState<number | ''>('')
 
   // Per-category entry fees (code -> fee)
   const [categoryFees, setCategoryFees] = useState<Record<string, string>>({})
@@ -146,6 +147,7 @@ export function TournamentCreate() {
           // Use draw settings from first category
           if (t.categories[0].drawType) setDrawType(t.categories[0].drawType as any)
           if (t.categories[0].maxEntries) setMaxEntries(t.categories[0].maxEntries)
+          if ((t.categories[0] as any).drawSize) setDrawSize((t.categories[0] as any).drawSize)
         }
       } catch (error: any) {
         console.error('Error fetching tournament:', error)
@@ -251,6 +253,7 @@ export function TournamentCreate() {
           format: ('format' in cat) ? cat.format : 'singles',
           drawType,
           maxEntries,
+          ...(drawSize !== '' ? { drawSize: Number(drawSize) } : {}),
           entries: [],
           ...(catFee !== undefined && catFee !== '' ? { entryFee: Number(catFee) } : {})
         }
@@ -823,6 +826,22 @@ export function TournamentCreate() {
                       <option value="32">32 players/teams</option>
                       <option value="64">64 players/teams</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Draw Size (optional)</label>
+                    <select
+                      value={drawSize}
+                      onChange={(e) => setDrawSize(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Same as max entries</option>
+                      <option value="4">4</option>
+                      <option value="8">8</option>
+                      <option value="16">16</option>
+                      <option value="32">32</option>
+                      <option value="64">64</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">Set lower than max to allow alternates on a waitlist.</p>
                   </div>
                 </div>
               </div>

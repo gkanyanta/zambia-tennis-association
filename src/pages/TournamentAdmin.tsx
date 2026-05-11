@@ -101,7 +101,7 @@ export function TournamentAdmin() {
             </TabsContent>
 
             <TabsContent value="entries" className="space-y-6">
-              <EntriesManagement tournament={selectedTournament} />
+              <EntriesManagement tournament={selectedTournament} onRefresh={refetchTournament} />
             </TabsContent>
 
             <TabsContent value="draws" className="space-y-6">
@@ -325,7 +325,7 @@ function TournamentOverview({ tournament }: { tournament: Tournament }) {
   )
 }
 
-function EntriesManagement({ tournament }: { tournament: Tournament }) {
+function EntriesManagement({ tournament, onRefresh }: { tournament: Tournament; onRefresh: () => Promise<void> }) {
   const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
     tournament.categories[0] || null
   )
@@ -461,6 +461,7 @@ function EntriesManagement({ tournament }: { tournament: Tournament }) {
         onBulkUpdateSeeds={handleBulkUpdateSeeds}
         onLinkPlayer={handleLinkPlayer}
         onCreateAccount={handleCreateAccount}
+        onRefresh={onRefresh}
       />
     </div>
   )

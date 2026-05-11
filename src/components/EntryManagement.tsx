@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus, ChevronUp, ChevronDown } from 'lucide-react'
+import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus, ChevronUp, ChevronDown, Scissors, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
 import type { TournamentCategory } from '@/types/tournament'
+import { tournamentService } from '@/services/tournamentService'
 
 interface EntryManagementProps {
   category: TournamentCategory
@@ -15,9 +16,10 @@ interface EntryManagementProps {
   onBulkUpdateSeeds?: (seeds: Array<{ entryId: string; seedNumber: number }>) => Promise<void>
   onLinkPlayer?: (entryId: string, zpin: string) => Promise<void>
   onCreateAccount?: (entryId: string, data: Record<string, any>) => Promise<{ zpin: string }>
+  onRefresh?: () => void
 }
 
-export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAction, onBulkUpdateSeeds, onLinkPlayer, onCreateAccount }: EntryManagementProps) {
+export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoSeed, onBulkAction, onBulkUpdateSeeds, onLinkPlayer, onCreateAccount, onRefresh }: EntryManagementProps) {
   const [selectedEntries, setSelectedEntries] = useState<string[]>([])
   const [filter, setFilter] = useState<'all' | 'pending_payment' | 'pending' | 'accepted' | 'rejected'>('all')
   const [seedingMode, setSeedingMode] = useState(false)
@@ -53,13 +55,18 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
   const [createdZpin, setCreatedZpin] = useState('')
 
   const filteredEntries = category.entries.filter(entry => {
+    if (entry.status === 'alternate') return false // shown in dedicated section
     if (filter === 'all') return true
     return entry.status === filter
   })
 
   const acceptedEntries = category.entries.filter(e => e.status === 'accepted')
+  const alternateEntries = [...category.entries.filter(e => e.status === 'alternate')]
+    .sort((a, b) => ((a as any).alternateNumber || 99) - ((b as any).alternateNumber || 99))
   const pendingEntries = category.entries.filter(e => e.status === 'pending')
   const pendingPaymentEntries = category.entries.filter(e => e.status === 'pending_payment')
+  const effectiveDrawSize = (category as any).drawSize || category.maxEntries
+  const needsCut = acceptedEntries.length > effectiveDrawSize
 
   // Entries that can be selected for bulk actions based on current filter
   const selectableEntries = filteredEntries.filter(e =>
@@ -334,6 +341,45 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
     }
   }
 
+  const handleCutToDrawSize = async () => {
+    const over = acceptedEntries.length - effectiveDrawSize
+    if (!confirm(`This will move the bottom ${over} accepted entr${over === 1 ? 'y' : 'ies'} to the alternates waitlist, sorted by seeding then ranking then entry date. Continue?`)) return
+    setLoading(true)
+    try {
+      await tournamentService.cutToDrawSize(tournamentId, category.id)
+      onRefresh?.()
+    } catch (err: any) {
+      alert(err.message || 'Cut to draw size failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePromote = async (entryId: string) => {
+    setLoading(true)
+    try {
+      await tournamentService.promoteAlternate(tournamentId, category.id, entryId)
+      onRefresh?.()
+    } catch (err: any) {
+      alert(err.message || 'Promote failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDemote = async (entryId: string) => {
+    if (!confirm('Move this accepted entry to the bottom of the alternates waitlist?')) return
+    setLoading(true)
+    try {
+      await tournamentService.demoteToAlternate(tournamentId, category.id, entryId)
+      onRefresh?.()
+    } catch (err: any) {
+      alert(err.message || 'Demote failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Link Player Modal */}
@@ -469,7 +515,7 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{category.entries.length}</div>
@@ -488,10 +534,18 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
             <p className="text-xs text-muted-foreground">Pending Approval</p>
           </CardContent>
         </Card>
+        <Card className={needsCut ? 'border-red-400' : ''}>
+          <CardContent className="pt-6">
+            <div className={`text-2xl font-bold ${needsCut ? 'text-red-600' : 'text-green-600'}`}>
+              {acceptedEntries.length}<span className="text-base text-muted-foreground font-normal">/{effectiveDrawSize}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Accepted / Draw Size</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">{acceptedEntries.length}</div>
-            <p className="text-xs text-muted-foreground">Accepted</p>
+            <div className="text-2xl font-bold text-purple-600">{alternateEntries.length}</div>
+            <p className="text-xs text-muted-foreground">Alternates</p>
           </CardContent>
         </Card>
         <Card>
@@ -503,6 +557,27 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
           </CardContent>
         </Card>
       </div>
+
+      {/* Cut to Draw Warning */}
+      {needsCut && (
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-300 text-red-800">
+          <AlertCircle className="h-5 w-5 flex-shrink-0" />
+          <div className="flex-1 text-sm">
+            <span className="font-semibold">Draw over capacity:</span> {acceptedEntries.length} accepted entries exceed the draw size of {effectiveDrawSize}.
+            Run <em>Cut to Draw Size</em> to move the bottom {acceptedEntries.length - effectiveDrawSize} entr{acceptedEntries.length - effectiveDrawSize === 1 ? 'y' : 'ies'} to the alternates waitlist.
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-red-600 text-red-700 hover:bg-red-100 flex-shrink-0"
+            disabled={loading}
+            onClick={handleCutToDrawSize}
+          >
+            <Scissors className="h-4 w-4 mr-1" />
+            Cut to Draw Size
+          </Button>
+        </div>
+      )}
 
       {/* Bulk Result Toast */}
       {bulkResult && (
@@ -905,6 +980,18 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
                                 </Button>
                               </>
                             )}
+                            {entry.status === 'accepted' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-slate-500 border-slate-300 hover:bg-slate-50"
+                                title="Demote to alternates"
+                                onClick={() => handleDemote((entry as any)._id)}
+                                disabled={loading}
+                              >
+                                <ArrowDownCircle className="h-4 w-4" />
+                              </Button>
+                            )}
                             {entry.status === 'rejected' && entry.rejectionReason && (
                               <Button
                                 size="sm"
@@ -925,6 +1012,88 @@ export function EntryManagement({ category, onUpdateEntry, onAutoSeed, onBulkAct
           </div>
         </CardContent>
       </Card>
+
+      {/* Alternates Section */}
+      {alternateEntries.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowUpCircle className="h-4 w-4 text-purple-600" />
+              Alternates Waitlist
+              <Badge variant="secondary" className="ml-1">{alternateEntries.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="border-b bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-center text-sm font-semibold w-12">#</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Player</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">ZPIN</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Ranking</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Entry Date</th>
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {alternateEntries.map((entry) => (
+                    <tr key={(entry as any)._id} className="hover:bg-muted/50">
+                      <td className="px-4 py-3 text-center font-bold text-purple-600">
+                        {(entry as any).alternateNumber ?? '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{entry.playerName}</div>
+                        {(entry as any).partnerName && (
+                          <div className="text-sm text-purple-600">& {(entry as any).partnerName}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-mono">{entry.playerZpin}</td>
+                      <td className="px-4 py-3 text-sm">{entry.clubName}</td>
+                      <td className="px-4 py-3 text-center">
+                        {entry.ranking ? <Badge variant="outline">#{entry.ranking}</Badge> : <span className="text-muted-foreground text-sm">N/A</span>}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-muted-foreground">
+                        {new Date(entry.entryDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-600 border-green-400 hover:bg-green-50"
+                            title="Promote to accepted"
+                            onClick={() => handlePromote((entry as any)._id)}
+                            disabled={loading || acceptedEntries.length >= effectiveDrawSize}
+                          >
+                            <ArrowUpCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-slate-500 border-slate-300 hover:bg-slate-50"
+                            title="Demote / remove from alternates"
+                            onClick={() => handleDemote((entry as any)._id)}
+                            disabled={loading}
+                          >
+                            <ArrowDownCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {acceptedEntries.length >= effectiveDrawSize && (
+              <p className="text-xs text-muted-foreground px-4 py-3">
+                Draw is full ({effectiveDrawSize}/{effectiveDrawSize}). A player must be demoted or withdrawn before an alternate can be promoted.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

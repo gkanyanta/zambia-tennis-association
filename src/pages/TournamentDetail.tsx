@@ -543,6 +543,7 @@ export function TournamentDetail() {
                 tournament={tournament}
                 onPayNow={tournament.entryFee > 0 ? handlePayEntryFee : undefined}
                 payingEntryFee={payingEntryFee}
+                isAdmin={user?.role === 'admin' || user?.role === 'staff'}
               />
             </TabsContent>
 
@@ -567,13 +568,44 @@ export function TournamentDetail() {
 function PublicEntriesView({
   tournament,
   onPayNow,
-  payingEntryFee = false
+  payingEntryFee = false,
+  isAdmin = false
 }: {
   tournament: Tournament
   onPayNow?: (entryReferenceNumber?: string) => void
   payingEntryFee?: boolean
+  isAdmin?: boolean
 }) {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [linkModal, setLinkModal] = useState<{ entryId: string; categoryId: string; playerName: string } | null>(null)
+  const [linkZpin, setLinkZpin] = useState('')
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkError, setLinkError] = useState('')
+  const [linkSuccess, setLinkSuccess] = useState('')
+
+  const handleLinkPlayer = async () => {
+    if (!linkModal || !linkZpin.trim()) return
+    setLinkLoading(true)
+    setLinkError('')
+    try {
+      await apiFetch(`/api/tournaments/${(tournament as any)._id}/categories/${linkModal.categoryId}/entries/${linkModal.entryId}/link-player`, {
+        method: 'PATCH',
+        body: JSON.stringify({ zpin: linkZpin.trim() })
+      })
+      setLinkSuccess(`Linked to ${linkZpin.trim()}`)
+      setTimeout(() => {
+        setLinkModal(null)
+        setLinkZpin('')
+        setLinkSuccess('')
+        window.location.reload()
+      }, 1200)
+    } catch (err: any) {
+      setLinkError(err.message || 'Player not found. Check the ZPIN and try again.')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
 
   const categoriesWithEntries = (tournament.categories || [])
     .map((c: any) => ({
@@ -613,6 +645,36 @@ function PublicEntriesView({
 
   return (
     <div className="space-y-6">
+      {/* Admin Link Player Modal */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="font-semibold text-lg mb-1">Link to Existing Account</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Enter the ZPIN of the registered account for <span className="font-medium text-foreground">{linkModal.playerName}</span>.
+            </p>
+            <Input
+              placeholder="e.g. ZTAS0021"
+              value={linkZpin}
+              onChange={e => { setLinkZpin(e.target.value.toUpperCase()); setLinkError('') }}
+              onKeyDown={e => e.key === 'Enter' && handleLinkPlayer()}
+              autoFocus
+              className="mb-2"
+            />
+            {linkError && <p className="text-sm text-destructive mb-2">{linkError}</p>}
+            {linkSuccess && <p className="text-sm text-green-600 mb-2">{linkSuccess}</p>}
+            <div className="flex gap-2 mt-4">
+              <Button className="flex-1" onClick={handleLinkPlayer} disabled={linkLoading || !linkZpin.trim()}>
+                {linkLoading ? 'Linking...' : 'Link'}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => { setLinkModal(null); setLinkZpin(''); setLinkError('') }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -670,6 +732,27 @@ function PublicEntriesView({
                               ? <p className="text-xs text-muted-foreground font-mono">{entry.playerZpin}</p>
                               : <p className="text-xs text-muted-foreground font-mono tracking-widest">••••••••</p>
                           ) : null}
+                          {isAdmin && (!entry.playerZpin || entry.playerZpin === 'PENDING') && (
+                            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                              <span className="text-xs text-amber-600 font-medium">⚠ Unlinked</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2 text-blue-600 border-blue-400 hover:bg-blue-50"
+                                onClick={() => setLinkModal({ entryId: entry._id, categoryId: (category as any)._id, playerName: entry.playerName })}
+                              >
+                                Link ZPIN
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2 text-green-600 border-green-400 hover:bg-green-50"
+                                onClick={() => navigate(`/admin/tournaments/${(tournament as any)._id}`)}
+                              >
+                                Create Account
+                              </Button>
+                            </div>
+                          )}
                         </td>
                         {isDoubles && (
                           <td className="px-4 py-2.5">

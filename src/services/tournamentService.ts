@@ -364,6 +364,30 @@ export const tournamentService = {
     return response.data;
   },
 
+  async cutToDrawSize(tournamentId: string, categoryId: string): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/cut-to-draw`,
+      { method: 'POST' }
+    );
+    return response;
+  },
+
+  async promoteAlternate(tournamentId: string, categoryId: string, entryId: string): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/entries/${entryId}/promote`,
+      { method: 'POST' }
+    );
+    return response;
+  },
+
+  async demoteToAlternate(tournamentId: string, categoryId: string, entryId: string): Promise<any> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/entries/${entryId}/demote`,
+      { method: 'POST' }
+    );
+    return response;
+  },
+
   // Bulk entry actions
   async bulkEntryAction(
     tournamentId: string,

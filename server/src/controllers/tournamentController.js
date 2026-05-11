@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import Tournament from '../models/Tournament.js';
 import Ranking from '../models/Ranking.js';
@@ -153,6 +154,7 @@ export const updateTournament = async (req, res) => {
             existing.name = incoming.name || existing.name;
             existing.drawType = incoming.drawType || existing.drawType;
             existing.maxEntries = incoming.maxEntries ?? existing.maxEntries;
+            if (incoming.drawSize !== undefined) existing.drawSize = incoming.drawSize || null;
             if (incoming.entryFee !== undefined) existing.entryFee = incoming.entryFee;
             return existing;
           }
@@ -438,9 +440,11 @@ export const submitEntry = async (req, res) => {
 
     // Calculate fee and ZPIN status
     const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
-    const activeSub = await MembershipSubscription.findOne({ entityId: player._id, entityType: 'player', status: 'active' });
-    const zpinPaidUp = activeSub
-      ? category.type !== 'senior' || activeSub.membershipTypeCode !== 'zpin_junior'
+    const activeSub = await MembershipSubscription.findOne({ entityId: new mongoose.Types.ObjectId(player._id.toString()), entityType: 'player', status: 'active' });
+    const isActiveMember = activeSub !== null || player.membershipStatus === 'active';
+    const isJuniorSub = activeSub?.membershipTypeCode === 'zpin_junior';
+    const zpinPaidUp = isActiveMember
+      ? category.type !== 'senior' || !isJuniorSub
       : false;
     const entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
@@ -2288,13 +2292,17 @@ export const publicRegister = async (req, res) => {
       let zpinPaidUp = false;
       if (!isNewPlayerEntry && playerData._id) {
         const activeSub = await MembershipSubscription.findOne({
-          entityId: playerData._id,
+          entityId: new mongoose.Types.ObjectId(playerData._id.toString()),
           entityType: 'player',
           status: 'active'
         });
+        // Fallback to player.membershipStatus if subscription lookup misses
+        const player = await User.findById(playerData._id).select('membershipStatus').lean();
+        const isActiveMember = activeSub !== null || player?.membershipStatus === 'active';
         // zpin_junior holders pay surcharge in senior categories (top-up is voluntary)
-        zpinPaidUp = activeSub
-          ? category.type !== 'senior' || activeSub.membershipTypeCode !== 'zpin_junior'
+        const isJuniorSub = activeSub?.membershipTypeCode === 'zpin_junior';
+        zpinPaidUp = isActiveMember
+          ? category.type !== 'senior' || !isJuniorSub
           : false;
       }
       let entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
@@ -3750,6 +3758,173 @@ export const linkEntryToPlayer = async (req, res) => {
       data: entry
     });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Cut accepted entries down to draw size, marking overflow as alternates
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/cut-to-draw
+// @access  Private (Admin/Staff)
+export const cutToDrawSize = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    const drawSize = category.drawSize || category.maxEntries;
+
+    // Only consider accepted entries (leave pending, rejected, withdrawn untouched)
+    const accepted = category.entries.filter(e => e.status === 'accepted');
+
+    if (accepted.length <= drawSize) {
+      return res.status(400).json({
+        success: false,
+        message: `Only ${accepted.length} accepted entries — draw size is ${drawSize}. No cut needed.`
+      });
+    }
+
+    // Sort: seeded players first (lowest seed number), then by ranking (lower = better),
+    // then by entry date (earlier = priority)
+    accepted.sort((a, b) => {
+      if (a.seed && b.seed) return a.seed - b.seed;
+      if (a.seed) return -1;
+      if (b.seed) return 1;
+      if (a.ranking && b.ranking) return a.ranking - b.ranking;
+      if (a.ranking) return -1;
+      if (b.ranking) return 1;
+      return new Date(a.entryDate) - new Date(b.entryDate);
+    });
+
+    const mainDraw = accepted.slice(0, drawSize);
+    const alternates = accepted.slice(drawSize);
+
+    const mainDrawIds = new Set(mainDraw.map(e => e._id.toString()));
+
+    let alternateNumber = 1;
+    for (const entry of category.entries) {
+      const id = entry._id.toString();
+      if (mainDrawIds.has(id)) {
+        entry.status = 'accepted';
+        entry.alternateNumber = undefined;
+      } else if (alternates.some(a => a._id.toString() === id)) {
+        entry.status = 'alternate';
+        entry.alternateNumber = alternateNumber++;
+      }
+      // All other statuses (pending_payment, pending, rejected, withdrawn) untouched
+    }
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Draw cut to ${drawSize}. ${alternates.length} player(s) moved to alternates list.`,
+      data: {
+        drawSize,
+        mainDrawCount: mainDraw.length,
+        alternatesCount: alternates.length,
+        mainDraw: mainDraw.map(e => ({ playerName: e.playerName, seed: e.seed, ranking: e.ranking })),
+        alternates: alternates.map((e, i) => ({ alternateNumber: i + 1, playerName: e.playerName, ranking: e.ranking }))
+      }
+    });
+  } catch (error) {
+    console.error('Cut to draw error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Promote an alternate into the main draw (replaces a withdrawn player)
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/entries/:entryId/promote
+// @access  Private (Admin/Staff)
+export const promoteAlternate = async (req, res) => {
+  try {
+    const { tournamentId, categoryId, entryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    const entry = category.entries.id(entryId);
+    if (!entry) return res.status(404).json({ success: false, message: 'Entry not found' });
+
+    if (entry.status !== 'alternate') {
+      return res.status(400).json({ success: false, message: 'Entry is not an alternate' });
+    }
+
+    const drawSize = category.drawSize || category.maxEntries;
+    const mainDrawCount = category.entries.filter(e => e.status === 'accepted').length;
+
+    if (mainDrawCount >= drawSize) {
+      return res.status(400).json({
+        success: false,
+        message: `Main draw is already full (${mainDrawCount}/${drawSize}). Withdraw a player first.`
+      });
+    }
+
+    const promotedAlternateNumber = entry.alternateNumber;
+    entry.status = 'accepted';
+    entry.alternateNumber = undefined;
+
+    // Re-number remaining alternates
+    category.entries
+      .filter(e => e.status === 'alternate' && e.alternateNumber > promotedAlternateNumber)
+      .forEach(e => { e.alternateNumber -= 1; });
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `${entry.playerName} promoted to main draw`,
+      data: entry
+    });
+  } catch (error) {
+    console.error('Promote alternate error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Move a main draw entry back to alternates list
+// @route   POST /api/tournaments/:tournamentId/categories/:categoryId/entries/:entryId/demote
+// @access  Private (Admin/Staff)
+export const demoteToAlternate = async (req, res) => {
+  try {
+    const { tournamentId, categoryId, entryId } = req.params;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    const entry = category.entries.id(entryId);
+    if (!entry) return res.status(404).json({ success: false, message: 'Entry not found' });
+
+    if (entry.status !== 'accepted') {
+      return res.status(400).json({ success: false, message: 'Only accepted (main draw) entries can be demoted' });
+    }
+
+    const highestAltNum = Math.max(
+      0,
+      ...category.entries.filter(e => e.status === 'alternate').map(e => e.alternateNumber || 0)
+    );
+
+    entry.status = 'alternate';
+    entry.alternateNumber = highestAltNum + 1;
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `${entry.playerName} moved to alternates (position ${entry.alternateNumber})`,
+      data: entry
+    });
+  } catch (error) {
+    console.error('Demote to alternate error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

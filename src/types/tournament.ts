@@ -17,6 +17,7 @@ export interface TournamentCategory {
   entryFee?: number
   format?: 'singles' | 'doubles' | 'mixed_doubles'
   maxEntries: number
+  drawSize?: number
   entries: TournamentEntry[]
   draw?: Draw
   specialRules?: string[] // e.g., "Outside top 20 in rankings"
@@ -34,7 +35,8 @@ export interface TournamentEntry {
   clubName: string
   ranking?: number
   seed?: number
-  status: 'pending_payment' | 'pending' | 'accepted' | 'rejected' | 'withdrawn'
+  status: 'pending_payment' | 'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'alternate'
+  alternateNumber?: number
   paymentStatus?: 'unpaid' | 'paid' | 'waived'
   paymentReference?: string
   paymentDate?: string

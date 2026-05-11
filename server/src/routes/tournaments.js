@@ -44,7 +44,10 @@ import {
   updateUmpirePool,
   saveOrderOfPlay,
   downloadOrderOfPlayPDF,
-  linkEntryToPlayer
+  linkEntryToPlayer,
+  cutToDrawSize,
+  promoteAlternate,
+  demoteToAlternate
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -78,6 +81,9 @@ router.post('/:tournamentId/entries/bulk', protect, authorize('admin', 'staff'),
 router.post('/:tournamentId/categories/:categoryId/entries', protect, submitEntry);
 router.put('/:tournamentId/categories/:categoryId/entries/:entryId', protect, authorize('admin', 'staff'), updateEntryStatus);
 router.patch('/:tournamentId/categories/:categoryId/entries/:entryId/link-player', protect, authorize('admin', 'staff'), linkEntryToPlayer);
+router.post('/:tournamentId/categories/:categoryId/cut-to-draw', protect, authorize('admin', 'staff'), cutToDrawSize);
+router.post('/:tournamentId/categories/:categoryId/entries/:entryId/promote', protect, authorize('admin', 'staff'), promoteAlternate);
+router.post('/:tournamentId/categories/:categoryId/entries/:entryId/demote', protect, authorize('admin', 'staff'), demoteToAlternate);
 router.put('/:tournamentId/categories/:categoryId/seeds', protect, authorize('admin', 'staff'), bulkUpdateSeeds);
 router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authorize('admin', 'staff'), autoSeedCategory);
 
