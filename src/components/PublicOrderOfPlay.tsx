@@ -2,115 +2,144 @@ import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CalendarClock } from 'lucide-react'
-import { Tournament } from '@/services/tournamentService'
-import { iterDrawMatches } from '@/utils/iterMatches'
+import { Tournament, OrderOfPlaySlot } from '@/services/tournamentService'
 
 interface Props {
   tournament: Tournament
 }
 
-interface ScheduledMatch {
+interface ResolvedMatch {
   categoryName: string
   roundName: string
   player1Name: string
   player2Name: string
   court: string
-  scheduledTime: Date
+  notBefore: string
+  notBeforeMinutes: number // for sorting
   status: string
   score?: string
 }
 
-export function PublicOrderOfPlay({ tournament }: Props) {
-  // Collect all scheduled matches.
-  // Uses iterDrawMatches so round-robin matches — stored in both
-  // draw.matches and roundRobinGroups[].matches — are only listed once.
-  const scheduledMatches = useMemo(() => {
-    const matches: ScheduledMatch[] = []
+// Parse "8:00 HRS", "10:30", "09:00 hrs" → total minutes for sorting
+function parseNotBefore(raw: string): number {
+  if (!raw) return 9999
+  const cleaned = raw.replace(/hrs?/i, '').trim()
+  const parts = cleaned.split(':')
+  if (parts.length < 2) return 9999
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  if (isNaN(h) || isNaN(m)) return 9999
+  return h * 60 + m
+}
 
-    for (const category of tournament.categories) {
-      const draw = (category as any).draw
+// Format "8:00 HRS" → "08:00" for display
+function formatNotBefore(raw: string): string {
+  if (!raw) return ''
+  const cleaned = raw.replace(/hrs?/i, '').trim()
+  const parts = cleaned.split(':')
+  if (parts.length < 2) return raw
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  if (isNaN(h) || isNaN(m)) return raw
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function getRoundName(round: number, totalRounds: number): string {
+  const remaining = totalRounds - round + 1
+  if (remaining === 1) return 'Final'
+  if (remaining === 2) return 'Semi-Final'
+  if (remaining === 3) return 'Quarter-Final'
+  if (remaining === 4) return 'Round of 16'
+  return `Round ${round}`
+}
+
+export function PublicOrderOfPlay({ tournament }: Props) {
+  // Build a flat lookup: matchId → { player1Name, player2Name, roundName, status, score }
+  const matchLookup = useMemo(() => {
+    const map: Record<string, { player1: string; player2: string; roundName: string; categoryName: string; status: string; score?: string }> = {}
+    for (const cat of tournament.categories) {
+      const draw = (cat as any).draw
       if (!draw) continue
 
-      for (const { match: m } of iterDrawMatches<any>(draw)) {
-        if (!m.scheduledTime) continue
-        if (m.player1?.isBye || m.player2?.isBye) continue
+      const allMatches = [
+        ...(draw.matches || []),
+        ...(draw.roundRobinGroups || []).flatMap((g: any) => g.matches || [])
+      ]
+      const totalRounds = draw.totalRounds || draw.rounds || 1
 
-        matches.push({
-          categoryName: category.name,
-          roundName: m.roundName || `Round ${m.round}`,
-          player1Name: m.player1?.name || 'TBD',
-          player2Name: m.player2?.name || 'TBD',
-          court: m.court || 'TBA',
-          scheduledTime: new Date(m.scheduledTime),
-          status: m.status,
+      for (const m of allMatches) {
+        if (!m._id) continue
+        map[m._id.toString()] = {
+          player1: m.player1?.name || 'TBD',
+          player2: m.player2?.name || 'TBD',
+          roundName: m.roundName || getRoundName(m.round, totalRounds),
+          categoryName: cat.name,
+          status: m.status || 'scheduled',
           score: m.score,
+        }
+      }
+    }
+    return map
+  }, [tournament])
+
+  const oop = tournament.orderOfPlay as OrderOfPlaySlot[] | undefined
+
+  // Group slots by day string (YYYY-MM-DD)
+  const dayMap = useMemo(() => {
+    const map: Record<string, Record<string, ResolvedMatch[]>> = {}
+    if (!oop) return map
+
+    for (const slot of oop) {
+      const d = new Date(slot.day)
+      const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+      if (!map[dayKey]) map[dayKey] = {}
+      if (!map[dayKey][slot.court]) map[dayKey][slot.court] = []
+
+      for (const m of slot.matches) {
+        const info = matchLookup[m.matchId]
+        if (!info) continue
+        map[dayKey][slot.court].push({
+          categoryName: info.categoryName,
+          roundName: info.roundName,
+          player1Name: info.player1,
+          player2Name: info.player2,
+          court: slot.court,
+          notBefore: m.notBefore,
+          notBeforeMinutes: parseNotBefore(m.notBefore),
+          status: info.status,
+          score: info.score,
         })
       }
     }
 
-    return matches
-  }, [tournament])
-
-  // Get unique dates
-  const dates = useMemo(() => {
-    const dateSet = new Set<string>()
-    for (const m of scheduledMatches) {
-      const d = m.scheduledTime
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      dateSet.add(key)
+    // Sort matches within each court by notBefore time
+    for (const day of Object.values(map)) {
+      for (const court of Object.values(day)) {
+        court.sort((a, b) => a.notBeforeMinutes - b.notBeforeMinutes)
+      }
     }
-    return Array.from(dateSet).sort()
-  }, [scheduledMatches])
 
-  // Default to today if within tournament dates, otherwise first date
+    return map
+  }, [oop, matchLookup])
+
+  const dates = useMemo(() => Object.keys(dayMap).sort(), [dayMap])
+
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    if (dates.includes(todayStr)) return todayStr
-    return dates[0] || ''
+    return dates.includes(todayStr) ? todayStr : (dates[0] || '')
   })
 
-  // Matches for selected date, grouped by court
-  const matchesByCourt = useMemo(() => {
-    if (!selectedDate) return {}
-
-    const filtered = scheduledMatches.filter(m => {
-      const d = m.scheduledTime
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      return key === selectedDate
-    })
-
-    const grouped: Record<string, ScheduledMatch[]> = {}
-    for (const m of filtered) {
-      if (!grouped[m.court]) grouped[m.court] = []
-      grouped[m.court].push(m)
-    }
-
-    // Sort by time within each court
-    for (const court of Object.keys(grouped)) {
-      grouped[court].sort((a, b) => a.scheduledTime.getTime() - b.scheduledTime.getTime())
-    }
-
-    return grouped
-  }, [scheduledMatches, selectedDate])
-
-  const formatTime = (d: Date) => {
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  }
-
   const getStatusBadge = (status: string, score?: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="secondary" className="text-xs">{score || 'Completed'}</Badge>
-      case 'in_progress':
-      case 'live':
-        return <Badge variant="default" className="text-xs bg-green-600">Live</Badge>
-      default:
-        return null
-    }
+    if (status === 'completed') return <Badge variant="secondary" className="text-xs">{score || 'Completed'}</Badge>
+    if (status === 'in_progress' || status === 'live') return <Badge variant="default" className="text-xs bg-green-600">Live</Badge>
+    return null
   }
 
-  if (scheduledMatches.length === 0) {
+  const hasAnyMatches = dates.some(d => Object.values(dayMap[d]).some(m => m.length > 0))
+
+  if (!hasAnyMatches) {
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
@@ -122,9 +151,11 @@ export function PublicOrderOfPlay({ tournament }: Props) {
     )
   }
 
+  const matchesByCourt = selectedDate ? dayMap[selectedDate] || {} : {}
+
   return (
     <div className="space-y-6">
-      {/* Day Selector */}
+      {/* Day selector */}
       {dates.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {dates.map(date => {
@@ -147,14 +178,12 @@ export function PublicOrderOfPlay({ tournament }: Props) {
         </div>
       )}
 
-      {/* Date Header */}
       {selectedDate && (
         <h2 className="text-xl font-semibold">
           {new Date(selectedDate + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </h2>
       )}
 
-      {/* Courts */}
       {Object.keys(matchesByCourt).length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
@@ -174,14 +203,14 @@ export function PublicOrderOfPlay({ tournament }: Props) {
                   <div className="space-y-3">
                     {matches.map((m, i) => (
                       <div key={i} className="flex gap-3 text-sm">
-                        <div className="font-mono text-muted-foreground whitespace-nowrap">
-                          {formatTime(m.scheduledTime)}
+                        <div className="font-mono text-muted-foreground whitespace-nowrap w-12">
+                          {formatNotBefore(m.notBefore) || '—'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs text-muted-foreground">
                             {m.categoryName} — {m.roundName}
                           </div>
-                          <div className="font-medium truncate">
+                          <div className="font-medium">
                             {m.player1Name} vs {m.player2Name}
                           </div>
                           {getStatusBadge(m.status, m.score)}
