@@ -112,6 +112,17 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
     }
   }
 
+  const handleReconsider = async (entry: any) => {
+    if (!confirm(`Reconsider entry for ${entry.playerName}? This will move them back to the queue.`)) return
+    // Restore to pre-rejection status based on whether they have paid
+    const restoreStatus = entry.paymentStatus === 'paid' ? 'pending' : 'pending_payment'
+    try {
+      await onUpdateEntry(entry._id, { status: restoreStatus })
+    } catch (error) {
+      console.error('Error reconsidering entry:', error)
+    }
+  }
+
   const handleConfirmPayment = async (entryId: string) => {
     const reference = prompt('Enter payment reference (optional):')
 
@@ -883,9 +894,16 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
                             </Badge>
                           )}
                           {entry.status === 'rejected' && (
-                            <Badge variant="destructive" className="gap-1">
-                              <XCircle className="h-3 w-3" /> Rejected
-                            </Badge>
+                            <div>
+                              <Badge variant="destructive" className="gap-1">
+                                <XCircle className="h-3 w-3" /> Rejected
+                              </Badge>
+                              {entry.rejectionReason && (
+                                <p className="text-xs text-muted-foreground mt-0.5 max-w-[180px]" title={entry.rejectionReason}>
+                                  {entry.rejectionReason.length > 60 ? entry.rejectionReason.slice(0, 57) + '…' : entry.rejectionReason}
+                                </p>
+                              )}
+                            </div>
                           )}
                           {entry.status === 'withdrawn' && (
                             <Badge variant="outline">Withdrawn</Badge>
@@ -1007,13 +1025,15 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
                                 <ArrowDownCircle className="h-4 w-4" />
                               </Button>
                             )}
-                            {entry.status === 'rejected' && entry.rejectionReason && (
+                            {entry.status === 'rejected' && (
                               <Button
                                 size="sm"
-                                variant="ghost"
-                                onClick={() => alert(`Rejection reason: ${entry.rejectionReason}`)}
+                                variant="outline"
+                                className="text-green-600 border-green-500 hover:bg-green-50"
+                                title="Move entry back to the queue"
+                                onClick={() => handleReconsider(entry)}
                               >
-                                View Reason
+                                Reconsider
                               </Button>
                             )}
                           </div>
