@@ -3779,12 +3779,12 @@ export const linkEntryToPlayer = async (req, res) => {
     const linkedIsActiveMember = linkedSub !== null || user.membershipStatus === 'active';
     const linkedIsJuniorSub = linkedSub?.membershipTypeCode === 'zpin_junior';
     const linkedZpinPaidUp = linkedIsActiveMember ? category.type !== 'senior' || !linkedIsJuniorSub : false;
-    const wasNotPaidUp = !entry.zpinPaidUp;
     entry.zpinPaidUp = linkedZpinPaidUp;
 
-    // If we just confirmed the player is paid-up, remove any surcharge on the stored fee
-    if (linkedZpinPaidUp && wasNotPaidUp && entry.paymentStatus === 'unpaid') {
-      entry.entryFee = category.entryFee ?? tournament.entryFee ?? 0;
+    // Always correct the fee: if paid-up, ensure no surcharge; if not paid-up, ensure surcharge applied
+    if (entry.paymentStatus === 'unpaid') {
+      const catBaseFee = category.entryFee ?? tournament.entryFee ?? 0;
+      entry.entryFee = linkedZpinPaidUp ? catBaseFee : Math.ceil(catBaseFee * 1.5);
     }
 
     // Look up and attach the player's current ranking
