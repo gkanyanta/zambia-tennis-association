@@ -2208,9 +2208,6 @@ export const publicRegister = async (req, res) => {
     const errors = [];
     let totalFee = 0;
 
-    // Generate a single reference number for this registration batch
-    const entryReferenceNumber = generateEntryReference();
-
     // Process each entry
     for (const entry of entries) {
       const { playerId, categoryId, isNewPlayer, newPlayerData, partnerId, isNewPartner, newPartnerData } = entry;
@@ -2492,6 +2489,9 @@ export const publicRegister = async (req, res) => {
         }
       }
 
+      // Each entry gets its own reference so Pay Now charges only that individual entry
+      const entryReferenceNumber = generateEntryReference();
+
       // Create entry data
       const entryData = {
         playerId: isNewPlayerEntry ? null : playerData._id.toString(),
@@ -2541,7 +2541,8 @@ export const publicRegister = async (req, res) => {
         entryFee,
         partnerFee: partnerFee || 0,
         entryTotalFee,
-        zpinPaidUp
+        zpinPaidUp,
+        entryReferenceNumber
       });
     }
 
@@ -2581,7 +2582,7 @@ export const publicRegister = async (req, res) => {
             <p>Your registration for <strong>${tournament.name}</strong> has been submitted.</p>
             <p><strong>Registered Players:</strong></p>
             <ul>
-              ${results.map(r => `<li>${r.playerName} - ${r.categoryName}</li>`).join('')}
+              ${results.map(r => `<li>${r.playerName} — ${r.categoryName}${r.entryFee > 0 ? ` (K${r.entryFee}, Ref: <strong>${r.entryReferenceNumber}</strong>)` : ''}</li>`).join('')}
             </ul>
             <p><strong>Tournament Details:</strong></p>
             <ul>
@@ -2592,12 +2593,12 @@ export const publicRegister = async (req, res) => {
             ${totalFee > 0 ? `
             <p><strong>Payment:</strong></p>
             <p>Total Entry Fee: K${totalFee}</p>
-            <p><strong>Reference Number: ${entryReferenceNumber}</strong></p>
+            <p>Each player has an individual reference number shown above. You can pay for each entry separately.</p>
             ${payNow
               ? '<p>Status: Payment Pending</p>'
-              : `<p>Status: Pay Later — Entry will be confirmed upon payment</p>
+              : `<p>Status: Pay Later — Entries will be confirmed upon payment</p>
                  <p><a href="${payLaterLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Complete Payment Now</a></p>
-                 <p style="font-size:12px;color:#666;">You can also pay later by visiting <a href="${process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com'}/pay/tournament">zambiatennisassociation.com/pay/tournament</a> and entering your reference number: <strong>${entryReferenceNumber}</strong></p>`
+                 <p style="font-size:12px;color:#666;">You can also pay later by visiting <a href="${process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com'}/pay/tournament">zambiatennisassociation.com/pay/tournament</a> and entering each player's individual reference number.</p>`
             }
             ` : ''}
             ${errors.length > 0 ? `
@@ -2622,8 +2623,7 @@ export const publicRegister = async (req, res) => {
         errors: errors,
         totalFee,
         paymentInfo,
-        tournamentName: tournament.name,
-        entryReferenceNumber
+        tournamentName: tournament.name
       }
     });
   } catch (error) {
