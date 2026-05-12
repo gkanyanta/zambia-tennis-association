@@ -306,27 +306,16 @@ export const initializeTournamentPayment = async (req, res) => {
     }
 
     const amount = totalAmount || tournament.entryFee;
+    const reference = generateReference('TOUR');
 
-    // For a single-entry payment, re-use an existing paymentReference if present —
-    // this prevents orphaning an in-flight Lenco transaction if the widget was closed
-    // and the player clicked Pay Now again before the webhook arrived.
-    const existingRef = entriesToTag.length === 1
-      ? tournament.categories
-          .flatMap(c => c.entries)
-          .find(e => e._id.toString() === entriesToTag[0].entryId)?.paymentReference
-      : null;
-    const reference = existingRef || generateReference('TOUR');
-
-    if (!existingRef) {
-      await Tournament.updateOne(
-        { _id: tournament._id },
-        { $set: Object.fromEntries(entriesToTag.map(({ catId, entryId }) => {
-          const catIdx = tournament.categories.findIndex(c => c._id.toString() === catId);
-          const entIdx = tournament.categories[catIdx].entries.findIndex(e => e._id.toString() === entryId);
-          return [`categories.${catIdx}.entries.${entIdx}.paymentReference`, reference];
-        })) }
-      );
-    }
+    await Tournament.updateOne(
+      { _id: tournament._id },
+      { $set: Object.fromEntries(entriesToTag.map(({ catId, entryId }) => {
+        const catIdx = tournament.categories.findIndex(c => c._id.toString() === catId);
+        const entIdx = tournament.categories[catIdx].entries.findIndex(e => e._id.toString() === entryId);
+        return [`categories.${catIdx}.entries.${entIdx}.paymentReference`, reference];
+      })) }
+    );
 
     res.status(200).json({
       success: true,
