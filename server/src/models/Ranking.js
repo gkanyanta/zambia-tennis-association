@@ -88,9 +88,15 @@ rankingSchema.methods.calculateTotalPoints = function () {
 
 rankingSchema.statics.updateRankings = async function (category, rankingPeriod) {
   const all = await this.find({ category, rankingPeriod, isActive: true }).sort({ totalPoints: -1 });
+  // ITF standard: players with equal points share the same rank;
+  // the next rank skips over the tied positions (1224 ranking).
+  let rank = 1;
   for (let i = 0; i < all.length; i++) {
+    if (i > 0 && all[i].totalPoints !== all[i - 1].totalPoints) {
+      rank = i + 1;
+    }
     all[i].previousRank = all[i].rank;
-    all[i].rank = i + 1;
+    all[i].rank = rank;
     await all[i].save();
   }
   return all;
