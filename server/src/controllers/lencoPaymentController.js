@@ -273,8 +273,9 @@ export const initializeTournamentPayment = async (req, res) => {
         if (entry.paymentStatus === 'paid') continue; // Guard: already paid, skip
         if (entryReferenceNumber) {
           if (entry.entryReferenceNumber === entryReferenceNumber) {
-            entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entry.entryFee });
-            totalAmount += entry.entryFee || 0;
+            const entryTotal = (entry.entryFee || 0) + (entry.partnerEntryFee || 0);
+            entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entryTotal });
+            totalAmount += entryTotal;
             // Resolve payer email from entry data when no logged-in user
             if (!payerEmail) {
               payerEmail = entry.payer?.email || entry.newPlayerContact?.email || null;
@@ -283,8 +284,9 @@ export const initializeTournamentPayment = async (req, res) => {
         } else {
           // Fallback: tag all pending_payment entries for the logged-in player
           if (entry.playerId && entry.playerId.toString() === req.user._id.toString()) {
-            entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entry.entryFee });
-            totalAmount += entry.entryFee || 0;
+            const entryTotal = (entry.entryFee || 0) + (entry.partnerEntryFee || 0);
+            entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entryTotal });
+            totalAmount += entryTotal;
           }
         }
       }
@@ -1091,7 +1093,7 @@ export const verifyPayment = async (req, res) => {
             entry.paymentStatus = 'paid';
             entry.paymentDate = new Date();
             entry.paymentMethod = 'online';
-            const fee = entry.entryFee || tournament.entryFee || 0;
+            const fee = (entry.entryFee || tournament.entryFee || 0) + (entry.partnerEntryFee || 0);
             totalAmount += fee;
             if (!payerName) {
               payerName = entry.payer?.name || entry.playerName;
@@ -1800,7 +1802,7 @@ export const handleWebhook = async (req, res) => {
                   entry.paymentStatus = 'paid';
                   entry.paymentDate = new Date();
                   entry.paymentMethod = 'online';
-                  const fee = entry.entryFee || tournament.entryFee || 0;
+                  const fee = (entry.entryFee || tournament.entryFee || 0) + (entry.partnerEntryFee || 0);
                   totalAmount += fee;
                   if (!payerName) {
                     payerName = entry.payer?.name || entry.playerName;
