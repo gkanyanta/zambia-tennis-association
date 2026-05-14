@@ -396,7 +396,8 @@ export function TournamentDetail() {
                       <CardTitle>Register for Tournament</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {(tournament.status === 'upcoming' || tournament.status === 'entries_open') ? (
+                      {(tournament.status === 'upcoming' || tournament.status === 'entries_open' ||
+                        (tournament.status === 'in_progress' && (tournament.categories || []).some((c: any) => c.registrationOpen))) ? (
                         <>
                           {tournament.categories && tournament.categories.length > 0 ? (
                             <>

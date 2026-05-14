@@ -329,6 +329,20 @@ function EntriesManagement({ tournament, onRefresh }: { tournament: Tournament; 
   const [selectedCategory, setSelectedCategory] = useState<TournamentCategory | null>(
     tournament.categories[0] || null
   )
+  const [togglingReg, setTogglingReg] = useState(false)
+
+  const handleToggleRegistration = async () => {
+    if (!selectedCategory) return
+    setTogglingReg(true)
+    try {
+      await apiFetch(`/tournaments/${tournament._id}/categories/${selectedCategory._id}/toggle-registration`, { method: 'PATCH' })
+      await onRefresh()
+    } catch (error: any) {
+      alert(error.message || 'Failed to toggle registration')
+    } finally {
+      setTogglingReg(false)
+    }
+  }
 
   const handleUpdateEntry = async (entryId: string, data: { status: string; seed?: number; rejectionReason?: string; waiveSurcharge?: boolean }) => {
     try {
@@ -448,6 +462,30 @@ function EntriesManagement({ tournament, onRefresh }: { tournament: Tournament; 
                 </option>
               ))}
             </select>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Registration toggle — only relevant when tournament is in_progress */}
+      {tournament.status === 'in_progress' && (
+        <Card>
+          <CardContent className="pt-4 pb-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Category Registration</p>
+              <p className="text-xs text-muted-foreground">
+                {(selectedCategory as any).registrationOpen
+                  ? 'Registration is open — players can submit entries for this category'
+                  : 'Registration is closed — no new entries accepted for this category'}
+              </p>
+            </div>
+            <Button
+              variant={(selectedCategory as any).registrationOpen ? 'destructive' : 'default'}
+              size="sm"
+              onClick={handleToggleRegistration}
+              disabled={togglingReg}
+            >
+              {togglingReg ? 'Saving...' : (selectedCategory as any).registrationOpen ? 'Close Registration' : 'Open Registration'}
+            </Button>
           </CardContent>
         </Card>
       )}

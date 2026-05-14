@@ -2188,16 +2188,17 @@ export const publicRegister = async (req, res) => {
       });
     }
 
-    // Check if entries are still open
-    if (tournament.status === 'entries_closed' || tournament.status === 'in_progress' || tournament.status === 'completed') {
+    // Block completely if closed or completed
+    if (tournament.status === 'entries_closed' || tournament.status === 'completed') {
       return res.status(400).json({
         success: false,
         message: 'Entries are closed for this tournament'
       });
     }
 
-    // Check entry deadline
-    if (new Date() > new Date(tournament.entryDeadline)) {
+    // Check entry deadline (only for normal entries_open flow; bypass when category override is set)
+    const deadlinePassed = tournament.entryDeadline && new Date() > new Date(tournament.entryDeadline);
+    if (deadlinePassed && tournament.status !== 'in_progress') {
       return res.status(400).json({
         success: false,
         message: 'Entry deadline has passed'
@@ -2216,6 +2217,12 @@ export const publicRegister = async (req, res) => {
       const category = tournament.categories.id(categoryId);
       if (!category) {
         errors.push({ playerId, error: 'Category not found' });
+        continue;
+      }
+
+      // When tournament is in_progress, only allow categories explicitly opened by admin
+      if (tournament.status === 'in_progress' && !category.registrationOpen) {
+        errors.push({ playerId, error: 'Registration is closed for this category' });
         continue;
       }
 
@@ -3978,6 +3985,31 @@ export const demoteToAlternate = async (req, res) => {
     });
   } catch (error) {
     console.error('Demote to alternate error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Toggle registration open/closed for a specific category
+// @route   PATCH /api/tournaments/:tournamentId/categories/:categoryId/toggle-registration
+// @access  Private (Admin/Staff)
+export const toggleCategoryRegistration = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    category.registrationOpen = !category.registrationOpen;
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Registration ${category.registrationOpen ? 'opened' : 'closed'} for ${category.name}`,
+      data: { registrationOpen: category.registrationOpen }
+    });
+  } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
