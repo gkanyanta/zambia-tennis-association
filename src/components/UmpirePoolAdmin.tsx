@@ -45,7 +45,7 @@ export function UmpirePoolAdmin({ tournament, onRefresh }: Props) {
     searchTimeout.current = setTimeout(async () => {
       setSearching(true)
       try {
-        const data = await apiFetch(`/users?role=player&search=${encodeURIComponent(searchQuery.trim())}`)
+        const data = await apiFetch(`/users?search=${encodeURIComponent(searchQuery.trim())}`)
         setSearchResults(data.data || [])
       } catch {
         setSearchResults([])
@@ -107,7 +107,7 @@ export function UmpirePoolAdmin({ tournament, onRefresh }: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Select players who will umpire matches at this tournament. When starting a live match, the Chair Umpire dropdown will show only these players.
+            Select who will umpire matches at this tournament. When starting a live match, the Chair Umpire dropdown will show only these people.
           </p>
 
           {/* Search */}
@@ -116,7 +116,7 @@ export function UmpirePoolAdmin({ tournament, onRefresh }: Props) {
             <input
               type="text"
               className="w-full pl-10 pr-4 py-2 border rounded-md"
-              placeholder="Search players by name..."
+              placeholder="Search by name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -150,7 +150,7 @@ export function UmpirePoolAdmin({ tournament, onRefresh }: Props) {
           {/* Current Pool */}
           {pool.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
-              No umpires added yet. Search for players above to add them to the pool.
+              No umpires added yet. Search by name above to add them to the pool.
             </div>
           ) : (
             <div className="space-y-2">
