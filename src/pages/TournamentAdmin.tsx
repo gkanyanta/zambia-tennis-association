@@ -487,7 +487,7 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
     }
   }
 
-  const handleUpdateMatch = async (matchId: string, result: { winner: string; score: string }) => {
+  const handleUpdateMatch = async (matchId: string, result: { winner: string; score: string; status?: string }) => {
     try {
       if (!selectedCategory) return
       await tournamentService.updateMatchResult(

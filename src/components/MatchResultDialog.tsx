@@ -16,28 +16,37 @@ interface MatchResultDialogProps {
   match: Match | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (result: { winner: string; score: string }) => Promise<void>
+  onSubmit: (result: { winner: string; score: string; status?: string }) => Promise<void>
 }
 
 export function MatchResultDialog({ match, open, onOpenChange, onSubmit }: MatchResultDialogProps) {
   const [selectedWinner, setSelectedWinner] = useState<string>('')
   const [score, setScore] = useState('')
+  const [isWalkover, setIsWalkover] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!selectedWinner || !score) {
-      alert('Please select a winner and enter a score')
+    if (!selectedWinner) {
+      alert('Please select a winner')
+      return
+    }
+    if (!isWalkover && !score) {
+      alert('Please enter a score')
       return
     }
 
     setLoading(true)
     try {
-      await onSubmit({ winner: selectedWinner, score })
-      // Reset form
+      await onSubmit({
+        winner: selectedWinner,
+        score: isWalkover ? 'w/o' : score,
+        status: isWalkover ? 'walkover' : 'completed',
+      })
       setSelectedWinner('')
       setScore('')
+      setIsWalkover(false)
       onOpenChange(false)
     } catch (error) {
       console.error('Error submitting result:', error)
@@ -56,7 +65,7 @@ export function MatchResultDialog({ match, open, onOpenChange, onSubmit }: Match
         <DialogHeader>
           <DialogTitle>Enter Match Result</DialogTitle>
           <DialogDescription>
-            Record the result for this match. Select the winner and enter the score.
+            Record the result for this match. Select the winner and enter the score, or record a walkover.
           </DialogDescription>
         </DialogHeader>
 
@@ -70,9 +79,26 @@ export function MatchResultDialog({ match, open, onOpenChange, onSubmit }: Match
               </div>
             </div>
 
+            {/* Walkover toggle */}
+            <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+              <input
+                id="walkover-toggle"
+                type="checkbox"
+                checked={isWalkover}
+                onChange={(e) => {
+                  setIsWalkover(e.target.checked)
+                  setScore('')
+                }}
+                className="h-4 w-4"
+              />
+              <label htmlFor="walkover-toggle" className="text-sm font-medium cursor-pointer select-none">
+                Walkover (player did not show up)
+              </label>
+            </div>
+
             {/* Winner Selection */}
             <div className="space-y-3">
-              <Label>Select Winner</Label>
+              <Label>{isWalkover ? 'Walkover winner' : 'Select Winner'}</Label>
               <div className="space-y-2">
                 <button
                   type="button"
@@ -106,20 +132,28 @@ export function MatchResultDialog({ match, open, onOpenChange, onSubmit }: Match
               </div>
             </div>
 
-            {/* Score Input */}
-            <div className="space-y-2">
-              <Label htmlFor="score">Score</Label>
-              <Input
-                id="score"
-                placeholder="e.g., 6-4 6-3 or 6-4 4-6 10-8"
-                value={score}
-                onChange={(e) => setScore(e.target.value)}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter the score in standard tennis format (e.g., 6-4 6-3)
+            {/* Score Input — hidden for walkovers */}
+            {!isWalkover && (
+              <div className="space-y-2">
+                <Label htmlFor="score">Score</Label>
+                <Input
+                  id="score"
+                  placeholder="e.g., 6-4 6-3 or 6-4 4-6 10-8"
+                  value={score}
+                  onChange={(e) => setScore(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the score in standard tennis format (e.g., 6-4 6-3)
+                </p>
+              </div>
+            )}
+
+            {isWalkover && selectedWinner && (
+              <p className="text-sm text-muted-foreground">
+                Result will be recorded as <span className="font-medium">w/o</span> in the draw.
               </p>
-            </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -131,8 +165,8 @@ export function MatchResultDialog({ match, open, onOpenChange, onSubmit }: Match
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !selectedWinner || !score}>
-              {loading ? 'Saving...' : 'Save Result'}
+            <Button type="submit" disabled={loading || !selectedWinner || (!isWalkover && !score)}>
+              {loading ? 'Saving...' : isWalkover ? 'Record Walkover' : 'Save Result'}
             </Button>
           </DialogFooter>
         </form>

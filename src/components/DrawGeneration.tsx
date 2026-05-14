@@ -22,7 +22,7 @@ interface DrawGenerationProps {
   tournamentId?: string
   categoryId?: string
   onGenerateDraw: (draw: Draw) => Promise<void>
-  onUpdateMatch?: (matchId: string, result: { winner: string; score: string }) => Promise<void>
+  onUpdateMatch?: (matchId: string, result: { winner: string; score: string; status?: string }) => Promise<void>
   onRefresh?: () => Promise<void>
 }
 
@@ -191,7 +191,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
     }
   }, [category.draw, category.entries, isDoubles])
 
-  const handleMatchResultSubmit = async (result: { winner: string; score: string }) => {
+  const handleMatchResultSubmit = async (result: { winner: string; score: string; status?: string }) => {
     if (!selectedMatch || !onUpdateMatch) return
 
     try {

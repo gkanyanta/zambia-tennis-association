@@ -141,7 +141,7 @@ const BracketMatch = forwardRef<
 >(({ match, onClick }, ref) => {
   const isClickable =
     match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye
-  const isCompleted = match.status === 'completed'
+  const isCompleted = match.status === 'completed' || match.status === 'walkover'
 
   return (
     <div

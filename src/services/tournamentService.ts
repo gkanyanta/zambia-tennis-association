@@ -509,6 +509,7 @@ export const tournamentService = {
     result: {
       winner: string;
       score: string;
+      status?: string;
     }
   ): Promise<any> {
     const response = await apiFetch(
