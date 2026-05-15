@@ -25,6 +25,17 @@ export interface Ranking {
   isActive: boolean;
 }
 
+export interface DoublesPair {
+  rank: number;
+  playerName: string;
+  playerZpin: string;
+  partnerName: string;
+  partnerZpin: string;
+  playerPoints: number;
+  partnerPoints: number;
+  combinedPoints: number;
+}
+
 export interface RankingCategory {
   value: string;
   label: string;
@@ -53,10 +64,15 @@ export const rankingCategories: RankingCategory[] = [
 
 export const rankingService = {
   async getRankingsByCategory(category: string, period?: string): Promise<Ranking[]> {
-    const url = period 
+    const url = period
       ? `/rankings/${category}?period=${period}`
       : `/rankings/${category}`;
     const response = await apiFetch(url);
+    return response.data;
+  },
+
+  async getDoublesPairRankings(category: string): Promise<DoublesPair[]> {
+    const response = await apiFetch(`/rankings/pairs/${category}`);
     return response.data;
   },
 

@@ -3,6 +3,7 @@ import {
   getRankingsByCategory,
   getAllCategories,
   getPlayerRankings,
+  getDoublesPairRankings,
   createOrUpdateRanking,
   updateTournamentPoints,
   deleteTournamentResult,
@@ -17,8 +18,9 @@ const router = express.Router();
 
 // Public routes
 router.get('/categories/all', getAllCategories);
-router.get('/:category', getRankingsByCategory);
+router.get('/pairs/:category', getDoublesPairRankings);
 router.get('/player/:playerId', getPlayerRankings);
+router.get('/:category', getRankingsByCategory);
 
 // Admin routes
 router.post('/', protect, authorize('admin', 'staff'), createOrUpdateRanking);

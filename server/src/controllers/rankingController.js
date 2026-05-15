@@ -1,5 +1,6 @@
 import Ranking from '../models/Ranking.js';
 import User from '../models/User.js';
+import Tournament from '../models/Tournament.js';
 
 // @desc    Get rankings by category
 // @route   GET /api/rankings/:category
@@ -361,6 +362,64 @@ export const linkPlayerToRanking = async (req, res) => {
       message: `Linked to ${user.firstName} ${user.lastName} (${user.zpin})`,
       data: ranking
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get doubles pair rankings (combined points per pair) from tournament entries
+// @route   GET /api/rankings/pairs/:category  (men_doubles | women_doubles | mixed_doubles)
+// @access  Public
+export const getDoublesPairRankings = async (req, res) => {
+  try {
+    const { category } = req.params;
+
+    const formatMap = {
+      men_doubles: { format: 'doubles', gender: 'mens' },
+      women_doubles: { format: 'doubles', gender: 'womens' },
+      mixed_doubles: { format: 'mixed_doubles', gender: 'mixed' },
+    };
+    const spec = formatMap[category];
+    if (!spec) return res.status(400).json({ success: false, message: 'Invalid doubles category' });
+
+    const tournaments = await Tournament.find({
+      'categories.format': spec.format,
+    }).select('name categories');
+
+    const pairMap = new Map();
+
+    for (const tournament of tournaments) {
+      for (const cat of tournament.categories) {
+        if (cat.format !== spec.format) continue;
+        if (spec.gender !== 'mixed' && cat.gender !== spec.gender) continue;
+
+        for (const entry of cat.entries) {
+          if (!entry.playerZpin || !entry.partnerZpin) continue;
+          if (entry.playerZpin === 'PENDING' || entry.partnerZpin === 'PENDING') continue;
+
+          const combined = (entry.doublesPoints || 0) + (entry.partnerDoublesPoints || 0);
+          const key = [entry.playerZpin, entry.partnerZpin].sort().join('|');
+
+          if (!pairMap.has(key) || pairMap.get(key).combinedPoints < combined) {
+            pairMap.set(key, {
+              playerName: entry.playerName,
+              playerZpin: entry.playerZpin,
+              partnerName: entry.partnerName,
+              partnerZpin: entry.partnerZpin,
+              playerPoints: entry.doublesPoints || 0,
+              partnerPoints: entry.partnerDoublesPoints || 0,
+              combinedPoints: combined,
+            });
+          }
+        }
+      }
+    }
+
+    const pairs = Array.from(pairMap.values())
+      .sort((a, b) => b.combinedPoints - a.combinedPoints)
+      .map((p, i) => ({ ...p, rank: i + 1 }));
+
+    res.status(200).json({ success: true, count: pairs.length, data: pairs });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
