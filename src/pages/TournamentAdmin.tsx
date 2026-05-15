@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -745,7 +745,31 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     ? tournament.categories.find((c: any) => c._id === selectedCategoryId) || null
     : null
 
-  const draw = (selectedCategory as any)?.draw
+  const rawDraw = (selectedCategory as any)?.draw
+
+  // Enrich doubles draw: replace stored single names with "Surname1 / Surname2"
+  const draw = useMemo(() => {
+    const isDoubles = (selectedCategory as any)?.format === 'doubles' || (selectedCategory as any)?.format === 'mixed_doubles'
+    if (!isDoubles || !rawDraw) return rawDraw
+    const partnerMap: Record<string, string> = {}
+    for (const entry of (selectedCategory as any)?.entries || []) {
+      if (entry.partnerName && entry.playerId) partnerMap[entry.playerId] = entry.partnerName
+      if (entry.partnerName && entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName
+    }
+    if (Object.keys(partnerMap).length === 0) return rawDraw
+    const surname = (n: string) => { const p = (n || '').trim().split(/\s+/); return p[p.length - 1] }
+    const enrich = (pl: any) => {
+      if (!pl || !pl.id || pl.isBye) return pl
+      const partner = partnerMap[pl.id]
+      return partner ? { ...pl, name: `${surname(pl.name)} / ${surname(partner)}` } : pl
+    }
+    const enrichMatches = (ms: any[]) => (ms || []).map((m: any) => ({ ...m, player1: enrich(m.player1), player2: enrich(m.player2) }))
+    return {
+      ...rawDraw,
+      matches: enrichMatches(rawDraw.matches),
+      knockoutStage: rawDraw.knockoutStage ? { ...rawDraw.knockoutStage, matches: enrichMatches(rawDraw.knockoutStage.matches) } : undefined,
+    }
+  }, [selectedCategory, rawDraw])
 
   const handleSaveResult = async (matchId: string) => {
     if (!selectedCategory || !winnerInput || !scoreInput) return
