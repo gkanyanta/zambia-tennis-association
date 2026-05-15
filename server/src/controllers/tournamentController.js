@@ -1711,10 +1711,43 @@ const awardRankingPoints = async (tournament, category) => {
     }
   }
 
-  // Look up ZPINs from entries
+  // Look up ZPINs and seeding/ranking from entries
   const entryByPlayerId = {};
   for (const entry of (category.entries || [])) {
     if (entry.playerId) entryByPlayerId[entry.playerId.toString()] = entry;
+  }
+
+  // Count upsets per winner: +3 pts for each seeded/ranked player beaten by a worse-seeded/ranked player
+  const upsetCounts = {}; // playerId → number of upsets caused
+  const allMatches = [
+    ...(category.draw.matches || []),
+    ...(category.draw.roundRobinGroups || []).flatMap(g => g.matches || []),
+    ...(category.draw.knockoutStage?.matches || [])
+  ].filter(m => m.winner && !m.player1?.isBye && !m.player2?.isBye);
+
+  for (const match of allMatches) {
+    const winnerId = match.winner;
+    const winner = match.player1?.id === winnerId ? match.player1 : match.player2;
+    const loser  = match.player1?.id === winnerId ? match.player2 : match.player1;
+    if (!winner || !loser) continue;
+
+    const winnerSeed = winner.seed ?? entryByPlayerId[winner.id]?.seed ?? null;
+    const loserSeed  = loser.seed  ?? entryByPlayerId[loser.id]?.seed  ?? null;
+    const winnerRank = entryByPlayerId[winner.id]?.ranking ?? null;
+    const loserRank  = entryByPlayerId[loser.id]?.ranking  ?? null;
+
+    // Upset conditions (lower seed number = better seeded):
+    // 1. Seeded loser beaten by unseeded winner
+    // 2. Loser has a better (lower) seed number than winner
+    // 3. No seeds: loser has a better (lower) rank number than winner
+    const isUpset =
+      (loserSeed && !winnerSeed) ||
+      (loserSeed && winnerSeed && loserSeed < winnerSeed) ||
+      (!loserSeed && !winnerSeed && loserRank && winnerRank && loserRank < winnerRank);
+
+    if (isUpset) {
+      upsetCounts[winner.id] = (upsetCounts[winner.id] || 0) + 1;
+    }
   }
 
   for (const [pid, { playerName, position }] of Object.entries(playerPositions)) {
@@ -1722,12 +1755,15 @@ const awardRankingPoints = async (tournament, category) => {
     if (pts <= 0) continue;
 
     const playerZpin = entryByPlayerId[pid]?.playerZpin || null;
+    const upsets = upsetCounts[pid] || 0;
+    const upsetBonus = upsets * 3;
 
     const tournamentResult = {
       tournamentName,
       tournamentDate,
       points: pts,
       position,
+      upsetBonus,
       year: tournamentYear
     };
 
@@ -1762,6 +1798,9 @@ const awardRankingPoints = async (tournament, category) => {
 
     ranking.calculateTotalPoints();
     await ranking.save();
+    if (upsetBonus > 0) {
+      console.log(`  Upset bonus: ${playerName} +${upsetBonus} pts (${upsets} upset${upsets > 1 ? 's' : ''})`);
+    }
   }
 
   // Re-sort ranks for this category
@@ -2422,6 +2461,22 @@ export const publicRegister = async (req, res) => {
           }
         }
 
+        // Look up doubles ranking points for both player and partner
+        const rankingCatForDoubles = rankingCategoryFor(category);
+        const rankingYear = String(new Date(tournament.startDate).getFullYear());
+        let doublesPoints = null;
+        let partnerDoublesPoints = null;
+        if (rankingCatForDoubles) {
+          if (!isNewPlayerEntry && playerData.zpin) {
+            const pDoc = await Ranking.findOne({ playerZpin: playerData.zpin, category: rankingCatForDoubles, rankingPeriod: rankingYear, isActive: true }).select('totalPoints');
+            doublesPoints = pDoc?.totalPoints ?? null;
+          }
+          if (!isNewPartnerEntry && partnerData.zpin && partnerData.zpin !== 'PENDING') {
+            const qDoc = await Ranking.findOne({ playerZpin: partnerData.zpin, category: rankingCatForDoubles, rankingPeriod: rankingYear, isActive: true }).select('totalPoints');
+            partnerDoublesPoints = qDoc?.totalPoints ?? null;
+          }
+        }
+
         partnerInfo = {
           partnerId: isNewPartnerEntry ? null : partnerData._id?.toString(),
           partnerName: `${partnerData.firstName} ${partnerData.lastName}`,
@@ -2434,7 +2489,9 @@ export const publicRegister = async (req, res) => {
           partnerNewPlayerContact: isNewPartnerEntry ? {
             phone: newPartnerData.phone,
             email: newPartnerData.email
-          } : null
+          } : null,
+          doublesPoints,
+          partnerDoublesPoints
         };
       }
 

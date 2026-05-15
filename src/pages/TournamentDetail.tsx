@@ -722,6 +722,7 @@ function PublicEntriesView({
                       <th className="text-left px-4 py-2 font-medium">Player</th>
                       {isDoubles && <th className="text-left px-4 py-2 font-medium">Partner</th>}
                       <th className="text-left px-4 py-2 font-medium">Club</th>
+                      {isDoubles && <th className="text-right px-4 py-2 font-medium">Pts</th>}
                       <th className="text-left px-4 py-2 font-medium">Status</th>
                     </tr>
                   </thead>
@@ -789,6 +790,13 @@ function PublicEntriesView({
                           </td>
                         )}
                         <td className="px-4 py-2.5 text-muted-foreground">{entry.clubName || '—'}</td>
+                        {isDoubles && (
+                          <td className="px-4 py-2.5 text-right font-mono text-sm">
+                            {((entry.doublesPoints || 0) + (entry.partnerDoublesPoints || 0)) > 0
+                              ? (entry.doublesPoints || 0) + (entry.partnerDoublesPoints || 0)
+                              : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        )}
                         <td className="px-4 py-2.5">
                           <div className="flex flex-col gap-1.5 items-start">
                             {statusBadge(entry.status)}

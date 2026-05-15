@@ -5,6 +5,7 @@ const tournamentResultSchema = new mongoose.Schema({
   tournamentDate: { type: Date, required: true },
   points: { type: Number, required: true },
   position: { type: String },
+  upsetBonus: { type: Number, default: 0 }, // +3 per seeded/ranked upset caused
   year: { type: Number, required: true }
 }, { _id: true });
 
@@ -83,7 +84,7 @@ rankingSchema.index({ playerZpin: 1, category: 1, rankingPeriod: 1 });
 rankingSchema.index({ category: 1, rankingPeriod: 1, isActive: 1 });
 
 rankingSchema.methods.calculateTotalPoints = function () {
-  this.totalPoints = this.tournamentResults.reduce((sum, r) => sum + (r.points || 0), 0);
+  this.totalPoints = this.tournamentResults.reduce((sum, r) => sum + (r.points || 0) + (r.upsetBonus || 0), 0);
 };
 
 rankingSchema.statics.updateRankings = async function (category, rankingPeriod) {

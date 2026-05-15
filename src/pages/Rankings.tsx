@@ -545,7 +545,12 @@ export function Rankings() {
                                               <Badge variant="outline" className="text-xs">{result.position || '—'}</Badge>
                                             </td>
                                             <td className="py-1.5 text-center text-muted-foreground">{result.year}</td>
-                                            <td className="py-1.5 text-right font-mono font-medium">{result.points}</td>
+                                            <td className="py-1.5 text-right font-mono font-medium">
+                                              {result.points}
+                                              {(result as any).upsetBonus > 0 && (
+                                                <span className="ml-1 text-xs text-amber-600 font-normal">+{(result as any).upsetBonus}</span>
+                                              )}
+                                            </td>
                                             <td className="py-1.5 text-right">
                                               <div className="flex items-center justify-end gap-1">
                                                 <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>

@@ -91,6 +91,9 @@ const entrySchema = new mongoose.Schema({
   zpinPaidUp: { type: Boolean, default: false },
   // Whether the 50% surcharge for non-ZPIN players was waived by admin
   surchargeWaived: { type: Boolean, default: false },
+  // Doubles ranking points (totalPoints from Ranking collection at time of entry)
+  doublesPoints: { type: Number },
+  partnerDoublesPoints: { type: Number },
   // Doubles partner information
   partnerId: { type: String },
   partnerName: { type: String },
