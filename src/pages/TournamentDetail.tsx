@@ -886,7 +886,13 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
       ...rawDraw,
       matches: enrichMatches(rawDraw.matches),
       roundRobinGroups: rawDraw.roundRobinGroups?.map((g: any) => ({ ...g, matches: enrichMatches(g.matches) })),
-      knockoutStage: rawDraw.knockoutStage ? { ...rawDraw.knockoutStage, matches: enrichMatches(rawDraw.knockoutStage.matches) } : undefined
+      knockoutStage: rawDraw.knockoutStage ? { ...rawDraw.knockoutStage, matches: enrichMatches(rawDraw.knockoutStage.matches) } : undefined,
+      standings: rawDraw.standings ? {
+        ...rawDraw.standings,
+        champion: rawDraw.standings.champion ? enrichPlayer(rawDraw.standings.champion) : undefined,
+        runnerUp: rawDraw.standings.runnerUp ? enrichPlayer(rawDraw.standings.runnerUp) : undefined,
+        semiFinalists: rawDraw.standings.semiFinalists?.map(enrichPlayer),
+      } : rawDraw.standings,
     }
   }, [activeCategory, rawDraw])
 
@@ -1005,7 +1011,35 @@ function PublicResultsView({ tournament }: { tournament: Tournament }) {
   const categoriesWithDraws = tournament.categories?.filter((c: any) => c.draw) || []
   const activeCategoryId = selectedCategoryId || categoriesWithDraws[0]?._id || ''
   const activeCategory = categoriesWithDraws.find((c: any) => c._id === activeCategoryId)
-  const draw = (activeCategory as any)?.draw
+  const rawDraw = (activeCategory as any)?.draw
+
+  // For doubles categories, enrich player names with "Surname1 / Surname2"
+  const draw = useMemo(() => {
+    const isDoubles = (activeCategory as any)?.format === 'doubles' || (activeCategory as any)?.format === 'mixed_doubles'
+    if (!isDoubles || !rawDraw) return rawDraw
+    const partnerMap: Record<string, string> = {}
+    for (const entry of (activeCategory as any)?.entries || []) {
+      if (entry.partnerName && entry.playerId) partnerMap[entry.playerId] = entry.partnerName
+      if (entry.partnerName && entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName
+    }
+    if (Object.keys(partnerMap).length === 0) return rawDraw
+    const surname = (n: string) => { const p = (n || '').trim().split(/\s+/); return p[p.length - 1] }
+    const enrich = (p: any) => {
+      if (!p || !p.id || p.isBye) return p
+      const partner = partnerMap[p.id]
+      return partner ? { ...p, name: `${surname(p.name)} / ${surname(partner)}` } : p
+    }
+    return {
+      ...rawDraw,
+      matches: (rawDraw.matches || []).map((m: any) => ({ ...m, player1: enrich(m.player1), player2: enrich(m.player2) })),
+      standings: rawDraw.standings ? {
+        ...rawDraw.standings,
+        champion: rawDraw.standings.champion ? enrich(rawDraw.standings.champion) : undefined,
+        runnerUp: rawDraw.standings.runnerUp ? enrich(rawDraw.standings.runnerUp) : undefined,
+        semiFinalists: rawDraw.standings.semiFinalists?.map(enrich),
+      } : rawDraw.standings,
+    }
+  }, [activeCategory, rawDraw])
 
   // Get completed matches
   const completedMatches = draw?.matches?.filter((m: any) => m.status === 'completed' && !m.player1?.isBye && !m.player2?.isBye) || []
