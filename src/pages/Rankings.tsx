@@ -30,6 +30,12 @@ const categories = [
   { id: 'madalas_ladies' as const, label: 'Madalas Ladies' },
 ];
 
+// Convert ALL-CAPS names to Title Case for display
+const toTitleCase = (name: string) =>
+  name === name.toUpperCase()
+    ? name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+    : name;
+
 export function Rankings() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -491,14 +497,14 @@ export function Rankings() {
                                         ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
                                         : <ChevronRight className="h-3 w-3 text-muted-foreground" />
                                       }
-                                      <span className="font-semibold text-foreground">{player.playerName}</span>
+                                      <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
                                     </div>
                                     {!player.playerZpin && (
                                       <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
                                     )}
                                   </button>
                                 ) : (
-                                  <span className="font-semibold text-foreground">{player.playerName}</span>
+                                  <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
                                 )}
                               </td>
                               <td className="px-6 py-4">
