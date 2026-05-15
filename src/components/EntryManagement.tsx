@@ -54,6 +54,8 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
   const [createError, setCreateError] = useState('')
   const [createdZpin, setCreatedZpin] = useState('')
 
+  const isDoubles = (category as any).format === 'doubles' || (category as any).format === 'mixed_doubles'
+
   const filteredEntries = category.entries.filter(entry => {
     if (entry.status === 'alternate') return false // shown in dedicated section
     if (filter === 'all') return true
@@ -772,6 +774,9 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
                   <th className="px-4 py-3 text-center text-sm font-semibold cursor-pointer select-none" onClick={() => toggleSort('ranking')}>
                     <div className="flex items-center justify-center gap-1">Ranking {sortField === 'ranking' ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />) : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />}</div>
                   </th>
+                  {isDoubles && (
+                    <th className="px-4 py-3 text-center text-sm font-semibold">Pts</th>
+                  )}
                   {(filter === 'accepted' || seedingMode) && (
                     <th className="px-4 py-3 text-center text-sm font-semibold">Seed</th>
                   )}
@@ -827,6 +832,13 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
                             <span className="text-muted-foreground text-sm">N/A</span>
                           )}
                         </td>
+                        {isDoubles && (
+                          <td className="px-4 py-3 text-center font-mono text-sm">
+                            {((entry as any).doublesPoints || 0) + ((entry as any).partnerDoublesPoints || 0) > 0
+                              ? ((entry as any).doublesPoints || 0) + ((entry as any).partnerDoublesPoints || 0)
+                              : <span className="text-muted-foreground">—</span>}
+                          </td>
+                        )}
                         {(filter === 'accepted' || seedingMode) && (
                           <td className="px-4 py-3 text-center">
                             {seedingMode && entry.status === 'accepted' ? (

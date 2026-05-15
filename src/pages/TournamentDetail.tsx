@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -854,7 +854,41 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
   // Auto-select first category with draw
   const activeCategoryId = selectedCategoryId || categoriesWithDraws[0]?._id || ''
   const activeCategory = categoriesWithDraws.find((c: any) => c._id === activeCategoryId)
-  const draw = (activeCategory as any)?.draw
+  const rawDraw = (activeCategory as any)?.draw
+
+  // Enrich doubles draws: replace stored player names with "Surname1 / Surname2"
+  const draw = useMemo(() => {
+    const isDoubles = (activeCategory as any)?.format === 'doubles' || (activeCategory as any)?.format === 'mixed_doubles'
+    if (!isDoubles || !rawDraw) return rawDraw
+
+    const partnerMap: Record<string, string> = {}
+    for (const entry of (activeCategory as any)?.entries || []) {
+      if (entry.partnerName && entry.playerId) partnerMap[entry.playerId] = entry.partnerName
+      if (entry.partnerName && entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName
+    }
+    if (Object.keys(partnerMap).length === 0) return rawDraw
+
+    const surname = (fullName: string) => {
+      if (!fullName) return ''
+      const parts = fullName.trim().split(/\s+/)
+      return parts[parts.length - 1]
+    }
+    const enrichPlayer = (p: any) => {
+      if (!p || !p.id || p.isBye) return p
+      const partner = partnerMap[p.id]
+      if (!partner) return p
+      return { ...p, name: `${surname(p.name)} / ${surname(partner)}` }
+    }
+    const enrichMatches = (matches: any[]) =>
+      (matches || []).map((m: any) => ({ ...m, player1: enrichPlayer(m.player1), player2: enrichPlayer(m.player2) }))
+
+    return {
+      ...rawDraw,
+      matches: enrichMatches(rawDraw.matches),
+      roundRobinGroups: rawDraw.roundRobinGroups?.map((g: any) => ({ ...g, matches: enrichMatches(g.matches) })),
+      knockoutStage: rawDraw.knockoutStage ? { ...rawDraw.knockoutStage, matches: enrichMatches(rawDraw.knockoutStage.matches) } : undefined
+    }
+  }, [activeCategory, rawDraw])
 
   if (categoriesWithDraws.length === 0) {
     return (

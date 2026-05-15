@@ -626,6 +626,9 @@ export function TournamentRegister() {
     if (!tournament || !selectedPlayer) return []
 
     return tournament.categories.filter(category => {
+      // When tournament is in_progress, only show categories explicitly opened by admin
+      if ((tournament as any).status === 'in_progress' && !(category as any).registrationOpen) return false
+
       // Check gender match
       const playerGender = selectedPlayer.gender
       const catGender = category.gender
@@ -901,11 +904,13 @@ export function TournamentRegister() {
                           <SelectValue placeholder="Choose a category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {tournament?.categories.map(category => (
-                            <SelectItem key={category._id} value={category._id}>
-                              {category.name} ({category.entries?.length || 0}/{category.maxEntries})
-                            </SelectItem>
-                          ))}
+                          {tournament?.categories
+                            .filter(cat => (tournament as any).status !== 'in_progress' || (cat as any).registrationOpen)
+                            .map(category => (
+                              <SelectItem key={category._id} value={category._id}>
+                                {category.name} ({category.entries?.length || 0}/{category.maxEntries})
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1127,6 +1132,7 @@ export function TournamentRegister() {
                         <SelectContent>
                           {tournament?.categories
                             .filter(cat => {
+                              if ((tournament as any).status === 'in_progress' && !(cat as any).registrationOpen) return false
                               // Filter by gender (mixed categories accept any gender)
                               if (!newPlayer.gender) return true
                               if (cat.gender === 'mixed') return true

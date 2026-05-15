@@ -9,11 +9,13 @@ import { useAuth } from '@/context/AuthContext';
 import { rankingService, Ranking } from '@/services/rankingService';
 import { RefreshCw, Plus, Trash2, Upload, Link, ChevronDown, ChevronRight, Pencil, Globe, X } from 'lucide-react';
 
-type RankingCategory = 'men_senior' | 'women_senior' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u' | 'madalas_overall' | 'madalas_ladies';
+type RankingCategory = 'men_senior' | 'women_senior' | 'men_doubles' | 'women_doubles' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u' | 'madalas_overall' | 'madalas_ladies';
 
 const categories = [
   { id: 'men_senior' as const, label: "Men's Senior" },
   { id: 'women_senior' as const, label: "Women's Senior" },
+  { id: 'men_doubles' as const, label: "Men's Doubles" },
+  { id: 'women_doubles' as const, label: "Women's Doubles" },
   { id: 'boys_18u' as const, label: 'Boys 18 & Under' },
   { id: 'boys_16u' as const, label: 'Boys 16 & Under' },
   { id: 'boys_14u' as const, label: 'Boys 14 & Under' },
