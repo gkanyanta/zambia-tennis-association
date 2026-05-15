@@ -3,9 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus, ChevronUp, ChevronDown, Scissors, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { CheckCircle, XCircle, Trophy, ArrowUpDown, CreditCard, Clock, User, AlertCircle, Link2, UserPlus, ChevronUp, ChevronDown, Scissors, ArrowUpCircle, ArrowDownCircle, Pencil, UserMinus } from 'lucide-react'
 import type { TournamentCategory } from '@/types/tournament'
 import { tournamentService } from '@/services/tournamentService'
+import { apiFetch } from '@/services/api'
 
 interface EntryManagementProps {
   category: TournamentCategory
@@ -53,6 +56,12 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState('')
   const [createdZpin, setCreatedZpin] = useState('')
+
+  // Edit entry modal
+  const [editModal, setEditModal] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ clubName: '', partnerName: '', partnerZpin: '', partnerClubName: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const isDoubles = (category as any).format === 'doubles' || (category as any).format === 'mixed_doubles'
 
@@ -122,6 +131,51 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
       await onUpdateEntry(entry._id, { status: restoreStatus })
     } catch (error) {
       console.error('Error reconsidering entry:', error)
+    }
+  }
+
+  const handleWithdraw = async (entry: any) => {
+    if (!confirm(`Withdraw entry for ${entry.playerName}? This cannot be undone automatically.`)) return
+    try {
+      await onUpdateEntry(entry._id, { status: 'withdrawn' })
+    } catch (error) {
+      console.error('Error withdrawing entry:', error)
+    }
+  }
+
+  const openEditModal = (entry: any) => {
+    setEditForm({
+      clubName: entry.clubName || '',
+      partnerName: entry.partnerName || '',
+      partnerZpin: entry.partnerZpin || '',
+      partnerClubName: entry.partnerClubName || '',
+    })
+    setEditError('')
+    setEditModal(entry)
+  }
+
+  const handleEditSubmit = async () => {
+    if (!editModal) return
+    setEditLoading(true)
+    setEditError('')
+    try {
+      await apiFetch(`/tournaments/${tournamentId}/categories/${(category as any)._id}/entries/${editModal._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: editModal.status,
+          clubName: editForm.clubName.trim() || undefined,
+          partnerName: isDoubles ? editForm.partnerName.trim() || undefined : undefined,
+          partnerZpin: isDoubles ? editForm.partnerZpin.trim() || undefined : undefined,
+          partnerClubName: isDoubles ? editForm.partnerClubName.trim() || undefined : undefined,
+        }),
+      })
+      setEditModal(null)
+      if (onRefresh) onRefresh()
+      else window.location.reload()
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to save changes')
+    } finally {
+      setEditLoading(false)
     }
   }
 
@@ -395,6 +449,64 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
 
   return (
     <div className="space-y-6">
+      {/* Edit Entry Modal */}
+      <Dialog open={!!editModal} onOpenChange={open => { if (!open) setEditModal(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Entry — {editModal?.playerName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Club</Label>
+              <Input
+                className="mt-1"
+                value={editForm.clubName}
+                onChange={e => setEditForm(f => ({ ...f, clubName: e.target.value }))}
+                placeholder="Club name"
+              />
+            </div>
+            {isDoubles && (
+              <>
+                <div>
+                  <Label>Partner Name</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.partnerName}
+                    onChange={e => setEditForm(f => ({ ...f, partnerName: e.target.value }))}
+                    placeholder="Full name of partner"
+                  />
+                </div>
+                <div>
+                  <Label>Partner ZPIN</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.partnerZpin}
+                    onChange={e => setEditForm(f => ({ ...f, partnerZpin: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. ZTAS0021"
+                  />
+                </div>
+                <div>
+                  <Label>Partner Club</Label>
+                  <Input
+                    className="mt-1"
+                    value={editForm.partnerClubName}
+                    onChange={e => setEditForm(f => ({ ...f, partnerClubName: e.target.value }))}
+                    placeholder="Partner's club name"
+                  />
+                </div>
+              </>
+            )}
+            {editError && <p className="text-sm text-destructive">{editError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModal(null)} disabled={editLoading}>Cancel</Button>
+            <Button onClick={handleEditSubmit} disabled={editLoading}>
+              {editLoading ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Link Player Modal */}
       {linkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -926,6 +1038,28 @@ export function EntryManagement({ category, tournamentId, onUpdateEntry, onAutoS
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2 justify-center flex-wrap">
+                            {/* Edit entry details */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-blue-600 border-blue-400 hover:bg-blue-50"
+                              title="Edit entry details"
+                              onClick={() => openEditModal(entry)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {/* Withdraw entry */}
+                            {entry.status !== 'withdrawn' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 border-red-400 hover:bg-red-50"
+                                title="Withdraw entry"
+                                onClick={() => handleWithdraw(entry)}
+                              >
+                                <UserMinus className="h-4 w-4" />
+                              </Button>
+                            )}
                             {/* Link / Create Account buttons for unregistered entries */}
                             {(entry as any).playerZpin === 'PENDING' && (
                               <>

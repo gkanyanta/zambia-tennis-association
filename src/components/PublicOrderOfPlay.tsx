@@ -15,12 +15,12 @@ interface ResolvedMatch {
   player2Name: string
   court: string
   notBefore: string
-  notBeforeMinutes: number // for sorting
+  notBeforeMinutes: number
   status: string
   score?: string
+  winner?: 'player1' | 'player2' | null
 }
 
-// Parse "8:00 HRS", "10:30", "09:00 hrs" → total minutes for sorting
 function parseNotBefore(raw: string): number {
   if (!raw) return 9999
   const cleaned = raw.replace(/hrs?/i, '').trim()
@@ -32,7 +32,6 @@ function parseNotBefore(raw: string): number {
   return h * 60 + m
 }
 
-// Format "8:00 HRS" → "08:00" for display
 function formatNotBefore(raw: string): string {
   if (!raw) return ''
   const cleaned = raw.replace(/hrs?/i, '').trim()
@@ -53,29 +52,61 @@ function getRoundName(round: number, totalRounds: number): string {
   return `Round ${round}`
 }
 
+function surname(fullName: string): string {
+  if (!fullName) return ''
+  const parts = fullName.trim().split(/\s+/)
+  return parts[parts.length - 1]
+}
+
 export function PublicOrderOfPlay({ tournament }: Props) {
-  // Build a flat lookup: matchId → { player1Name, player2Name, roundName, status, score }
   const matchLookup = useMemo(() => {
-    const map: Record<string, { player1: string; player2: string; roundName: string; categoryName: string; status: string; score?: string }> = {}
+    const map: Record<string, {
+      player1: string; player2: string; player1Id: string; player2Id: string;
+      roundName: string; categoryName: string; status: string; score?: string; winnerId?: string;
+    }> = {}
+
     for (const cat of tournament.categories) {
       const draw = (cat as any).draw
       if (!draw) continue
 
+      const isDoubles = (cat as any).format === 'doubles' || (cat as any).format === 'mixed_doubles'
+
+      // Build partner map for doubles categories
+      const partnerMap: Record<string, string> = {}
+      if (isDoubles) {
+        for (const entry of (cat as any).entries || []) {
+          if (entry.partnerName && entry.playerId) partnerMap[entry.playerId] = entry.partnerName
+          if (entry.partnerName && entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName
+        }
+      }
+
+      const enrichName = (p: any): string => {
+        if (!p) return 'TBD'
+        if (isDoubles && p.id && partnerMap[p.id]) {
+          return `${surname(p.name)} / ${surname(partnerMap[p.id])}`
+        }
+        return p.name || 'TBD'
+      }
+
       const allMatches = [
         ...(draw.matches || []),
-        ...(draw.roundRobinGroups || []).flatMap((g: any) => g.matches || [])
+        ...(draw.roundRobinGroups || []).flatMap((g: any) => g.matches || []),
+        ...((draw.knockoutStage?.matches) || []),
       ]
-      const totalRounds = draw.totalRounds || draw.rounds || 1
+      const totalRounds = draw.numberOfRounds || draw.totalRounds || 1
 
       for (const m of allMatches) {
         if (!m._id) continue
         map[m._id.toString()] = {
-          player1: m.player1?.name || 'TBD',
-          player2: m.player2?.name || 'TBD',
+          player1: enrichName(m.player1),
+          player2: enrichName(m.player2),
+          player1Id: m.player1?.id || '',
+          player2Id: m.player2?.id || '',
           roundName: m.roundName || getRoundName(m.round, totalRounds),
           categoryName: cat.name,
           status: m.status || 'scheduled',
           score: m.score,
+          winnerId: m.winner || undefined,
         }
       }
     }
@@ -84,7 +115,6 @@ export function PublicOrderOfPlay({ tournament }: Props) {
 
   const oop = tournament.orderOfPlay as OrderOfPlaySlot[] | undefined
 
-  // Group slots by day string (YYYY-MM-DD)
   const dayMap = useMemo(() => {
     const map: Record<string, Record<string, ResolvedMatch[]>> = {}
     if (!oop) return map
@@ -99,6 +129,13 @@ export function PublicOrderOfPlay({ tournament }: Props) {
       for (const m of slot.matches) {
         const info = matchLookup[m.matchId]
         if (!info) continue
+
+        let winner: 'player1' | 'player2' | null = null
+        if (info.winnerId) {
+          if (info.winnerId === info.player1Id) winner = 'player1'
+          else if (info.winnerId === info.player2Id) winner = 'player2'
+        }
+
         map[dayKey][slot.court].push({
           categoryName: info.categoryName,
           roundName: info.roundName,
@@ -109,11 +146,11 @@ export function PublicOrderOfPlay({ tournament }: Props) {
           notBeforeMinutes: parseNotBefore(m.notBefore),
           status: info.status,
           score: info.score,
+          winner,
         })
       }
     }
 
-    // Sort matches within each court by notBefore time
     for (const day of Object.values(map)) {
       for (const court of Object.values(day)) {
         court.sort((a, b) => a.notBeforeMinutes - b.notBeforeMinutes)
@@ -130,12 +167,6 @@ export function PublicOrderOfPlay({ tournament }: Props) {
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     return dates.includes(todayStr) ? todayStr : (dates[0] || '')
   })
-
-  const getStatusBadge = (status: string, score?: string) => {
-    if (status === 'completed') return <Badge variant="secondary" className="text-xs">{score || 'Completed'}</Badge>
-    if (status === 'in_progress' || status === 'live') return <Badge variant="default" className="text-xs bg-green-600">Live</Badge>
-    return null
-  }
 
   const hasAnyMatches = dates.some(d => Object.values(dayMap[d]).some(m => m.length > 0))
 
@@ -155,7 +186,6 @@ export function PublicOrderOfPlay({ tournament }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Day selector */}
       {dates.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {dates.map(date => {
@@ -200,20 +230,47 @@ export function PublicOrderOfPlay({ tournament }: Props) {
                   <CardTitle className="text-base">{court}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {matches.map((m, i) => (
                       <div key={i} className="flex gap-3 text-sm">
-                        <div className="font-mono text-muted-foreground whitespace-nowrap w-12">
+                        <div className="font-mono text-muted-foreground whitespace-nowrap w-12 pt-0.5">
                           {formatNotBefore(m.notBefore) || '—'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground mb-1">
                             {m.categoryName} — {m.roundName}
                           </div>
-                          <div className="font-medium">
-                            {m.player1Name} vs {m.player2Name}
+                          {/* Player 1 */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={m.winner === 'player1' ? 'font-bold' : 'font-medium'}>
+                              {m.player1Name}
+                            </span>
+                            {m.winner === 'player1' && m.score && (
+                              <span className="text-xs font-semibold text-green-700 dark:text-green-400 whitespace-nowrap shrink-0">
+                                {m.score}
+                              </span>
+                            )}
                           </div>
-                          {getStatusBadge(m.status, m.score)}
+                          {/* VS divider */}
+                          <div className="text-xs text-muted-foreground my-0.5">vs</div>
+                          {/* Player 2 */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={m.winner === 'player2' ? 'font-bold' : 'font-medium'}>
+                              {m.player2Name}
+                            </span>
+                            {m.winner === 'player2' && m.score && (
+                              <span className="text-xs font-semibold text-green-700 dark:text-green-400 whitespace-nowrap shrink-0">
+                                {m.score}
+                              </span>
+                            )}
+                          </div>
+                          {/* Status badge for live/pending */}
+                          {(m.status === 'in_progress' || m.status === 'live') && (
+                            <Badge variant="default" className="text-xs bg-green-600 mt-1">Live</Badge>
+                          )}
+                          {m.status === 'walkover' && (
+                            <Badge variant="secondary" className="text-xs mt-1">Walkover</Badge>
+                          )}
                         </div>
                       </div>
                     ))}

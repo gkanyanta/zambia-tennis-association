@@ -672,7 +672,8 @@ export const bulkEntryAction = async (req, res) => {
 export const updateEntryStatus = async (req, res) => {
   try {
     const { tournamentId, categoryId, entryId } = req.params;
-    const { status, rejectionReason, seed, paymentStatus, paymentReference, waiveSurcharge } = req.body;
+    const { status, rejectionReason, seed, paymentStatus, paymentReference, waiveSurcharge,
+            clubName, partnerName, partnerZpin, partnerClubName } = req.body;
 
     const tournament = await Tournament.findById(tournamentId);
 
@@ -725,6 +726,12 @@ export const updateEntryStatus = async (req, res) => {
       entry.paymentMethod = paymentStatus === 'waived' ? 'waived' : 'manual';
     }
     if (paymentReference) entry.paymentReference = paymentReference;
+
+    // Editable submission fields
+    if (clubName !== undefined) entry.clubName = clubName;
+    if (partnerName !== undefined) entry.partnerName = partnerName;
+    if (partnerZpin !== undefined) entry.partnerZpin = partnerZpin;
+    if (partnerClubName !== undefined) entry.partnerClubName = partnerClubName;
 
     await tournament.save();
 
