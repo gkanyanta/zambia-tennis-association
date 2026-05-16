@@ -639,6 +639,7 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
   const [saving, setSaving] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [liveMatches, setLiveMatches] = useState<Record<string, string>>({}) // matchId -> liveMatchId
+  const [cancelledMatches, setCancelledMatches] = useState<Set<string>>(new Set())
   const [startingLive, setStartingLive] = useState<string | null>(null)
   const [liveScoreDialogOpen, setLiveScoreDialogOpen] = useState(false)
   const [liveScoreMatch, setLiveScoreMatch] = useState<any>(null)
@@ -1022,7 +1023,22 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                {match.status !== 'completed' && match.status !== 'live' && (
+                                {match.status !== 'completed' && match.status !== 'live' && cancelledMatches.has(match._id || match.id) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-700 border-green-400 hover:bg-green-50"
+                                    onClick={() => {
+                                      setCancelledMatches(prev => { const s = new Set(prev); s.delete(match._id || match.id); return s })
+                                      openLiveScoreDialog(match)
+                                    }}
+                                    disabled={startingLive === (match._id || match.id)}
+                                  >
+                                    <Radio className="h-3 w-3 mr-1" />
+                                    {startingLive === (match._id || match.id) ? 'Starting...' : 'Resume Live'}
+                                  </Button>
+                                )}
+                                {match.status !== 'completed' && match.status !== 'live' && !cancelledMatches.has(match._id || match.id) && (
                                   <Button
                                     size="sm"
                                     variant="default"
@@ -1050,13 +1066,15 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                                       className="text-red-600 border-red-300 hover:bg-red-50"
                                       onClick={async () => {
                                         if (!confirm('Remove the live score card for this match? The match result will not be saved.')) return
+                                        const matchId = match._id || match.id
                                         try {
-                                          await apiFetch(`/live-matches/${liveMatches[match._id || match.id]}/cancel`, { method: 'DELETE' })
+                                          await apiFetch(`/live-matches/${liveMatches[matchId]}/cancel`, { method: 'DELETE' })
                                           await onRefresh()
                                           const updated = await liveMatchService.getLiveMatchesByTournament(tournament._id)
                                           const mapping: Record<string, string> = {}
                                           updated.data.forEach((lm: any) => { mapping[lm.matchId] = lm._id })
                                           setLiveMatches(mapping)
+                                          setCancelledMatches(prev => new Set(prev).add(matchId))
                                         } catch (err: any) {
                                           alert(err.message || 'Failed to cancel live score')
                                         }
