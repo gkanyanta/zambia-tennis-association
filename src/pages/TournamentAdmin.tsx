@@ -1034,15 +1034,37 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                                   </Button>
                                 )}
                                 {(match.status === 'live' || liveMatches[match._id || match.id]) && (
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="bg-red-600 hover:bg-red-700"
-                                    onClick={() => navigate(`/admin/tournaments/${tournament._id}/live-scoring/${liveMatches[match._id || match.id]}`)}
-                                  >
-                                    <Radio className="h-3 w-3 mr-1 animate-pulse" />
-                                    Continue
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      className="bg-red-600 hover:bg-red-700"
+                                      onClick={() => navigate(`/admin/tournaments/${tournament._id}/live-scoring/${liveMatches[match._id || match.id]}`)}
+                                    >
+                                      <Radio className="h-3 w-3 mr-1 animate-pulse" />
+                                      Continue
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-red-600 border-red-300 hover:bg-red-50"
+                                      onClick={async () => {
+                                        if (!confirm('Remove the live score card for this match? The match result will not be saved.')) return
+                                        try {
+                                          await apiFetch(`/live-matches/${liveMatches[match._id || match.id]}/cancel`, { method: 'DELETE' })
+                                          await onRefresh()
+                                          const updated = await liveMatchService.getLiveMatchesByTournament(tournament._id)
+                                          const mapping: Record<string, string> = {}
+                                          updated.data.forEach((lm: any) => { mapping[lm.matchId] = lm._id })
+                                          setLiveMatches(mapping)
+                                        } catch (err: any) {
+                                          alert(err.message || 'Failed to cancel live score')
+                                        }
+                                      }}
+                                    >
+                                      Cancel Live
+                                    </Button>
+                                  </>
                                 )}
                                 <Button
                                   size="sm"
