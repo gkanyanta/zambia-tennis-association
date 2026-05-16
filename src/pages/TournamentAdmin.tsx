@@ -1084,6 +1084,18 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                                     </Button>
                                   </>
                                 )}
+                                {match.status === 'completed' && !liveMatches[match._id || match.id] && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-green-700 border-green-400 hover:bg-green-50"
+                                    onClick={() => openLiveScoreDialog(match)}
+                                    disabled={startingLive === (match._id || match.id)}
+                                  >
+                                    <Radio className="h-3 w-3 mr-1" />
+                                    {startingLive === (match._id || match.id) ? 'Starting...' : 'Resume Live'}
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="outline"
