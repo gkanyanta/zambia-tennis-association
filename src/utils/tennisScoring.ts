@@ -280,10 +280,18 @@ export function getDisplayScore(state: MatchState): DisplayScore {
 export function getScoreString(state: MatchState): string {
   if (state.winner === null) return ''
 
+  const w = state.winner   // match winner index (0 or 1)
+  const l = 1 - w          // loser index
+
   return state.sets
     .filter(s => s.winner !== null && s.winner !== undefined)
     .map(s => {
-      let score = `${s.games[0]}-${s.games[1]}`
+      // Match tiebreak: only 1 total game in the set
+      if (s.tiebreak && s.games[0] + s.games[1] === 1) {
+        return `[${s.tiebreak[w]}-${s.tiebreak[l]}]`
+      }
+      // Regular set or tiebreak set — winner's games first
+      let score = `${s.games[w]}-${s.games[l]}`
       if (s.tiebreak) {
         const loserTBPoints = Math.min(s.tiebreak[0], s.tiebreak[1])
         score += `(${loserTBPoints})`

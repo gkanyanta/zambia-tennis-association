@@ -453,7 +453,7 @@ export const endMatch = async (req, res) => {
     } else if (reason === 'walkover') {
       scoreString = 'w/o';
     } else if (reason === 'default') {
-      scoreString = 'def.';
+      scoreString = scoreString ? `${scoreString} def.` : 'def.';
     }
 
     // Update tournament draw

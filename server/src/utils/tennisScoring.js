@@ -381,17 +381,26 @@ export function getDisplayScore(state) {
 }
 
 /**
- * Get final score string for a completed match
- * @param {Object} state - Match state
- * @returns {string} Score string like "6-4 3-6 10-8"
+ * Get final score string for a completed match (ITF format).
+ * - Winner's games shown first in every set: "6-4 3-6 7-5"
+ * - Regular tiebreak: "7-6(3)" where (3) is loser's tiebreak points
+ * - Match tiebreak (deciding set super tiebreak): "[10-5]" in square brackets
  */
 export function getScoreString(state) {
   if (state.winner === null) return '';
 
+  const w = state.winner;   // match winner index (0 or 1)
+  const l = 1 - w;          // loser index
+
   return state.sets
     .filter(s => s.winner !== null && s.winner !== undefined)
     .map(s => {
-      let score = `${s.games[0]}-${s.games[1]}`;
+      // Match tiebreak: only 1 total game in the set (winner gets 1, loser gets 0)
+      if (s.tiebreak && s.games[0] + s.games[1] === 1) {
+        return `[${s.tiebreak[w]}-${s.tiebreak[l]}]`;
+      }
+      // Regular set or tiebreak set — winner's games first
+      let score = `${s.games[w]}-${s.games[l]}`;
       if (s.tiebreak) {
         const loserTBPoints = Math.min(s.tiebreak[0], s.tiebreak[1]);
         score += `(${loserTBPoints})`;
