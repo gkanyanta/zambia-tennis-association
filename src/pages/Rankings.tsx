@@ -546,31 +546,41 @@ export function Rankings() {
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-border/50">
-                                        {player.tournamentResults.map((result, ri) => (
-                                          <tr key={result._id || ri}>
-                                            <td className="py-1.5 pr-4">{result.tournamentName}</td>
-                                            <td className="py-1.5 text-center">
-                                              <Badge variant="outline" className="text-xs">{result.position || '—'}</Badge>
-                                            </td>
-                                            <td className="py-1.5 text-center text-muted-foreground">{result.year}</td>
-                                            <td className="py-1.5 text-right font-mono font-medium">
-                                              {result.points}
-                                              {(result as any).upsetBonus > 0 && (
-                                                <span className="ml-1 text-xs text-amber-600 font-normal">+{(result as any).upsetBonus}</span>
-                                              )}
-                                            </td>
-                                            <td className="py-1.5 text-right">
-                                              <div className="flex items-center justify-end gap-1">
-                                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>
-                                                  <Pencil className="h-3 w-3" />
-                                                </Button>
-                                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteResult(player._id!, result._id, result.tournamentName)}>
-                                                  <X className="h-3 w-3" />
-                                                </Button>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        ))}
+                                        {player.tournamentResults.map((result, ri) => {
+                                          const bonus = result.upsetBonus ?? 0;
+                                          const total = result.points + bonus;
+                                          return (
+                                            <tr key={result._id || ri}>
+                                              <td className="py-1.5 pr-4">{result.tournamentName}</td>
+                                              <td className="py-1.5 text-center">
+                                                <Badge variant="outline" className="text-xs">{result.position || '—'}</Badge>
+                                              </td>
+                                              <td className="py-1.5 text-center text-muted-foreground">{result.year}</td>
+                                              <td className="py-1.5 text-right">
+                                                {bonus > 0 ? (
+                                                  <div className="flex flex-col items-end gap-0.5">
+                                                    <span className="font-mono font-medium">{total}</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                      {result.points} + <span className="text-amber-600 font-medium">{bonus} upset</span>
+                                                    </span>
+                                                  </div>
+                                                ) : (
+                                                  <span className="font-mono font-medium">{result.points}</span>
+                                                )}
+                                              </td>
+                                              <td className="py-1.5 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>
+                                                    <Pencil className="h-3 w-3" />
+                                                  </Button>
+                                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteResult(player._id!, result._id, result.tournamentName)}>
+                                                    <X className="h-3 w-3" />
+                                                  </Button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
                                       </tbody>
                                     </table>
                                   )}

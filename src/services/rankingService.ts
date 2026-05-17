@@ -6,6 +6,7 @@ export interface TournamentResult {
   tournamentDate: string;
   points: number;
   position?: string;
+  upsetBonus?: number;
   year: number;
 }
 
