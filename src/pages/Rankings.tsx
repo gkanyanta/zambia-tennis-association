@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/AuthContext';
-import { rankingService, Ranking, DoublesPair } from '@/services/rankingService';
+import { rankingService, Ranking } from '@/services/rankingService';
 import { RefreshCw, Plus, Trash2, Upload, Link, ChevronDown, ChevronRight, Pencil, Globe, X } from 'lucide-react';
 
 type RankingCategory = 'men_senior' | 'women_senior' | 'men_doubles' | 'women_doubles' | 'mixed_doubles' | 'boys_10u' | 'boys_12u' | 'boys_14u' | 'boys_16u' | 'boys_18u' | 'girls_10u' | 'girls_12u' | 'girls_14u' | 'girls_16u' | 'girls_18u' | 'madalas_overall' | 'madalas_ladies';
@@ -41,10 +41,7 @@ export function Rankings() {
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState<RankingCategory>('men_senior');
   const [rankings, setRankings] = useState<Ranking[]>([]);
-  const [pairs, setPairs] = useState<DoublesPair[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const isDoublesCategory = activeCategory === 'men_doubles' || activeCategory === 'women_doubles' || activeCategory === 'mixed_doubles';
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     rank: 0,
@@ -89,17 +86,11 @@ export function Rankings() {
   const fetchRankings = async () => {
     try {
       setLoading(true);
-      if (isDoublesCategory) {
-        const data = await rankingService.getDoublesPairRankings(activeCategory);
-        setPairs(data);
-      } else {
-        const data = await rankingService.getRankingsByCategory(activeCategory);
-        setRankings(data);
-      }
+      const data = await rankingService.getRankingsByCategory(activeCategory);
+      setRankings(data);
     } catch (err) {
       console.error('Failed to load rankings:', err);
       setRankings([]);
-      setPairs([]);
     } finally {
       setLoading(false);
     }
@@ -451,63 +442,8 @@ export function Rankings() {
             </Card>
           )}
 
-          {/* Doubles Pairs Table */}
-          {isDoublesCategory && (
-            <Card>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-b bg-muted/50">
-                      <tr>
-                        <th className="px-6 py-4 text-left text-sm font-semibold">Rank</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold">Player</th>
-                        <th className="px-6 py-4 text-left text-sm font-semibold">Partner</th>
-                        <th className="px-6 py-4 text-right text-sm font-semibold">Combined Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {loading ? (
-                        <tr><td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">Loading rankings...</td></tr>
-                      ) : pairs.length === 0 ? (
-                        <tr><td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">No doubles pair rankings available yet.</td></tr>
-                      ) : (
-                        pairs.map((pair, index) => (
-                          <tr key={index} className="hover:bg-muted/30 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <span className="text-2xl font-bold text-muted-foreground">{pair.rank}</span>
-                                {pair.rank <= 3 && (
-                                  <Badge variant={pair.rank === 1 ? 'default' : 'secondary'}>
-                                    {pair.rank === 1 ? '🥇' : pair.rank === 2 ? '🥈' : '🥉'}
-                                  </Badge>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold">{toTitleCase(pair.playerName)}</div>
-                              <div className="text-xs text-muted-foreground font-mono">{pair.playerZpin}</div>
-                              <div className="text-xs text-muted-foreground">{pair.playerPoints} pts</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-semibold">{toTitleCase(pair.partnerName)}</div>
-                              <div className="text-xs text-muted-foreground font-mono">{pair.partnerZpin}</div>
-                              <div className="text-xs text-muted-foreground">{pair.partnerPoints} pts</div>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <span className="font-mono font-bold text-lg">{pair.combinedPoints}</span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Individual Rankings Table */}
-          {!isDoublesCategory && <Card>
+          {/* Rankings Table */}
+          <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -649,7 +585,7 @@ export function Rankings() {
                 </table>
               </div>
             </CardContent>
-          </Card>}
+          </Card>
 
           {/* Info Section */}
           <div className="mt-8 bg-muted/50 rounded-lg p-6">
