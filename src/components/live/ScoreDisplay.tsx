@@ -55,7 +55,7 @@ export function ScoreDisplay({
                 {display.server !== 0 && display.status === 'in_progress' && (
                   <span className="inline-block w-2 h-2 flex-shrink-0" />
                 )}
-                <span className={cn('truncate', compact ? 'max-w-[120px]' : 'max-w-[200px]')}>
+                <span className={cn('truncate', compact ? 'max-w-[160px]' : 'max-w-[240px]')}>
                   {player1Name}
                 </span>
                 {player1Seed && (
@@ -96,7 +96,7 @@ export function ScoreDisplay({
                 {display.server !== 1 && display.status === 'in_progress' && (
                   <span className="inline-block w-2 h-2 flex-shrink-0" />
                 )}
-                <span className={cn('truncate', compact ? 'max-w-[120px]' : 'max-w-[200px]')}>
+                <span className={cn('truncate', compact ? 'max-w-[160px]' : 'max-w-[240px]')}>
                   {player2Name}
                 </span>
                 {player2Seed && (
