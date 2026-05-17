@@ -1718,6 +1718,41 @@ const awardRankingPoints = async (tournament, category) => {
     }
   }
 
+  // For doubles/mixed_doubles: expand playerPositions to include each partner.
+  // The draw only tracks the "main" player of each pair; the partner is stored
+  // on the entry as partnerId / partnerZpin / partnerName.
+  const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles';
+  if (isDoubles) {
+    const partnerByMainId = {};   // mainPlayerId → { id, name, zpin }
+    const partnerZpinById = {};   // partnerId    → zpin  (for later lookup)
+    for (const entry of (category.entries || [])) {
+      if (entry.playerId && entry.partnerId) {
+        partnerByMainId[entry.playerId.toString()] = {
+          id:   entry.partnerId.toString(),
+          name: entry.partnerName || '',
+          zpin: entry.partnerZpin || null
+        };
+        if (entry.partnerId && entry.partnerZpin) {
+          partnerZpinById[entry.partnerId.toString()] = entry.partnerZpin;
+        }
+      }
+    }
+
+    const expansions = {};
+    for (const [pid, { position }] of Object.entries(playerPositions)) {
+      const partner = partnerByMainId[pid];
+      if (partner?.id && !playerPositions[partner.id] && !expansions[partner.id]) {
+        expansions[partner.id] = { playerName: partner.name, position, _partnerZpin: partner.zpin };
+      }
+    }
+    for (const [pid, data] of Object.entries(expansions)) {
+      playerPositions[pid] = data;
+    }
+
+    // Expose partner ZPINs so the points loop can resolve them
+    category._partnerZpinById = partnerZpinById;
+  }
+
   // Look up ZPINs and seeding/ranking from entries
   const entryByPlayerId = {};
   for (const entry of (category.entries || [])) {
@@ -1761,7 +1796,10 @@ const awardRankingPoints = async (tournament, category) => {
     const pts = getPoints(grade, position);
     if (pts <= 0) continue;
 
-    const playerZpin = entryByPlayerId[pid]?.playerZpin || null;
+    // Resolve ZPIN: main player from entries, partner from the _partnerZpinById map
+    const playerZpin = entryByPlayerId[pid]?.playerZpin
+      || category._partnerZpinById?.[pid]
+      || null;
     const upsets = upsetCounts[pid] || 0;
     const upsetBonus = upsets * 3;
 
