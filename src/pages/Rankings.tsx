@@ -487,25 +487,21 @@ export function Rankings() {
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                {isAdmin ? (
-                                  <button
-                                    className="text-left w-full"
-                                    onClick={() => toggleRow(player._id!)}
-                                  >
-                                    <div className="flex items-center gap-1">
-                                      {isExpanded
-                                        ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                                        : <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                                      }
-                                      <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
-                                    </div>
-                                    {!player.playerZpin && (
-                                      <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
-                                    )}
-                                  </button>
-                                ) : (
-                                  <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
-                                )}
+                                <button
+                                  className="text-left w-full"
+                                  onClick={() => toggleRow(player._id!)}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    {isExpanded
+                                      ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                      : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                    }
+                                    <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
+                                  </div>
+                                  {isAdmin && !player.playerZpin && (
+                                    <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
+                                  )}
+                                </button>
                               </td>
                               <td className="px-6 py-4">
                                 <span className="text-muted-foreground">{player.club || '-'}</span>
@@ -529,9 +525,9 @@ export function Rankings() {
                                 </td>
                               )}
                             </tr>
-                            {isAdmin && isExpanded && (
+                            {isExpanded && (
                               <tr key={`${player._id}-results`} className="bg-muted/20">
-                                <td colSpan={5} className="px-8 py-3">
+                                <td colSpan={isAdmin ? 5 : 4} className="px-8 py-3">
                                   {player.tournamentResults.length === 0 ? (
                                     <p className="text-xs text-muted-foreground italic">No tournament results recorded.</p>
                                   ) : (
@@ -542,7 +538,7 @@ export function Rankings() {
                                           <th className="text-center pb-1 font-medium">Position</th>
                                           <th className="text-center pb-1 font-medium">Year</th>
                                           <th className="text-right pb-1 font-medium">Points</th>
-                                          <th className="text-right pb-1 font-medium w-16"></th>
+                                          {isAdmin && <th className="text-right pb-1 font-medium w-16"></th>}
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-border/50">
@@ -568,16 +564,18 @@ export function Rankings() {
                                                   <span className="font-mono font-medium">{result.points}</span>
                                                 )}
                                               </td>
-                                              <td className="py-1.5 text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>
-                                                    <Pencil className="h-3 w-3" />
-                                                  </Button>
-                                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteResult(player._id!, result._id, result.tournamentName)}>
-                                                    <X className="h-3 w-3" />
-                                                  </Button>
-                                                </div>
-                                              </td>
+                                              {isAdmin && (
+                                                <td className="py-1.5 text-right">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEditResult(player._id!, player.playerName, result, ri)}>
+                                                      <Pencil className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteResult(player._id!, result._id, result.tournamentName)}>
+                                                      <X className="h-3 w-3" />
+                                                    </Button>
+                                                  </div>
+                                                </td>
+                                              )}
                                             </tr>
                                           );
                                         })}
