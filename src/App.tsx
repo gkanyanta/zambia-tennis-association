@@ -69,6 +69,7 @@ import { LiveScoring } from '@/pages/LiveScoring'
 import { Scoreboard } from '@/pages/Scoreboard'
 import { UmpireDashboard } from '@/pages/UmpireDashboard'
 import { UmpireScoring } from '@/pages/UmpireScoring'
+import { CommentModeration } from '@/pages/CommentModeration'
 
 import { RegisterPlayer } from '@/pages/RegisterPlayer'
 import { RegisterPlayerPay } from '@/pages/RegisterPlayerPay'
@@ -123,6 +124,7 @@ function AppRoutes() {
             <Route path="/admin/membership" element={<MembershipAdmin />} />
             <Route path="/admin/income" element={<IncomeAdmin />} />
             <Route path="/admin/traffic" element={<TrafficStats />} />
+            <Route path="/admin/comments" element={<CommentModeration />} />
             <Route path="/admin/tournaments/:tournamentId/live-scoring/:liveMatchId" element={<LiveScoring />} />
             <Route path="/live-scores" element={<Scoreboard />} />
             <Route path="/live-scores/:matchId" element={<Scoreboard />} />

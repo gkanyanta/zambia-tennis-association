@@ -17,7 +17,7 @@ export interface Comment {
   body: string;
   parentId: string | null;
   likes: string[];
-  status: 'visible' | 'flagged';
+  status: 'visible' | 'flagged' | 'hidden';
   createdAt: string;
   updatedAt: string;
 }
@@ -48,5 +48,15 @@ export const commentService = {
 
   async setCommentStatus(commentId: string, status: 'visible' | 'hidden' | 'flagged'): Promise<void> {
     await apiClient.patch(`/comments/${commentId}/status`, { status });
+  },
+
+  async getAdminComments(params: {
+    status?: string;
+    targetType?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: Comment[]; total: number; page: number; limit: number }> {
+    const res = await apiClient.get('/comments/admin', { params });
+    return res.data;
   }
 };

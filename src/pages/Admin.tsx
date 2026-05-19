@@ -20,7 +20,8 @@ import {
   Calendar,
   TrendingUp,
   Loader2,
-  ClipboardList
+  ClipboardList,
+  MessageSquare
 } from 'lucide-react';
 import { statsService, type AdminStats } from '@/services/statsService';
 
@@ -166,6 +167,13 @@ export function Admin() {
       icon: TrendingUp,
       action: () => navigate('/admin/traffic'),
       color: 'text-sky-500'
+    },
+    {
+      title: 'Comment Moderation',
+      description: 'Review flagged comments and moderate discussions',
+      icon: MessageSquare,
+      action: () => navigate('/admin/comments'),
+      color: 'text-orange-500'
     }
   ];
 

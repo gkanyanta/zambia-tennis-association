@@ -4,6 +4,31 @@ import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// GET /api/comments/admin — all comments with optional status filter (admin only)
+router.get('/admin', protect, authorize('admin', 'staff'), async (req, res) => {
+  try {
+    const { status, targetType, page = 1, limit = 30 } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (targetType) filter.targetType = targetType;
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const [comments, total] = await Promise.all([
+      Comment.find(filter)
+        .populate('author', 'firstName lastName role email')
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
+      Comment.countDocuments(filter)
+    ]);
+
+    res.json({ success: true, data: comments, total, page: Number(page), limit: Number(limit) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/comments?targetType=news&targetId=xxx
 router.get('/', async (req, res) => {
   try {
