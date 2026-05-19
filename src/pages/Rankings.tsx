@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CommentSection } from '@/components/CommentSection';
 import { Hero } from '@/components/Hero';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -605,6 +606,9 @@ export function Rankings() {
               <p>• Players must maintain active ZTA membership to be ranked</p>
             </div>
           </div>
+
+          {/* Discussion */}
+          <CommentSection targetType="rankings" targetId="global" />
         </div>
       </section>
     </div>

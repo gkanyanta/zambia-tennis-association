@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { CommentSection } from '@/components/CommentSection'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -560,6 +561,9 @@ export function TournamentDetail() {
               <PublicResultsView tournament={tournament} />
             </TabsContent>
           </Tabs>
+
+          {/* Discussion */}
+          {id && <CommentSection targetType="tournament" targetId={id} />}
         </div>
       </section>
     </div>

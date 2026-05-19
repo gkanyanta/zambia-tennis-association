@@ -52,6 +52,7 @@ import membershipRoutes from './routes/membership.js';
 import playerRegistrationRoutes from './routes/playerRegistration.js';
 import documentUploadRoutes from './routes/documentUpload.js';
 import liveMatchRoutes from './routes/liveMatches.js';
+import commentRoutes from './routes/comments.js';
 
 
 // Initialize app
@@ -152,6 +153,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/membership', membershipRoutes);
 app.use('/api/player-registration', playerRegistrationRoutes);
+app.use('/api/comments', commentRoutes);
 app.use('/api/upload/document', documentUploadRoutes);
 app.use('/api/live-matches', liveMatchRoutes);
 

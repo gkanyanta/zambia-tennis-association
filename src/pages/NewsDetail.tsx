@@ -4,6 +4,7 @@ import { newsService, NewsArticle } from '@/services/newsService'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ArrowLeft, Calendar, User, Eye } from 'lucide-react'
+import { CommentSection } from '@/components/CommentSection'
 
 export function NewsDetail() {
   const { id } = useParams<{ id: string }>()
@@ -142,8 +143,11 @@ export function NewsDetail() {
           )}
         </div>
 
+        {/* Discussion */}
+        {id && <CommentSection targetType="news" targetId={id} />}
+
         {/* Back to News button at bottom */}
-        <div className="mt-12 pt-8 border-t">
+        <div className="mt-8">
           <Button onClick={() => navigate('/news')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to All News
