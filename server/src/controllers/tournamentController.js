@@ -1722,9 +1722,10 @@ const awardRankingPoints = async (tournament, category) => {
   // The draw only tracks the "main" player of each pair; the partner is stored
   // on the entry as partnerId / partnerZpin / partnerName.
   const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles';
+  // Hoisted so it is accessible when propagating upset counts to partners below.
+  const partnerByMainId = {};
   if (isDoubles) {
-    const partnerByMainId = {};   // mainPlayerId → { id, name, zpin }
-    const partnerZpinById = {};   // partnerId    → zpin  (for later lookup)
+    const partnerZpinById = {};   // partnerId → zpin (for later lookup)
     for (const entry of (category.entries || [])) {
       if (entry.playerId && entry.partnerId) {
         partnerByMainId[entry.playerId.toString()] = {
@@ -1789,6 +1790,16 @@ const awardRankingPoints = async (tournament, category) => {
 
     if (isUpset) {
       upsetCounts[winner.id] = (upsetCounts[winner.id] || 0) + 1;
+    }
+  }
+
+  // In doubles the draw winner.id is always the main player; propagate their
+  // upset count to their partner so both players receive the same bonus.
+  if (isDoubles) {
+    for (const [mainId, partner] of Object.entries(partnerByMainId)) {
+      if (upsetCounts[mainId] && partner?.id) {
+        upsetCounts[partner.id] = (upsetCounts[partner.id] || 0) + upsetCounts[mainId];
+      }
     }
   }
 
