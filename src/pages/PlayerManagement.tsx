@@ -895,6 +895,7 @@ export function PlayerManagement() {
                         <tr>
                           <th className="px-4 py-3 text-left text-sm font-semibold">ZPIN</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold">Date of Birth</th>
                           <th className="px-4 py-3 text-left text-sm font-semibold">Club</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold">Type</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold">Status</th>
@@ -914,6 +915,15 @@ export function PlayerManagement() {
                                     : player.phone || 'No contact info'}
                                 </div>
                               </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {player.dateOfBirth
+                                ? <>
+                                    {new Date(player.dateOfBirth).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    <span className="text-muted-foreground ml-1">({calcAge(player.dateOfBirth)})</span>
+                                  </>
+                                : <span className="text-muted-foreground">N/A</span>
+                              }
                             </td>
                             <td className="px-4 py-3 text-sm">{player.club || 'N/A'}</td>
                             <td className="px-4 py-3 text-center">
