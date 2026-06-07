@@ -658,8 +658,7 @@ export function PlayerManagement() {
 
   const calcAge = (dob: string) => {
     if (!dob) return null
-    const birth = new Date(dob)
-    return Math.floor((new Date().getTime() - birth.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    return new Date().getFullYear() - new Date(dob).getFullYear()
   }
 
   if (loading) {
