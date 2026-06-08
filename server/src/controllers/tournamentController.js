@@ -1674,7 +1674,19 @@ const awardRankingPoints = async (tournament, category) => {
 
   if (category.draw.type === 'single_elimination') {
     const totalRounds = category.draw.numberOfRounds;
-    const matches = category.draw.matches.filter(m => m.status === 'completed' && m.winner);
+    const completedMatches = category.draw.matches.filter(m => m.status === 'completed' && m.winner);
+    const walkoverMatches  = category.draw.matches.filter(m => m.status === 'walkover'  && m.winner);
+
+    // Players who won at least one completed match — they "earned" their round.
+    // A walkover loss only counts if the loser has actually played and won before.
+    const playersWithCompletedWins = new Set(completedMatches.map(m => m.winner));
+    const matches = [
+      ...completedMatches,
+      ...walkoverMatches.filter(m => {
+        const loserId = m.player1?.id === m.winner ? m.player2?.id : m.player1?.id;
+        return loserId && playersWithCompletedWins.has(loserId);
+      }),
+    ];
 
     for (const match of matches) {
       // Loser exits at this round
