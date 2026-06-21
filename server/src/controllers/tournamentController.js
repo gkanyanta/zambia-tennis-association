@@ -438,14 +438,22 @@ export const submitEntry = async (req, res) => {
     const ageOnDec31 = calculateTennisAge(player.dateOfBirth, tournamentYear);
     const currentAge = Math.floor((new Date() - new Date(player.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
 
-    // Calculate fee and ZPIN status
-    const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
+    // Block entry if player does not have a paid-up ZPIN
     const activeSub = await MembershipSubscription.findOne({ entityId: new mongoose.Types.ObjectId(player._id.toString()), entityType: 'player', status: 'active' });
     const isActiveMember = activeSub !== null || player.membershipStatus === 'active';
+    if (!isActiveMember) {
+      return res.status(403).json({
+        success: false,
+        code: 'ZPIN_NOT_PAID',
+        message: `${player.firstName} ${player.lastName} does not have a paid-up ZPIN. Please pay for your ZPIN membership before submitting a tournament entry.`,
+        data: { playerId: player._id, playerName: `${player.firstName} ${player.lastName}` }
+      });
+    }
+
+    // Calculate fee and ZPIN status
+    const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
     const isJuniorSub = activeSub?.membershipTypeCode === 'zpin_junior';
-    const zpinPaidUp = isActiveMember
-      ? category.type !== 'senior' || !isJuniorSub
-      : false;
+    const zpinPaidUp = category.type !== 'senior' || !isJuniorSub;
     const entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
     // Generate a reference number for this entry so the player can pay later
@@ -2417,24 +2425,35 @@ export const publicRegister = async (req, res) => {
         };
       }
 
-      // Check ZPIN paid-up status and calculate per-entry fee
-      // Per-category fee overrides tournament-level fee
+      // Block entry if player does not have a paid-up ZPIN
       const baseFee = category.entryFee ?? tournament.entryFee ?? 0;
       let zpinPaidUp = false;
-      if (!isNewPlayerEntry && playerData._id) {
+      if (isNewPlayerEntry) {
+        errors.push({
+          playerName: `${playerData.firstName} ${playerData.lastName}`,
+          code: 'ZPIN_NOT_PAID',
+          error: `${playerData.firstName} ${playerData.lastName} does not have a paid-up ZPIN. Please pay for ZPIN membership before submitting a tournament entry.`
+        });
+        continue;
+      } else {
         const activeSub = await MembershipSubscription.findOne({
           entityId: new mongoose.Types.ObjectId(playerData._id.toString()),
           entityType: 'player',
           status: 'active'
         });
-        // Fallback to player.membershipStatus if subscription lookup misses
-        const player = await User.findById(playerData._id).select('membershipStatus').lean();
-        const isActiveMember = activeSub !== null || player?.membershipStatus === 'active';
-        // zpin_junior holders pay surcharge in senior categories (top-up is voluntary)
+        const memberPlayer = await User.findById(playerData._id).select('membershipStatus').lean();
+        const isActiveMember = activeSub !== null || memberPlayer?.membershipStatus === 'active';
+        if (!isActiveMember) {
+          errors.push({
+            playerId: playerData._id,
+            playerName: `${playerData.firstName} ${playerData.lastName}`,
+            code: 'ZPIN_NOT_PAID',
+            error: `${playerData.firstName} ${playerData.lastName} does not have a paid-up ZPIN. Please pay for ZPIN membership before submitting a tournament entry.`
+          });
+          continue;
+        }
         const isJuniorSub = activeSub?.membershipTypeCode === 'zpin_junior';
-        zpinPaidUp = isActiveMember
-          ? category.type !== 'senior' || !isJuniorSub
-          : false;
+        zpinPaidUp = category.type !== 'senior' || !isJuniorSub;
       }
       let entryFee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5);
 
