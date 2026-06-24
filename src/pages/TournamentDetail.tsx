@@ -468,7 +468,7 @@ export function TournamentDetail() {
                                         className="w-full"
                                         variant="outline"
                                         onClick={() => handlePayEntryFee()}
-                                        disabled={payingEntryFee}
+                                        disabled={payingEntryFee || zpinPaidUp === false}
                                       >
                                         {payingEntryFee ? (
                                           <>
@@ -478,20 +478,21 @@ export function TournamentDetail() {
                                         ) : (
                                           <>
                                             <CreditCard className="h-4 w-4 mr-2" />
-                                            Pay Entry Fee (K{zpinPaidUp === false ? Math.ceil(tournament.entryFee * 1.5) : tournament.entryFee})
+                                            Pay Entry Fee (K{tournament.entryFee})
                                           </>
                                         )}
                                       </Button>
                                     </>
                                   )}
 
-                                  <p className="text-xs text-muted-foreground text-center">
-                                    {zpinPaidUp === false && tournament.entryFee > 0 ? (
-                                      <>Entry fee: K{Math.ceil(tournament.entryFee * 1.5)} <span className="text-amber-600">(includes 50% non-ZPIN surcharge)</span></>
-                                    ) : (
-                                      <>Entry fee: K{tournament.entryFee}</>
-                                    )}
-                                  </p>
+                                  {zpinPaidUp === false ? (
+                                    <p className="text-xs text-red-600 text-center">
+                                      A paid-up ZPIN is required to enter this tournament.{' '}
+                                      <a href="/register-zpin" className="underline font-medium">Pay for a ZPIN</a>
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground text-center">Entry fee: K{tournament.entryFee}</p>
+                                  )}
                                 </>
                               )}
                             </>

@@ -291,12 +291,20 @@ export function TournamentRegister() {
 
     const player = selectedPlayer as PlayerSearchResult
     const isSeniorCategory = category.type === 'senior'
-    // zpin_junior holders are treated as not-paid-up for senior categories (50% surcharge applies)
     const zpinPaidUp = player.hasActiveSubscription
       ? !isSeniorCategory || player.activeMembershipTypeCode !== 'zpin_junior'
       : false
+
+    if (!zpinPaidUp) {
+      if (!player.hasActiveSubscription) {
+        setError('This player does not have an active ZPIN. A paid-up ZPIN is required to enter a tournament.')
+      } else {
+        setError('This player has a Junior ZPIN. A Senior ZPIN is required to enter senior categories.')
+      }
+      return
+    }
+
     const baseFee = getCategoryBaseFee(category)
-    const fee = zpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5)
 
     let partnerData: Partial<SelectedEntry> = {}
     if (doublesCategory && selectedPartner) {
@@ -304,10 +312,18 @@ export function TournamentRegister() {
       const partnerZpinPaidUp = partner.hasActiveSubscription
         ? !isSeniorCategory || partner.activeMembershipTypeCode !== 'zpin_junior'
         : false
+      if (!partnerZpinPaidUp) {
+        if (!partner.hasActiveSubscription) {
+          setError('The selected partner does not have an active ZPIN. A paid-up ZPIN is required to enter a tournament.')
+        } else {
+          setError('The selected partner has a Junior ZPIN. A Senior ZPIN is required to enter senior categories.')
+        }
+        return
+      }
       partnerData = {
         partner: selectedPartner,
-        partnerFee: partnerZpinPaidUp ? baseFee : Math.ceil(baseFee * 1.5),
-        partnerZpinPaidUp
+        partnerFee: baseFee,
+        partnerZpinPaidUp: true
       }
     }
 
@@ -317,8 +333,8 @@ export function TournamentRegister() {
         player: selectedPlayer,
         categoryId: selectedCategory,
         categoryName: category.name,
-        fee,
-        zpinPaidUp,
+        fee: baseFee,
+        zpinPaidUp: true,
         ...partnerData
       }
     ])
@@ -332,57 +348,7 @@ export function TournamentRegister() {
   }
 
   const handleAddNewPlayer = () => {
-    if (!newPlayer.firstName || !newPlayer.lastName || !newPlayer.dateOfBirth || !newPlayer.gender || !selectedCategory || !tournament) {
-      setError('Please fill in all required fields for the new player')
-      return
-    }
-
-    const category = tournament.categories.find(c => c._id === selectedCategory)
-    if (!category) return
-
-    // Create a temporary ID for the new player
-    const tempId = `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-    const newPlayerData: NewPlayerData = {
-      _id: tempId,
-      firstName: newPlayer.firstName.trim(),
-      lastName: newPlayer.lastName.trim(),
-      dateOfBirth: newPlayer.dateOfBirth,
-      gender: newPlayer.gender,
-      club: newPlayer.club.trim() || null,
-      phone: newPlayer.phone.trim(),
-      email: newPlayer.email.trim(),
-      isNew: true
-    }
-
-    const baseFee = getCategoryBaseFee(category)
-    const fee = Math.ceil(baseFee * 1.5) // New players always pay surcharge
-
-    setSelectedEntries([
-      ...selectedEntries,
-      {
-        player: newPlayerData,
-        categoryId: selectedCategory,
-        categoryName: category.name,
-        isNewPlayer: true,
-        fee,
-        zpinPaidUp: false
-      }
-    ])
-
-    // Reset form
-    setNewPlayer({
-      firstName: '',
-      lastName: '',
-      dateOfBirth: '',
-      gender: '',
-      club: '',
-      phone: '',
-      email: ''
-    })
-    setSelectedCategory('')
-    setShowNewPlayerForm(false)
-    setError(null)
+    setError('New players must first register for a ZPIN before entering a tournament. Please visit the ZPIN registration page to get a ZPIN, then return to enter the tournament.')
   }
 
   const handleRemoveEntry = (index: number) => {
@@ -435,9 +401,12 @@ export function TournamentRegister() {
         }
       }
 
-      const zpinPaidUp = !!player.hasActiveSubscription
+      if (!player.hasActiveSubscription) {
+        errors.push(`${player.firstName} ${player.lastName}: no active ZPIN (must pay for ZPIN before entering)`)
+        continue
+      }
+
       const clubBaseFee = getCategoryBaseFee(category)
-      const fee = zpinPaidUp ? clubBaseFee : Math.ceil(clubBaseFee * 1.5)
 
       newEntries.push({
         player: {
@@ -457,8 +426,8 @@ export function TournamentRegister() {
         },
         categoryId: clubCategoryId,
         categoryName: category.name,
-        fee,
-        zpinPaidUp
+        fee: clubBaseFee,
+        zpinPaidUp: true
       })
     }
 
@@ -1220,42 +1189,42 @@ export function TournamentRegister() {
                       )}
                     </div>
 
-                    {/* Senior ZPIN upgrade prompt */}
+                    {/* ZPIN required block */}
                     {selectedCategory && selectedPlayer && (() => {
                       const cat = tournament.categories.find(c => c._id === selectedCategory)
                       const pl = selectedPlayer as PlayerSearchResult
-                      if (!cat || cat.type !== 'senior') return null
+                      if (!cat) return null
                       const hasJuniorOnly = pl.hasActiveSubscription && pl.activeMembershipTypeCode === 'zpin_junior'
                       const hasNoZpin = !pl.hasActiveSubscription
-                      if (!hasJuniorOnly && !hasNoZpin) return null
+                      const isSeniorCat = cat.type === 'senior'
+                      if (!hasNoZpin && !(hasJuniorOnly && isSeniorCat)) return null
                       return (
-                        <div className="p-4 border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 rounded-lg space-y-2">
+                        <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/30 rounded-lg space-y-2">
                           <div className="flex items-start gap-2">
-                            <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                            <div className="text-sm text-amber-800 dark:text-amber-200">
-                              <p className="font-semibold mb-1">Senior ZPIN required for standard entry fee</p>
+                            <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                            <div className="text-sm text-red-800 dark:text-red-200">
+                              <p className="font-semibold mb-1">ZPIN required to enter</p>
                               {hasJuniorOnly ? (
-                                <p>This player has a Junior ZPIN. To enter at the standard rate, upgrade to a Senior-eligible ZPIN:</p>
+                                <>
+                                  <p>This player has a Junior ZPIN. A Senior ZPIN is required to enter senior categories.</p>
+                                  <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                                    <li>K150 top-up to add senior eligibility to existing Junior ZPIN</li>
+                                    <li>K250 new Senior ZPIN</li>
+                                  </ul>
+                                </>
                               ) : (
-                                <p>This player has no active ZPIN. To enter at the standard rate, register a Senior ZPIN:</p>
+                                <p>This player does not have an active ZPIN. A paid-up ZPIN is required to enter any tournament.</p>
                               )}
-                              <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                                {hasJuniorOnly && <li>K150 top-up to add senior eligibility to existing Junior ZPIN</li>}
-                                <li>K250 new Senior ZPIN</li>
-                              </ul>
-                              <p className="mt-2 text-amber-700 dark:text-amber-300 font-medium">
-                                Entering without a Senior ZPIN incurs a 50% surcharge on the entry fee.
-                              </p>
                             </div>
                           </div>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="border-amber-400 text-amber-700 hover:bg-amber-100"
+                            className="border-red-400 text-red-700 hover:bg-red-100"
                             onClick={() => navigate('/register-zpin')}
                           >
-                            Pay for Senior ZPIN
+                            {hasJuniorOnly ? 'Upgrade to Senior ZPIN' : 'Pay for ZPIN'}
                           </Button>
                         </div>
                       )
@@ -1481,16 +1450,11 @@ export function TournamentRegister() {
                                 <>
                                   <span className="font-medium">K{entry.fee + (entry.partnerFee || 0)}</span>
                                   <div className="text-xs text-muted-foreground">
-                                    K{entry.fee}{!entry.zpinPaidUp && ' +surcharge'} + K{entry.partnerFee || 0}{entry.partnerZpinPaidUp === false && ' +surcharge'}
+                                    K{entry.fee} + K{entry.partnerFee || 0}
                                   </div>
                                 </>
                               ) : (
-                                <>
-                                  <span className="font-medium">K{entry.fee}</span>
-                                  {!entry.zpinPaidUp && entry.fee > 0 && (
-                                    <div className="text-xs text-amber-600">+50% surcharge</div>
-                                  )}
-                                </>
+                                <span className="font-medium">K{entry.fee}</span>
                               )}
                             </div>
                             <Button
@@ -1520,17 +1484,6 @@ export function TournamentRegister() {
                             </Badge>
                           ))}
                         </div>
-                      </div>
-                    )}
-
-                    {/* ZPIN surcharge notice */}
-                    {selectedEntries.some(e => !e.zpinPaidUp) && tournament.entryFee > 0 && (
-                      <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg mb-6 text-sm text-amber-800 dark:text-amber-200">
-                        <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                        <span>
-                          Players without a paid-up ZPIN for {new Date().getFullYear()} pay a 50% surcharge on the entry fee.
-                          Register for a ZPIN to pay the standard rate.
-                        </span>
                       </div>
                     )}
 
@@ -1637,12 +1590,6 @@ export function TournamentRegister() {
                       <span>Base Entry Fee</span>
                       <span className="font-medium">K{tournament.entryFee}</span>
                     </div>
-                    {selectedEntries.some(e => !e.zpinPaidUp) && tournament.entryFee > 0 && (
-                      <div className="flex justify-between text-amber-600">
-                        <span>Non-ZPIN surcharge (50%)</span>
-                        <span className="font-medium">K{Math.ceil(tournament.entryFee * 1.5)} per entry</span>
-                      </div>
-                    )}
                     {selectedEntries.map((entry, i) => (
                       <div key={i} className="flex justify-between text-muted-foreground">
                         <span>{entry.player.firstName} {entry.player.lastName}</span>
