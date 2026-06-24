@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -62,6 +62,7 @@ interface PendingPlayer extends PlayerSearchResult {
 
 export function ZPINPayment() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<PlayerSearchResult[]>([])
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([])
@@ -228,6 +229,45 @@ export function ZPINPayment() {
       setTopUpProcessing(false)
     }
   }
+
+  // Pre-load a player passed via router state (from tournament entry blocked flow)
+  useEffect(() => {
+    const state = location.state as any
+    if (!state) return
+
+    if (state.prefillTopUpPlayer) {
+      handleStartTopUp(state.prefillTopUpPlayer as PlayerSearchResult)
+      window.history.replaceState({}, '')
+      return
+    }
+
+    const prefillOrFetch = async () => {
+      if (state.prefillPlayer) {
+        const player = state.prefillPlayer as PlayerSearchResult
+        const withType: PlayerSearchResult = player.membershipType ? player : {
+          ...player,
+          membershipType: {
+            _id: '',
+            name: player.age !== null && player.age <= 18 ? 'Junior ZPIN' : 'Senior ZPIN',
+            code: player.age !== null && player.age <= 18 ? 'zpin_junior' : 'zpin_senior',
+            amount: player.age !== null && player.age <= 18 ? 100 : 250
+          }
+        }
+        handleAddPlayer(withType)
+        window.history.replaceState({}, '')
+      } else if (state.prefillPlayerId) {
+        try {
+          const player = await membershipService.getPlayerPaymentDetails(state.prefillPlayerId)
+          handleAddPlayer(player)
+        } catch {
+          // silently ignore — user can search manually
+        }
+        window.history.replaceState({}, '')
+      }
+    }
+
+    prefillOrFetch()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to payer form when it becomes visible
   useEffect(() => {

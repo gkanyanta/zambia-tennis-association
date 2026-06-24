@@ -488,7 +488,12 @@ export function TournamentDetail() {
                                   {zpinPaidUp === false ? (
                                     <p className="text-xs text-red-600 text-center">
                                       A paid-up ZPIN is required to enter this tournament.{' '}
-                                      <a href="/register-zpin" className="underline font-medium">Pay for a ZPIN</a>
+                                      <button
+                                        className="underline font-medium"
+                                        onClick={() => navigate('/register-zpin', { state: { prefillPlayerId: (user as any)?._id || user?.id } })}
+                                      >
+                                        Pay for a ZPIN
+                                      </button>
                                     </p>
                                   ) : (
                                     <p className="text-xs text-muted-foreground text-center">Entry fee: K{tournament.entryFee}</p>

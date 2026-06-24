@@ -1222,7 +1222,13 @@ export function TournamentRegister() {
                             size="sm"
                             variant="outline"
                             className="border-red-400 text-red-700 hover:bg-red-100"
-                            onClick={() => navigate('/register-zpin')}
+                            onClick={() => {
+                              if (hasJuniorOnly) {
+                                navigate('/register-zpin', { state: { prefillTopUpPlayer: pl } })
+                              } else {
+                                navigate('/register-zpin', { state: { prefillPlayer: pl } })
+                              }
+                            }}
                           >
                             {hasJuniorOnly ? 'Upgrade to Senior ZPIN' : 'Pay for ZPIN'}
                           </Button>
