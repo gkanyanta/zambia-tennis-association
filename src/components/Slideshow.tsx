@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
 interface Slide {
   image: string
@@ -15,99 +14,152 @@ interface SlideshowProps {
   interval?: number
 }
 
-export function Slideshow({ slides, autoPlay = true, interval = 5000 }: SlideshowProps) {
+export function Slideshow({ slides, autoPlay = true, interval = 6000 }: SlideshowProps) {
   const [currentSlide, setCurrentSlide] = useState(0)
+  const [transitioning, setTransitioning] = useState(false)
+
+  const goToSlide = useCallback((index: number) => {
+    if (transitioning) return
+    setTransitioning(true)
+    setTimeout(() => setTransitioning(false), 900)
+    setCurrentSlide(index)
+  }, [transitioning])
+
+  const goToPrevious = useCallback(() => {
+    goToSlide((currentSlide - 1 + slides.length) % slides.length)
+  }, [currentSlide, slides.length, goToSlide])
+
+  const goToNext = useCallback(() => {
+    goToSlide((currentSlide + 1) % slides.length)
+  }, [currentSlide, slides.length, goToSlide])
 
   useEffect(() => {
-    if (!autoPlay) return
-
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length)
-    }, interval)
-
+    if (!autoPlay || slides.length <= 1) return
+    const timer = setInterval(goToNext, interval)
     return () => clearInterval(timer)
-  }, [autoPlay, interval, slides.length])
+  }, [autoPlay, interval, goToNext, slides.length])
 
-  const goToSlide = (index: number) => {
-    setCurrentSlide(index)
-  }
+  const pad = (n: number) => String(n + 1).padStart(2, '0')
 
-  const goToPrevious = () => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)
-  }
+  const objectPosition = (fp?: string) =>
+    fp === 'top' ? 'center top' : fp === 'bottom' ? 'center bottom' : 'center center'
 
-  const goToNext = () => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length)
-  }
+  if (slides.length === 0) return null
 
   return (
-    <div className="relative w-full h-[500px] md:h-[600px] overflow-hidden rounded-lg bg-gray-900">
-      {/* Slides */}
-      {slides.map((slide, index) => (
-        <div
-          key={index}
-          className={`absolute inset-0 transition-opacity duration-1000 ${
-            index === currentSlide ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          <img
-            src={slide.image}
-            alt={slide.title}
-            className="w-full h-full object-contain"
+    <div className="relative w-full overflow-hidden bg-black" style={{ height: 'clamp(480px, 80vh, 820px)' }}>
+
+      {/* ── Images ── */}
+      {slides.map((slide, i) => {
+        const active = i === currentSlide
+        return (
+          <div
+            key={i}
+            className="absolute inset-0"
             style={{
-              objectPosition: slide.focalPoint === 'center' ? 'center center' :
-                slide.focalPoint === 'bottom' ? 'center bottom' :
-                'center 70px'
+              opacity: active ? 1 : 0,
+              transition: 'opacity 1200ms cubic-bezier(0.4, 0, 0.2, 1)',
+              pointerEvents: active ? 'auto' : 'none',
             }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          >
+            <img
+              src={slide.image}
+              alt={slide.title}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                objectPosition: objectPosition(slide.focalPoint),
+                animation: active ? `kenBurns ${interval + 3000}ms ease-out forwards` : 'none',
+                transformOrigin: 'center center',
+              }}
+            />
 
-          {/* Slide Content */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 text-white">
-            <div className="container-custom">
-              <h2 className="text-3xl md:text-5xl font-bold mb-3 max-w-3xl">
-                {slide.title}
-              </h2>
-              <p className="text-lg md:text-xl text-white/90 max-w-2xl">
-                {slide.description}
-              </p>
-            </div>
+            {/* Gradient overlays */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/35 to-transparent" />
           </div>
+        )
+      })}
+
+      {/* ── Slide text (re-keyed on change to re-trigger animation) ── */}
+      <div
+        key={currentSlide}
+        className="absolute left-0 right-0 px-8 md:px-16"
+        style={{
+          bottom: 'clamp(60px, 10%, 100px)',
+          animation: 'slideUpFade 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) both',
+        }}
+      >
+        <div className="max-w-3xl">
+          {/* Eyebrow */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="block h-px w-8 bg-primary flex-shrink-0" />
+            <span className="text-primary text-xs font-semibold tracking-[0.22em] uppercase">
+              Zambia Tennis Association
+            </span>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white mb-4 leading-tight tracking-tight">
+            {slides[currentSlide].title}
+          </h2>
+
+          {/* Description */}
+          <p className="text-base md:text-lg text-white/70 max-w-xl leading-relaxed">
+            {slides[currentSlide].description}
+          </p>
         </div>
-      ))}
+      </div>
 
-      {/* Navigation Arrows */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm"
+      {/* ── Arrow buttons ── */}
+      <button
         onClick={goToPrevious}
+        aria-label="Previous slide"
+        className="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-all duration-200 hover:scale-110"
       >
-        <ChevronLeft className="h-6 w-6" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white backdrop-blur-sm"
+        <ChevronLeft className="w-10 h-10 md:w-12 md:h-12" strokeWidth={1.5} />
+      </button>
+      <button
         onClick={goToNext}
+        aria-label="Next slide"
+        className="absolute right-4 md:right-6 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-all duration-200 hover:scale-110"
       >
-        <ChevronRight className="h-6 w-6" />
-      </Button>
+        <ChevronRight className="w-10 h-10 md:w-12 md:h-12" strokeWidth={1.5} />
+      </button>
 
-      {/* Dots Indicator */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            className={`w-2 h-2 rounded-full transition-all ${
-              index === currentSlide
-                ? 'bg-white w-8'
-                : 'bg-white/50 hover:bg-white/75'
-            }`}
-            onClick={() => goToSlide(index)}
-            aria-label={`Go to slide ${index + 1}`}
+      {/* ── Bottom controls ── */}
+      <div className="absolute bottom-4 left-8 md:left-16 right-8 md:right-16 flex items-center justify-between">
+        {/* Pill dots */}
+        <div className="flex items-center gap-2">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goToSlide(i)}
+              aria-label={`Go to slide ${i + 1}`}
+              className="transition-all duration-500 rounded-full bg-white"
+              style={{
+                width:   i === currentSlide ? '28px' : '6px',
+                height:  '6px',
+                opacity: i === currentSlide ? 1 : 0.35,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Slide counter */}
+        <span className="text-white/60 font-mono text-xs tracking-widest select-none">
+          {pad(currentSlide)}&thinsp;/&thinsp;{pad(slides.length - 1)}
+        </span>
+      </div>
+
+      {/* ── Progress bar ── */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/10">
+        {autoPlay && (
+          <div
+            key={currentSlide}
+            className="h-full bg-primary"
+            style={{ animation: `progressFill ${interval}ms linear forwards`, width: 0 }}
           />
-        ))}
+        )}
       </div>
     </div>
   )

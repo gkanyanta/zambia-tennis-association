@@ -143,6 +143,17 @@ export function NewsDetail() {
           )}
         </div>
 
+        {/* Video */}
+        {article.videoUrl && (
+          <div className="mt-8 rounded-lg overflow-hidden border border-border">
+            <video
+              src={article.videoUrl}
+              controls
+              className="w-full"
+            />
+          </div>
+        )}
+
         {/* Discussion */}
         {id && <CommentSection targetType="news" targetId={id} />}
 

@@ -56,6 +56,34 @@ export const uploadDocument = async (file: File) => {
   return data;
 };
 
+// Upload video file function
+export const uploadVideo = async (file: File) => {
+  const token = getAuthToken();
+
+  if (!token) {
+    throw new Error('You must be logged in to upload videos. Please log in and try again.');
+  }
+
+  const formData = new FormData();
+  formData.append('video', file);
+
+  const response = await fetch(`${API_URL}/api/upload/video`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `Video upload failed with status ${response.status}`);
+  }
+
+  return data;
+};
+
 // Upload file function
 export const uploadFile = async (file: File) => {
   const token = getAuthToken();

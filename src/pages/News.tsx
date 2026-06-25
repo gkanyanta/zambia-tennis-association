@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings, Eye, Plus, Edit, Trash2, Upload, X, Calendar, User } from 'lucide-react'
+import { Settings, Eye, Plus, Edit, Trash2, Upload, X, Calendar, User, Video } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/AuthContext'
 import { newsService, NewsArticle } from '@/services/newsService'
@@ -21,9 +21,12 @@ export function News() {
     category: '',
     excerpt: '',
     author: '',
+    videoUrl: '',
   })
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null)
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null)
 
@@ -70,22 +73,37 @@ export function News() {
     if (fileInput) fileInput.value = ''
   }
 
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedVideoFile(file)
+      setVideoPreviewUrl(URL.createObjectURL(file))
+    }
+  }
+
+  const handleRemoveVideo = () => {
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl)
+    setSelectedVideoFile(null)
+    setVideoPreviewUrl(null)
+    const fileInput = document.getElementById('video-upload') as HTMLInputElement
+    if (fileInput) fileInput.value = ''
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     try {
       if (editingId) {
-        // Update existing article
-        await newsService.updateNews(editingId, formData, selectedFile || undefined)
+        await newsService.updateNews(editingId, formData, selectedFile || undefined, selectedVideoFile || undefined)
       } else {
-        // Create new article
-        await newsService.createNews(formData, selectedFile || undefined)
+        await newsService.createNews(formData, selectedFile || undefined, selectedVideoFile || undefined)
       }
 
       // Reset form and refresh news
-      setFormData({ title: '', category: '', excerpt: '', author: '' })
+      setFormData({ title: '', category: '', excerpt: '', author: '', videoUrl: '' })
       setImagePreview(null)
       setSelectedFile(null)
+      handleRemoveVideo()
       setEditingId(null)
       await fetchNews()
       alert(editingId ? 'Article updated successfully!' : 'Article published successfully!')
@@ -100,8 +118,10 @@ export function News() {
       category: article.category,
       excerpt: article.excerpt,
       author: article.author,
+      videoUrl: article.videoUrl || '',
     })
     setImagePreview(article.imageUrl || null)
+    if (article.videoUrl) setVideoPreviewUrl(article.videoUrl)
     setEditingId(article._id || null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -119,9 +139,10 @@ export function News() {
   }
 
   const handleCancelEdit = () => {
-    setFormData({ title: '', category: '', excerpt: '', author: '' })
+    setFormData({ title: '', category: '', excerpt: '', author: '', videoUrl: '' })
     setImagePreview(null)
     setSelectedFile(null)
+    handleRemoveVideo()
     setEditingId(null)
   }
 
@@ -302,6 +323,63 @@ export function News() {
                       </div>
                     </div>
 
+                    {/* Video Upload Section */}
+                    <div>
+                      <label className="text-sm font-medium text-foreground mb-1 block">
+                        Video Clip
+                      </label>
+                      <div className="space-y-3">
+                        {!videoPreviewUrl ? (
+                          <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors">
+                            <Video className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Upload a video clip (MP4, WebM, MOV)
+                            </p>
+                            <p className="text-xs text-muted-foreground mb-4">
+                              Up to 100MB
+                            </p>
+                            <input
+                              id="video-upload"
+                              type="file"
+                              accept="video/mp4,video/webm,video/quicktime,video/avi,video/x-matroska"
+                              onChange={handleVideoSelect}
+                              className="hidden"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => document.getElementById('video-upload')?.click()}
+                            >
+                              <Video className="h-4 w-4 mr-2" />
+                              Choose Video
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="relative rounded-lg overflow-hidden border border-border bg-muted">
+                            <video
+                              src={videoPreviewUrl}
+                              controls
+                              className="w-full max-h-64 object-contain"
+                            />
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="destructive"
+                              className="absolute top-2 right-2"
+                              onClick={handleRemoveVideo}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                            {selectedVideoFile && (
+                              <div className="bg-muted px-3 py-2 text-xs text-muted-foreground">
+                                {selectedVideoFile.name} — {(selectedVideoFile.size / (1024 * 1024)).toFixed(1)} MB
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="text-sm font-medium text-foreground mb-1 block">
                         Excerpt *
@@ -378,6 +456,12 @@ export function News() {
                                   {article.title}
                                 </h4>
                                 <Badge variant="secondary">{article.category}</Badge>
+                                {article.videoUrl && (
+                                  <Badge variant="outline" className="text-xs gap-1">
+                                    <Video className="h-3 w-3" />
+                                    Video
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-sm text-muted-foreground mb-2">
                                 {article.excerpt}
@@ -449,6 +533,15 @@ export function News() {
                   {selectedArticle.content || selectedArticle.excerpt}
                 </p>
               </div>
+              {selectedArticle.videoUrl && (
+                <div className="mt-6 rounded-lg overflow-hidden border border-border">
+                  <video
+                    src={selectedArticle.videoUrl}
+                    controls
+                    className="w-full"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

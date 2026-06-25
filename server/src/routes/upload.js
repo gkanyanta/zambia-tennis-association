@@ -1,7 +1,7 @@
 import express from 'express';
 import sharp from 'sharp';
 import cloudinary from '../config/cloudinary.js';
-import { upload } from '../middleware/upload.js';
+import { upload, videoUpload } from '../middleware/upload.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -249,6 +249,50 @@ router.post('/affiliation-logo', protect, upload.single('image'), async (req, re
       success: false,
       message: error.message
     });
+  }
+});
+
+// @desc    Upload video clip for news articles
+// @route   POST /api/upload/video
+// @access  Private (Admin/Staff)
+router.post('/video', protect, videoUpload.single('video'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      return res.status(500).json({ success: false, message: 'Video upload service not configured.' });
+    }
+
+    const uploadPromise = new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zta-videos',
+          resource_type: 'video',
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    const uploadResult = await uploadPromise;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        filename: uploadResult.public_id,
+        path: uploadResult.secure_url,
+        url: uploadResult.secure_url,
+        size: uploadResult.bytes
+      }
+    });
+  } catch (error) {
+    console.error('Video upload error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

@@ -123,22 +123,24 @@ export function Home() {
     <>
       <PageSEO.Home />
       <div className="flex flex-col">
-      {/* Slideshow Section */}
-      <section className="py-8 bg-muted/50">
-        <div className="container-custom">
-          {loadingSlides ? (
-            <div className="h-[500px] md:h-[600px] rounded-lg bg-muted flex items-center justify-center">
-              <p className="text-muted-foreground">Loading slideshow...</p>
-            </div>
-          ) : slides.length > 0 ? (
-            <Slideshow slides={slides} autoPlay interval={5000} />
-          ) : (
-            <div className="h-[500px] md:h-[600px] rounded-lg bg-muted flex items-center justify-center">
-              <p className="text-muted-foreground">No slideshow images available</p>
-            </div>
-          )}
+      {/* Slideshow Section — full bleed */}
+      {loadingSlides ? (
+        <div
+          className="w-full bg-black flex items-center justify-center"
+          style={{ height: 'clamp(480px, 80vh, 820px)' }}
+        >
+          <p className="text-white/40 text-sm tracking-widest uppercase">Loading…</p>
         </div>
-      </section>
+      ) : slides.length > 0 ? (
+        <Slideshow slides={slides} autoPlay interval={6000} />
+      ) : (
+        <div
+          className="w-full bg-muted flex items-center justify-center"
+          style={{ height: 'clamp(480px, 80vh, 820px)' }}
+        >
+          <p className="text-muted-foreground">No slideshow images available</p>
+        </div>
+      )}
 
       {/* Umpire Assignment Banner */}
       {umpireMatchCount > 0 && (

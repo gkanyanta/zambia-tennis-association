@@ -25,3 +25,23 @@ export const upload = multer({
   },
   fileFilter: fileFilter
 });
+
+const videoFileFilter = (req, file, cb) => {
+  const allowedExts = /mp4|webm|mov|avi|mkv/;
+  const extname = allowedExts.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = file.mimetype.startsWith('video/');
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Only video files are allowed! Supported: MP4, WebM, MOV, AVI, MKV'));
+  }
+};
+
+export const videoUpload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB
+  },
+  fileFilter: videoFileFilter
+});

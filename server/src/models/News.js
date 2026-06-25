@@ -24,6 +24,9 @@ const newsSchema = new mongoose.Schema({
   imageUrl: {
     type: String
   },
+  videoUrl: {
+    type: String
+  },
   published: {
     type: Boolean,
     default: true

@@ -1,4 +1,4 @@
-import { apiFetch, uploadFile } from './api';
+import { apiFetch, uploadFile, uploadVideo } from './api';
 
 // News service for managing articles
 export interface NewsArticle {
@@ -9,6 +9,7 @@ export interface NewsArticle {
   author: string;
   category: string;
   imageUrl?: string;
+  videoUrl?: string;
   published: boolean;
   views?: number;
   createdAt?: string;
@@ -25,55 +26,60 @@ export const newsService = {
     return response.data;
   },
 
-  async createNews(data: Partial<NewsArticle>, image?: File): Promise<NewsArticle> {
+  async createNews(data: Partial<NewsArticle>, image?: File, video?: File): Promise<NewsArticle> {
     let imageUrl = data.imageUrl;
+    let videoUrl = data.videoUrl;
 
-    // Upload image if provided
     if (image) {
-      console.log('Attempting to upload image for news article...');
       try {
         const uploadResponse = await uploadFile(image);
-        console.log('Image uploaded successfully:', uploadResponse);
-        console.log('Upload response data:', uploadResponse.data);
-        // Use the full URL from the upload response (Cloudinary returns full URLs)
         imageUrl = uploadResponse.data.url || uploadResponse.data.path;
-        console.log('Extracted image URL:', imageUrl);
-        console.log('Image URL type:', typeof imageUrl);
       } catch (uploadError: any) {
-        console.error('Image upload failed:', uploadError);
-        // Throw error instead of silently continuing - user should know upload failed
         throw new Error(`Image upload failed: ${uploadError.message}`);
+      }
+    }
+
+    if (video) {
+      try {
+        const uploadResponse = await uploadVideo(video);
+        videoUrl = uploadResponse.data.url || uploadResponse.data.path;
+      } catch (uploadError: any) {
+        throw new Error(`Video upload failed: ${uploadError.message}`);
       }
     }
 
     const response = await apiFetch('/news', {
       method: 'POST',
-      body: JSON.stringify({ ...data, imageUrl }),
+      body: JSON.stringify({ ...data, imageUrl, videoUrl }),
     });
     return response.data;
   },
 
-  async updateNews(id: string, data: Partial<NewsArticle>, image?: File): Promise<NewsArticle> {
+  async updateNews(id: string, data: Partial<NewsArticle>, image?: File, video?: File): Promise<NewsArticle> {
     let imageUrl = data.imageUrl;
+    let videoUrl = data.videoUrl;
 
-    // Upload image if provided
     if (image) {
-      console.log('Attempting to upload new image for article update...');
       try {
         const uploadResponse = await uploadFile(image);
-        console.log('Image uploaded successfully:', uploadResponse);
-        // Use the full URL from the upload response (Cloudinary returns full URLs)
         imageUrl = uploadResponse.data.url || uploadResponse.data.path;
       } catch (uploadError: any) {
-        console.error('Image upload failed:', uploadError);
-        // Throw error instead of silently continuing
         throw new Error(`Image upload failed: ${uploadError.message}`);
+      }
+    }
+
+    if (video) {
+      try {
+        const uploadResponse = await uploadVideo(video);
+        videoUrl = uploadResponse.data.url || uploadResponse.data.path;
+      } catch (uploadError: any) {
+        throw new Error(`Video upload failed: ${uploadError.message}`);
       }
     }
 
     const response = await apiFetch(`/news/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ ...data, imageUrl }),
+      body: JSON.stringify({ ...data, imageUrl, videoUrl }),
     });
     return response.data;
   },
