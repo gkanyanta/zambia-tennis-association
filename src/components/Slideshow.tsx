@@ -8,6 +8,18 @@ interface Slide {
   focalPoint?: 'top' | 'center' | 'bottom'
 }
 
+// Apply Cloudinary smart-crop transformation for slideshow dimensions.
+// This replaces the stored 1200×800 image with a server-side cropped version
+// that fits the slideshow frame (1920×820) with automatic subject detection.
+function slideshowUrl(url: string, focalPoint?: string): string {
+  if (!url.includes('res.cloudinary.com')) return url
+  const gravity =
+    focalPoint === 'top' ? 'g_north' :
+    focalPoint === 'bottom' ? 'g_south' :
+    'g_auto'
+  return url.replace('/upload/', `/upload/c_fill,${gravity},w_1920,h_820,q_auto,f_auto/`)
+}
+
 interface SlideshowProps {
   slides: Slide[]
   autoPlay?: boolean
@@ -41,9 +53,6 @@ export function Slideshow({ slides, autoPlay = true, interval = 6000 }: Slidesho
 
   const pad = (n: number) => String(n + 1).padStart(2, '0')
 
-  const objectPosition = (fp?: string) =>
-    fp === 'top' ? 'center top' : fp === 'bottom' ? 'center bottom' : 'center center'
-
   if (slides.length === 0) return null
 
   return (
@@ -63,11 +72,11 @@ export function Slideshow({ slides, autoPlay = true, interval = 6000 }: Slidesho
             }}
           >
             <img
-              src={slide.image}
+              src={slideshowUrl(slide.image, slide.focalPoint)}
               alt={slide.title}
               className="absolute inset-0 w-full h-full object-cover"
               style={{
-                objectPosition: objectPosition(slide.focalPoint),
+                objectPosition: 'center center',
                 animation: active ? `kenBurns ${interval + 3000}ms ease-out forwards` : 'none',
                 transformOrigin: 'center center',
               }}
