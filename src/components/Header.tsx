@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 
-// Dropdown menu configurations
 const tennisMenu = [
   { name: 'Tournaments', href: '/tournaments' },
   { name: 'Live Scores', href: '/live-scores' },
@@ -65,9 +64,8 @@ export function Header() {
     setDropdownTimeout(timeout as unknown as number)
   }
 
-  const isMenuActive = (menu: { href: string }[]) => {
-    return menu.some(item => location.pathname === item.href)
-  }
+  const isMenuActive = (menu: { href: string }[]) =>
+    menu.some(item => location.pathname === item.href)
 
   const toggleMobileMenu = (key: DropdownKey) => {
     setMobileExpandedMenu(mobileExpandedMenu === key ? null : key)
@@ -89,33 +87,36 @@ export function Header() {
     >
       <button
         className={cn(
-          "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1",
-          isMenuActive(items) ? "text-primary" : "text-muted-foreground"
+          "text-sm font-medium leading-6 transition-colors flex items-center gap-1",
+          isMenuActive(items)
+            ? "text-emerald-400"
+            : "text-zinc-300 hover:text-white"
         )}
       >
         {label}
         <ChevronDown className={cn(
-          "h-4 w-4 transition-transform",
+          "h-3.5 w-3.5 transition-transform opacity-60",
           openDropdown === menuKey && "rotate-180"
         )} />
       </button>
 
       {openDropdown === menuKey && (
         <div
-          className="absolute left-0 top-full mt-1 w-48 rounded-md shadow-lg bg-background border z-50"
+          className="absolute left-0 top-full mt-2 w-48 rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden"
+          style={{ background: '#0d2114' }}
           onMouseEnter={() => handleDropdownEnter(menuKey)}
           onMouseLeave={handleDropdownLeave}
         >
-          <div className="py-1">
+          <div className="py-1.5">
             {items.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
                 className={cn(
-                  "block px-4 py-2 text-sm transition-colors hover:bg-muted",
+                  "block px-4 py-2 text-sm transition-colors",
                   location.pathname === item.href
-                    ? "text-primary font-semibold"
-                    : "text-foreground"
+                    ? "text-emerald-400 font-medium bg-white/5"
+                    : "text-zinc-300 hover:text-white hover:bg-white/8"
                 )}
                 onClick={() => setOpenDropdown(null)}
               >
@@ -141,27 +142,29 @@ export function Header() {
       <button
         onClick={() => toggleMobileMenu(menuKey)}
         className={cn(
-          "w-full flex items-center justify-between rounded-md px-3 py-2 text-base font-medium transition-colors",
-          isMenuActive(items) ? "text-primary" : "text-foreground hover:bg-muted"
+          "w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+          isMenuActive(items)
+            ? "text-emerald-400"
+            : "text-zinc-300 hover:text-white hover:bg-white/8"
         )}
       >
         {label}
         <ChevronDown className={cn(
-          "h-4 w-4 transition-transform",
+          "h-4 w-4 opacity-60 transition-transform",
           mobileExpandedMenu === menuKey && "rotate-180"
         )} />
       </button>
       {mobileExpandedMenu === menuKey && (
-        <div className="ml-4 mt-1 space-y-1">
+        <div className="ml-3 mt-0.5 border-l border-white/10 pl-3 space-y-0.5">
           {items.map((item) => (
             <Link
               key={item.name}
               to={item.href}
               className={cn(
-                "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "block rounded-md px-3 py-2 text-sm transition-colors",
                 location.pathname === item.href
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "text-emerald-400 font-medium"
+                  : "text-zinc-400 hover:text-white"
               )}
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -174,19 +177,22 @@ export function Header() {
   )
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header
+      className="sticky top-0 z-50 w-full border-b border-white/8 backdrop-blur-md"
+      style={{ background: 'rgba(8, 26, 12, 0.97)' }}
+    >
       <nav className="container-custom flex h-16 items-center gap-2 lg:gap-8" aria-label="Global">
         {/* Logo */}
         <div className="flex flex-shrink-0">
           <Link to="/" className="-m-1.5 p-1.5">
             <span className="sr-only">Zambia Tennis Association</span>
-            <div className="flex items-center gap-2 lg:gap-3">
+            <div className="flex items-center gap-2.5 lg:gap-3">
               <img
                 src="/zta-logo.png"
                 alt="ZTA Logo"
-                className="h-10 w-10 lg:h-12 lg:w-12 object-contain"
+                className="h-9 w-9 lg:h-11 lg:w-11 object-contain"
               />
-              <span className="font-bold text-base lg:text-xl text-foreground hidden md:block whitespace-nowrap">
+              <span className="font-bold text-base lg:text-lg text-white hidden md:block whitespace-nowrap tracking-tight">
                 Zambia Tennis Association
               </span>
             </div>
@@ -195,108 +201,104 @@ export function Header() {
 
         {/* Mobile menu button */}
         <div className="flex lg:hidden ml-auto">
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-lg text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+            aria-label="Toggle menu"
           >
-            <span className="sr-only">Toggle menu</span>
-            {mobileMenuOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
-          </Button>
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
 
         {/* Desktop navigation */}
-        <div className="hidden lg:flex lg:gap-x-4 xl:gap-x-8 lg:items-center ml-auto">
-          {/* Home */}
+        <div className="hidden lg:flex lg:gap-x-5 xl:gap-x-7 lg:items-center ml-auto">
           <Link
             to="/"
             className={cn(
-              "text-sm font-semibold leading-6 transition-colors hover:text-primary whitespace-nowrap",
-              location.pathname === "/" ? "text-primary" : "text-muted-foreground"
+              "text-sm font-medium leading-6 transition-colors whitespace-nowrap",
+              location.pathname === "/" ? "text-emerald-400" : "text-zinc-300 hover:text-white"
             )}
           >
             Home
           </Link>
 
-          {/* Tennis Dropdown */}
           <DropdownMenu label="Tennis" menuKey="tennis" items={tennisMenu} />
-
-          {/* Connect Dropdown */}
           <DropdownMenu label="Connect" menuKey="connect" items={connectMenu} />
-
-          {/* About Dropdown */}
           <DropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
-          {/* Partnership */}
           <Link
             to="/partnerships"
             className={cn(
-              "text-sm font-semibold leading-6 transition-colors hover:text-primary flex items-center gap-1 whitespace-nowrap",
-              location.pathname === "/partnerships" ? "text-primary" : "text-muted-foreground"
+              "text-sm font-medium leading-6 transition-colors flex items-center gap-1.5 whitespace-nowrap",
+              location.pathname === "/partnerships" ? "text-emerald-400" : "text-zinc-300 hover:text-white"
             )}
           >
-            <Handshake className="h-4 w-4" />
+            <Handshake className="h-3.5 w-3.5 opacity-70" />
             Partnership
           </Link>
 
-          {/* Donate Button */}
+          {/* Donate */}
           <Button
-            variant="default"
             size="sm"
             onClick={() => navigate('/donate')}
-            className="bg-primary hover:bg-primary/90"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white border-0 font-medium"
           >
-            <Heart className="h-4 w-4 mr-2" />
+            <Heart className="h-3.5 w-3.5 mr-1.5" />
             Donate
           </Button>
 
-          {/* Auth buttons */}
-          <div className="flex items-center gap-2 lg:gap-3 ml-2 lg:ml-4 border-l pl-2 lg:pl-4">
+          {/* Auth */}
+          <div className="flex items-center gap-2 border-l border-white/15 pl-4 ml-1">
             {isAuthenticated ? (
               <>
                 {isAdmin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <button
                     onClick={() => navigate('/admin')}
-                    className="hidden xl:flex"
-                  >
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Admin
-                  </Button>
-                )}
-                {isAdmin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/admin')}
-                    className="xl:hidden"
+                    className="hidden xl:flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-white/8"
                   >
                     <LayoutDashboard className="h-4 w-4" />
-                  </Button>
+                    Admin
+                  </button>
                 )}
-                <span className="text-xs lg:text-sm text-muted-foreground hidden xl:flex items-center gap-2">
-                  <User className="h-4 w-4" />
+                {isAdmin && (
+                  <button
+                    onClick={() => navigate('/admin')}
+                    className="xl:hidden p-2 rounded-lg text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                  </button>
+                )}
+                <span className="text-sm text-zinc-400 hidden xl:flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5" />
                   {user?.firstName}
                 </span>
-                <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden xl:flex">
-                  <LogOut className="h-4 w-4 mr-2" />
+                <button
+                  onClick={handleLogout}
+                  className="hidden xl:flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-white/8"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
                   Logout
-                </Button>
-                <Button variant="ghost" size="sm" onClick={handleLogout} className="xl:hidden">
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="xl:hidden p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
                   <LogOut className="h-4 w-4" />
-                </Button>
+                </button>
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
+                <button
+                  onClick={() => navigate('/login')}
+                  className="text-sm font-medium text-zinc-300 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/8"
+                >
                   Login
-                </Button>
-                <Button size="sm" onClick={() => navigate('/register')}>
+                </button>
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/register')}
+                  className="bg-white text-[#081a0c] hover:bg-zinc-100 font-semibold border-0"
+                >
                   Sign Up
                 </Button>
               </>
@@ -307,111 +309,86 @@ export function Header() {
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden">
-          <div className="space-y-1 px-4 pb-3 pt-2">
-            {/* Home */}
+        <div
+          className="lg:hidden border-t border-white/10"
+          style={{ background: '#081a0c' }}
+        >
+          <div className="px-4 py-3 space-y-0.5">
             <Link
               to="/"
               className={cn(
-                "block rounded-md px-3 py-2 text-base font-medium transition-colors",
+                "block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 location.pathname === "/"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-muted"
+                  ? "text-emerald-400"
+                  : "text-zinc-300 hover:text-white hover:bg-white/8"
               )}
               onClick={() => setMobileMenuOpen(false)}
             >
               Home
             </Link>
 
-            {/* Tennis Menu */}
             <MobileDropdownMenu label="Tennis" menuKey="tennis" items={tennisMenu} />
-
-            {/* Connect Menu */}
             <MobileDropdownMenu label="Connect" menuKey="connect" items={connectMenu} />
-
-            {/* About Menu */}
             <MobileDropdownMenu label="About" menuKey="about" items={aboutMenu} />
 
-            {/* Partnership */}
             <Link
               to="/partnerships"
               className={cn(
-                "block rounded-md px-3 py-2 text-base font-medium transition-colors",
+                "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 location.pathname === "/partnerships"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-foreground hover:bg-muted"
+                  ? "text-emerald-400"
+                  : "text-zinc-300 hover:text-white hover:bg-white/8"
               )}
               onClick={() => setMobileMenuOpen(false)}
             >
-              <span className="flex items-center gap-2">
-                <Handshake className="h-4 w-4" />
-                Partnership
-              </span>
+              <Handshake className="h-4 w-4 opacity-70" />
+              Partnership
             </Link>
 
-            {/* Mobile Donate Button */}
-            <Button
-              variant="default"
-              className="w-full justify-start mt-3"
-              onClick={() => {
-                navigate('/donate')
-                setMobileMenuOpen(false)
-              }}
-            >
-              <Heart className="h-4 w-4 mr-2" />
-              Donate to ZTA
-            </Button>
+            <div className="pt-2 pb-1">
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white border-0 font-medium"
+                onClick={() => { navigate('/donate'); setMobileMenuOpen(false) }}
+              >
+                <Heart className="h-4 w-4 mr-2" />
+                Donate to ZTA
+              </Button>
+            </div>
 
-            {/* Mobile auth */}
-            <div className="border-t mt-3 pt-3 space-y-2">
+            <div className="border-t border-white/10 pt-3 mt-2 space-y-1.5">
               {isAuthenticated ? (
                 <>
-                  <div className="px-3 py-2 text-sm text-muted-foreground">
-                    Logged in as {user?.firstName} {user?.lastName}
+                  <div className="px-3 py-1 text-xs text-zinc-500">
+                    {user?.firstName} {user?.lastName}
                   </div>
                   {isAdmin && (
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => {
-                        navigate('/admin')
-                        setMobileMenuOpen(false)
-                      }}
+                    <button
+                      className="w-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-white/8 transition-colors"
+                      onClick={() => { navigate('/admin'); setMobileMenuOpen(false) }}
                     >
-                      <LayoutDashboard className="h-4 w-4 mr-2" />
+                      <LayoutDashboard className="h-4 w-4" />
                       Admin Dashboard
-                    </Button>
+                    </button>
                   )}
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      handleLogout()
-                      setMobileMenuOpen(false)
-                    }}
+                  <button
+                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-zinc-400 hover:text-white hover:bg-white/8 transition-colors"
+                    onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
                   >
-                    <LogOut className="h-4 w-4 mr-2" />
+                    <LogOut className="h-4 w-4" />
                     Logout
-                  </Button>
+                  </button>
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => {
-                      navigate('/login')
-                      setMobileMenuOpen(false)
-                    }}
+                  <button
+                    className="w-full rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 hover:text-white hover:bg-white/8 transition-colors text-left"
+                    onClick={() => { navigate('/login'); setMobileMenuOpen(false) }}
                   >
                     Login
-                  </Button>
+                  </button>
                   <Button
-                    className="w-full"
-                    onClick={() => {
-                      navigate('/register')
-                      setMobileMenuOpen(false)
-                    }}
+                    className="w-full bg-white text-[#081a0c] hover:bg-zinc-100 font-semibold border-0"
+                    onClick={() => { navigate('/register'); setMobileMenuOpen(false) }}
                   >
                     Sign Up
                   </Button>

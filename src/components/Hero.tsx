@@ -65,15 +65,15 @@ export function Hero({
       <div className="relative z-10 container-custom py-16 md:py-24 lg:py-32">
         <div className="mx-auto max-w-4xl text-center">
           {subtitle && (
-            <p className="mb-4 text-sm font-semibold tracking-wide uppercase text-primary-foreground/90">
+            <p className="mb-4 text-xs font-semibold tracking-[0.2em] uppercase text-emerald-400">
               {subtitle}
             </p>
           )}
-          <h1 className="text-4xl font-bold tracking-tight text-primary-foreground sm:text-5xl md:text-6xl lg:text-7xl mb-6">
+          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl mb-6">
             {title}
           </h1>
           {description && (
-            <p className="mx-auto max-w-2xl text-lg md:text-xl text-primary-foreground/90 mb-8">
+            <p className="mx-auto max-w-2xl text-lg md:text-xl text-zinc-300 mb-8 leading-relaxed">
               {description}
             </p>
           )}
@@ -83,7 +83,7 @@ export function Hero({
               {primaryCta && (
                 <Button
                   size="lg"
-                  className="bg-background text-foreground hover:bg-background/90 min-w-[160px]"
+                  className="bg-white text-[#081a0c] hover:bg-zinc-100 font-semibold min-w-[160px] border-0"
                   onClick={() => handleCtaClick(primaryCta)}
                 >
                   {primaryCta.text}
@@ -93,7 +93,7 @@ export function Hero({
                 <Button
                   size="lg"
                   variant="outline"
-                  className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10 min-w-[160px]"
+                  className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 min-w-[160px]"
                   onClick={() => handleCtaClick(secondaryCta)}
                 >
                   {secondaryCta.text}
