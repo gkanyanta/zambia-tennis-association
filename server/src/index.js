@@ -76,6 +76,15 @@ app.use(helmet({
   },
 }));
 
+// Health check route - must be before rate limiter so Render's poller never gets 429'd
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
@@ -157,15 +166,6 @@ app.use('/api/comments', commentRoutes);
 app.use('/api/upload/document', documentUploadRoutes);
 app.use('/api/live-matches', liveMatchRoutes);
 
-
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // Error handler
 app.use((err, req, res, next) => {
