@@ -1061,6 +1061,26 @@ export const saveManualDraw = async (req, res) => {
       });
     }
 
+    // A player can't be both a direct main-draw entrant and a qualifying
+    // entrant — that would silently duplicate one entrant and drop another
+    // from the draw. Backend backstop for the same check the UI enforces.
+    const mainDrawPlayerIds = new Set(
+      (draw.matches || [])
+        .flatMap(m => [m?.player1, m?.player2])
+        .filter(p => p && !p.isBye && !p.isQualifierPlaceholder)
+        .map(p => String(p.id))
+    );
+    for (const m of (draw.qualifyingStage && draw.qualifyingStage.matches) || []) {
+      for (const p of [m.player1, m.player2]) {
+        if (p && !p.isBye && mainDrawPlayerIds.has(String(p.id))) {
+          return res.status(400).json({
+            success: false,
+            message: `${p.name} is placed in both a main-draw slot and a qualifying match`
+          });
+        }
+      }
+    }
+
     const tournament = await Tournament.findById(tournamentId);
     if (!tournament) {
       return res.status(404).json({ success: false, message: 'Tournament not found' });

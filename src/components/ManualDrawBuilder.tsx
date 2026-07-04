@@ -369,6 +369,15 @@ export function ManualDrawBuilder({
         }
         assignedSlots.add(qm.assignedSlotIndex)
       }
+      // A player can't be both a direct main-draw entrant and a qualifying
+      // entrant — the dropdowns already prevent this going forward, but this
+      // is a hard defensive check against any state built another way.
+      for (const id of usedQualIds) {
+        if (seenIds.has(id)) {
+          const entry = acceptedEntries.find(e => entryKey(e) === id)
+          return `${entry?.playerName || 'A player'} is placed in both a main-draw slot and a qualifying match — remove one`
+        }
+      }
     }
     return null
   }
@@ -458,8 +467,11 @@ export function ManualDrawBuilder({
   }
 
   const renderSlotRow = (slot: Slot, index: number) => {
+    // Exclude entries already placed in another main-draw slot AND entries
+    // already assigned to a qualifying match — a player can only occupy one
+    // spot in the draw, whichever group claims them first.
     const entryOptions = acceptedEntries.filter(
-      e => !usedEntryIds.has(entryKey(e)) || entryKey(e) === slot.entryId
+      e => (!usedEntryIds.has(entryKey(e)) && !usedQualifyingEntryIds.has(entryKey(e))) || entryKey(e) === slot.entryId
     )
 
     // A qualifier placeholder can't be redefined while editing an existing
