@@ -121,14 +121,19 @@ const matchSchema = new mongoose.Schema({
     seed: Number,
     isBye: Boolean,
     // True while this main-draw slot is reserved for a qualifying-round winner
-    isQualifierPlaceholder: Boolean
+    isQualifierPlaceholder: Boolean,
+    // e.g. "Q1" — set when the slot is reserved for a qualifier and kept on
+    // the winner once promoted, so the main draw still shows where they came
+    // from even after the placeholder is resolved.
+    qualifierLabel: String
   },
   player2: {
     id: String,
     name: String,
     seed: Number,
     isBye: Boolean,
-    isQualifierPlaceholder: Boolean
+    isQualifierPlaceholder: Boolean,
+    qualifierLabel: String
   },
   winner: String,
   score: String,

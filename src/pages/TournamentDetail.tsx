@@ -1169,6 +1169,7 @@ function PublicResultsView({ tournament }: { tournament: Tournament }) {
                         <div className="flex-1">
                           <div className="flex items-center gap-4">
                             <div className={`flex-1 ${match.winner === match.player1?.id ? 'font-bold' : ''}`}>
+                              {match.player1?.qualifierLabel && <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold mr-1" title="Advanced through qualifying">{match.player1.qualifierLabel}</span>}
                               {match.player1?.name || 'TBD'}
                               {match.player1?.seed && <span className="text-xs text-muted-foreground ml-1">[{match.player1.seed}]</span>}
                               {match.winner === match.player1?.id && <CheckCircle2 className="h-4 w-4 inline ml-1 text-green-600" />}
@@ -1177,6 +1178,7 @@ function PublicResultsView({ tournament }: { tournament: Tournament }) {
                             <div className={`flex-1 text-right ${match.winner === match.player2?.id ? 'font-bold' : ''}`}>
                               {match.player2?.name || 'TBD'}
                               {match.player2?.seed && <span className="text-xs text-muted-foreground ml-1">[{match.player2.seed}]</span>}
+                              {match.player2?.qualifierLabel && <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold ml-1" title="Advanced through qualifying">{match.player2.qualifierLabel}</span>}
                               {match.winner === match.player2?.id && <CheckCircle2 className="h-4 w-4 inline ml-1 text-green-600" />}
                             </div>
                           </div>

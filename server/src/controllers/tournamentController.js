@@ -1427,7 +1427,10 @@ export const updateMatchResult = async (req, res) => {
           targetMatch[match.advancesToSlot] = {
             id: winnerPlayer.id,
             name: winnerPlayer.name,
-            seed: winnerPlayer.seed
+            seed: winnerPlayer.seed,
+            // Carry the "Q1"/"Q2" marker over from the placeholder so the main
+            // draw still shows where this player came from once resolved.
+            qualifierLabel: currentSlot.qualifierLabel
           };
         }
       }

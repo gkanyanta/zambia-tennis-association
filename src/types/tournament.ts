@@ -88,6 +88,9 @@ export interface MatchPlayer {
   isBye?: boolean
   // True while this main-draw slot is reserved for a qualifying-round winner
   isQualifierPlaceholder?: boolean
+  // e.g. "Q1" — persists on the winner once promoted, so the main draw still
+  // shows which qualifying slot they came through.
+  qualifierLabel?: string
 }
 
 export interface Draw {

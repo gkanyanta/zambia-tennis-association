@@ -71,7 +71,7 @@ const slotToPlayer = (slot: Slot, entries: TournamentEntry[]): MatchPlayer => {
   }
   if (slot.source === 'qualifier') {
     const n = slot.qualifierNumber ?? 0
-    return { id: `qualifier-${n}`, name: `Qualifier ${n}`, isQualifierPlaceholder: true }
+    return { id: `qualifier-${n}`, name: `Qualifier ${n}`, isQualifierPlaceholder: true, qualifierLabel: `Q${n}` }
   }
   if (slot.source === 'entry' && slot.entryId) {
     const entry = entries.find(e => entryKey(e) === slot.entryId)

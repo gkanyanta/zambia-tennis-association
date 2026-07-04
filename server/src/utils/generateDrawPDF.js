@@ -455,6 +455,18 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
     doc.text(' ', { continued: true, lineBreak: false });
   }
 
+  // Qualifier-origin badge (e.g. "Q1") — persists after the placeholder is
+  // resolved so the printed draw still shows where this player qualified from.
+  if (player.qualifierLabel) {
+    doc
+      .fontSize(smallFontSize)
+      .fillColor(COLORS.accent)
+      .font('Helvetica-Bold')
+      .text(player.qualifierLabel, nameX, textY, { continued: true, lineBreak: false });
+    doc.font('Helvetica');
+    doc.text(' ', { continued: true, lineBreak: false });
+  }
+
   // Player name — don't truncate doubles pairs (contain " / ")
   const isDoublesPair = player.name && player.name.includes(' / ');
   const displayName = isDoublesPair ? player.name : truncateName(player.name, maxNameChars);

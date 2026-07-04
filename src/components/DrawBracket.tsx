@@ -208,7 +208,7 @@ function BracketPlayer({
   score,
   showScore,
 }: {
-  player?: { id: string; name: string; seed?: number; isBye?: boolean; isQualifierPlaceholder?: boolean }
+  player?: { id: string; name: string; seed?: number; isBye?: boolean; isQualifierPlaceholder?: boolean; qualifierLabel?: string }
   isWinner: boolean
   score?: string
   showScore?: boolean
@@ -249,6 +249,14 @@ function BracketPlayer({
         {player.seed && (
           <span className="text-amber-600 dark:text-amber-400 font-semibold shrink-0">
             [{player.seed}]
+          </span>
+        )}
+        {player.qualifierLabel && (
+          <span
+            className="text-blue-600 dark:text-blue-400 font-semibold shrink-0"
+            title="Advanced through qualifying"
+          >
+            {player.qualifierLabel}
           </span>
         )}
         <span className="truncate">{player.name}</span>
