@@ -379,16 +379,21 @@ export const submitEntry = async (req, res) => {
       });
     }
 
-    // Check if player is already entered in another category (when multiple categories not allowed)
+    // Check if player is already entered in another category of the same format
+    // (when multiple categories not allowed). Scoped by format rather than a
+    // blanket one-category-per-tournament rule, so a player can hold one singles
+    // entry and one doubles entry at the same time — the normal case for club
+    // tournaments — while still blocking e.g. entering two singles categories.
     if (!tournament.allowMultipleCategories) {
       const otherCategory = tournament.categories.find(cat =>
         cat._id.toString() !== categoryId &&
+        cat.format === category.format &&
         cat.entries.some(e => e.playerZpin === player.zpin)
       );
       if (otherCategory) {
         return res.status(400).json({
           success: false,
-          message: `Player is already entered in category '${otherCategory.name}'. This tournament does not allow multiple category entries.`
+          message: `Player is already entered in category '${otherCategory.name}'. This tournament does not allow multiple entries of the same format.`
         });
       }
     }
@@ -465,7 +470,7 @@ export const submitEntry = async (req, res) => {
       const rankingCat = rankingCategoryFor(category);
       if (rankingCat) {
         const rankingYear = String(tournamentYear);
-        const rankDoc = await Ranking.findOne({ playerZpin: player.zpin, category: rankingCat, rankingPeriod: rankingYear, isActive: true }).select('rank');
+        const rankDoc = await Ranking.findOne({ playerZpin: player.zpin, category: rankingCat, rankingPeriod: rankingYear, isActive: true }).sort({ createdAt: 1 }).select('rank');
         if (rankDoc) {
           playerRank = rankDoc.rank;
         } else {
@@ -1843,14 +1848,21 @@ const awardRankingPoints = async (tournament, category) => {
       year: tournamentYear
     };
 
-    // Find or create ranking record
-    const query = playerZpin
-      ? { playerZpin, category: rankingCat, rankingPeriod, isActive: true }
-      : { playerName, category: rankingCat, rankingPeriod, isActive: true };
+    // Find or create ranking record. Prefer matching by playerId when we have
+    // a real one (pid is only a valid ObjectId for registered players — draw
+    // slots for unregistered "new player" entries carry null/synthetic ids),
+    // falling back to zpin then name so legacy records without playerId still match.
+    const validPlayerId = mongoose.Types.ObjectId.isValid(pid) ? pid : null;
+    const query = validPlayerId
+      ? { playerId: validPlayerId, category: rankingCat, rankingPeriod, isActive: true }
+      : playerZpin
+        ? { playerZpin, category: rankingCat, rankingPeriod, isActive: true }
+        : { playerName, category: rankingCat, rankingPeriod, isActive: true };
 
-    let ranking = await Ranking.findOne(query);
+    let ranking = await Ranking.findOne(query).sort({ createdAt: 1 });
     if (!ranking) {
       ranking = new Ranking({
+        playerId: validPlayerId || undefined,
         playerName,
         playerZpin,
         category: rankingCat,
@@ -1860,6 +1872,9 @@ const awardRankingPoints = async (tournament, category) => {
         tournamentResults: [],
         isActive: true
       });
+    } else if (validPlayerId && !ranking.playerId) {
+      // Backfill playerId on legacy records so future lookups are deterministic.
+      ranking.playerId = validPlayerId;
     }
 
     // Replace existing result for this tournament (idempotent) or push new
@@ -2398,17 +2413,19 @@ export const publicRegister = async (req, res) => {
           continue;
         }
 
-        // Check if player is already entered in another category (when multiple categories not allowed)
+        // Check if player is already entered in another category of the same format
+        // (when multiple categories not allowed) — see submitEntry for rationale.
         if (!tournament.allowMultipleCategories) {
           const otherCategory = tournament.categories.find(cat =>
             cat._id.toString() !== categoryId &&
+            cat.format === category.format &&
             cat.entries.some(e => e.playerZpin === player.zpin)
           );
           if (otherCategory) {
             errors.push({
               playerId,
               playerName: `${player.firstName} ${player.lastName}`,
-              error: `Player is already entered in category '${otherCategory.name}'. This tournament does not allow multiple category entries.`
+              error: `Player is already entered in category '${otherCategory.name}'. This tournament does not allow multiple entries of the same format.`
             });
             continue;
           }
@@ -2624,7 +2641,7 @@ export const publicRegister = async (req, res) => {
             category: rankingCat,
             rankingPeriod: rankingYear,
             isActive: true
-          }).select('rank');
+          }).sort({ createdAt: 1 }).select('rank');
           // Fall back to searching by name if no ZPIN match
           if (!rankDoc) {
             const nameDoc = await Ranking.findOne({

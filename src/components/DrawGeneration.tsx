@@ -37,14 +37,18 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   const seededEntries = acceptedEntries.filter(e => e.seed).length
   const canGenerateDraw = acceptedEntries.length >= 4
 
-  // Check if any matches have results — prevent accidental regeneration
+  // Check if any matches have results — prevent accidental regeneration.
+  // BYE auto-advances set `winner` without a real match being played, so they
+  // must not count towards this — otherwise any draw with a BYE in round 1
+  // becomes permanently un-regenerable.
   const hasPlayedMatches = (() => {
     if (!category.draw) return false
     const drawMatches = (category.draw as any).matches || []
     const rrGroups = (category.draw as any).roundRobinGroups || []
     const mixerRounds = (category.draw as any).mixerRounds || []
-    const hasDrawResults = drawMatches.some((m: any) => m.winner || m.score)
-    const hasRRResults = rrGroups.some((g: any) => (g.matches || []).some((m: any) => m.winner || m.score))
+    const isRealMatch = (m: any) => !m.player1?.isBye && !m.player2?.isBye
+    const hasDrawResults = drawMatches.some((m: any) => isRealMatch(m) && (m.winner || m.score))
+    const hasRRResults = rrGroups.some((g: any) => (g.matches || []).some((m: any) => isRealMatch(m) && (m.winner || m.score)))
     const hasMixerResults = mixerRounds.some((r: any) => (r.courts || []).some((c: any) => c.status === 'completed'))
     return hasDrawResults || hasRRResults || hasMixerResults
   })()

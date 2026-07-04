@@ -83,6 +83,14 @@ rankingSchema.index({ playerZpin: 1, category: 1, rankingPeriod: 1 });
 // Compound index for common queries
 rankingSchema.index({ category: 1, rankingPeriod: 1, isActive: 1 });
 
+// Prevent duplicate active ranking records for the same player/category/period,
+// which previously arose from a find-or-create race in the points-award flow
+// and caused stale/incorrect ranks to surface on tournament entries.
+rankingSchema.index(
+  { playerId: 1, category: 1, rankingPeriod: 1 },
+  { unique: true, partialFilterExpression: { isActive: true, playerId: { $type: 'objectId' } } }
+);
+
 rankingSchema.methods.calculateTotalPoints = function () {
   this.totalPoints = this.tournamentResults.reduce((sum, r) => sum + (r.points || 0) + (r.upsetBonus || 0), 0);
 };
