@@ -11,6 +11,14 @@ import { tournamentService } from '@/services/tournamentService'
 import type { Draw, Match, MatchPlayer, TournamentCategory, TournamentEntry } from '@/types/tournament'
 import { getRoundName } from '@/types/tournament'
 
+// TournamentEntry.id is typed as always present, but the API never actually
+// serializes a Mongoose `id` virtual for subdocuments — only `_id`. Using
+// `e.id` directly means every entry option collapses to the same
+// `entry:undefined` value, so the browser always displays whichever entry is
+// first in the list, no matter which one was actually selected. `_id` is the
+// one field guaranteed present and unique per entry.
+const entryKey = (e: TournamentEntry): string => (e as any)._id || e.id
+
 type SlotSource = 'empty' | 'entry' | 'walkin' | 'bye' | 'qualifier'
 
 interface Slot {
@@ -66,7 +74,7 @@ const slotToPlayer = (slot: Slot, entries: TournamentEntry[]): MatchPlayer => {
     return { id: `qualifier-${n}`, name: `Qualifier ${n}`, isQualifierPlaceholder: true }
   }
   if (slot.source === 'entry' && slot.entryId) {
-    const entry = entries.find(e => e.id === slot.entryId)
+    const entry = entries.find(e => entryKey(e) === slot.entryId)
     if (entry) {
       return {
         id: entry.playerId,
@@ -196,7 +204,7 @@ export function ManualDrawBuilder({
       // which would mint a new random id each save and break the promotion link.
       if (p.isQualifierPlaceholder) return { source: 'qualifier' }
       const matchedEntry = p.id ? entryByPlayerId.get(p.id) : undefined
-      if (matchedEntry) return { source: 'entry', entryId: matchedEntry.id, seed: p.seed ?? matchedEntry.seed }
+      if (matchedEntry) return { source: 'entry', entryId: entryKey(matchedEntry), seed: p.seed ?? matchedEntry.seed }
       if (p.id && String(p.id).startsWith('walkin-')) return { source: 'walkin', walkinName: p.name || '', seed: p.seed }
       // Fallback: treat as walk-in if we have a name but no matching entry
       if (p.name) return { source: 'walkin', walkinName: p.name, seed: p.seed }
@@ -252,7 +260,7 @@ export function ManualDrawBuilder({
   // Fixed candidate pool: accepted entries not placed in a main-draw 'entry'
   // slot. Every one of these must end up in exactly one qualifying match.
   const qualifyingPool = useMemo(
-    () => acceptedEntries.filter(e => !usedEntryIds.has(e.id)),
+    () => acceptedEntries.filter(e => !usedEntryIds.has(entryKey(e))),
     [acceptedEntries, usedEntryIds]
   )
 
@@ -303,7 +311,7 @@ export function ManualDrawBuilder({
     setSlots(prev => {
       const next = prev.map(() => emptySlot()) as Slot[]
       acceptedEntries.slice(0, bracketSize).forEach((entry, i) => {
-        next[i] = { source: 'entry', entryId: entry.id, seed: entry.seed }
+        next[i] = { source: 'entry', entryId: entryKey(entry), seed: entry.seed }
       })
       return next
     })
@@ -367,8 +375,8 @@ export function ManualDrawBuilder({
 
   const buildQualifyingStage = (): NonNullable<Draw['qualifyingStage']> => {
     const matches: Match[] = qualifyingMatches.map((qm, i) => {
-      const entryA = acceptedEntries.find(e => e.id === qm.entryIdA)!
-      const entryB = acceptedEntries.find(e => e.id === qm.entryIdB)!
+      const entryA = acceptedEntries.find(e => entryKey(e) === qm.entryIdA)!
+      const entryB = acceptedEntries.find(e => entryKey(e) === qm.entryIdB)!
       const targetSlotIndex = qualifierSlotIndexes[qm.assignedSlotIndex!]
       return {
         id: `qualifying-match-${i + 1}`,
@@ -451,7 +459,7 @@ export function ManualDrawBuilder({
 
   const renderSlotRow = (slot: Slot, index: number) => {
     const entryOptions = acceptedEntries.filter(
-      e => !usedEntryIds.has(e.id) || e.id === slot.entryId
+      e => !usedEntryIds.has(entryKey(e)) || entryKey(e) === slot.entryId
     )
 
     // A qualifier placeholder can't be redefined while editing an existing
@@ -495,7 +503,7 @@ export function ManualDrawBuilder({
           {entryOptions.length > 0 && (
             <optgroup label="Accepted entries">
               {entryOptions.map(e => (
-                <option key={e.id} value={`entry:${e.id}`}>
+                <option key={entryKey(e)} value={`entry:${entryKey(e)}`}>
                   {e.playerName}
                   {e.seed ? ` (seed ${e.seed})` : ''}
                   {e.clubName ? ` — ${e.clubName}` : ''}
@@ -550,8 +558,8 @@ export function ManualDrawBuilder({
           you record that qualifying match's result.
         </p>
         {qualifyingMatches.map((qm, i) => {
-          const optionsA = qualifyingPool.filter(e => !usedQualifyingEntryIds.has(e.id) || e.id === qm.entryIdA)
-          const optionsB = qualifyingPool.filter(e => !usedQualifyingEntryIds.has(e.id) || e.id === qm.entryIdB)
+          const optionsA = qualifyingPool.filter(e => !usedQualifyingEntryIds.has(entryKey(e)) || entryKey(e) === qm.entryIdA)
+          const optionsB = qualifyingPool.filter(e => !usedQualifyingEntryIds.has(entryKey(e)) || entryKey(e) === qm.entryIdB)
           return (
             <div key={i} className="flex items-center gap-2 py-1">
               <div className="w-28 shrink-0 text-sm text-muted-foreground">Qualifying {i + 1}</div>
@@ -562,7 +570,7 @@ export function ManualDrawBuilder({
               >
                 <option value="">— choose —</option>
                 {optionsA.map(e => (
-                  <option key={e.id} value={e.id}>{e.playerName}</option>
+                  <option key={entryKey(e)} value={entryKey(e)}>{e.playerName}</option>
                 ))}
               </select>
               <span className="text-xs text-muted-foreground shrink-0">vs</span>
@@ -573,7 +581,7 @@ export function ManualDrawBuilder({
               >
                 <option value="">— choose —</option>
                 {optionsB.map(e => (
-                  <option key={e.id} value={e.id}>{e.playerName}</option>
+                  <option key={entryKey(e)} value={entryKey(e)}>{e.playerName}</option>
                 ))}
               </select>
               <span className="text-xs text-muted-foreground shrink-0">feeds into</span>
