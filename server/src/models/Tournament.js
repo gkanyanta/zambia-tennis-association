@@ -119,13 +119,16 @@ const matchSchema = new mongoose.Schema({
     id: String,
     name: String,
     seed: Number,
-    isBye: Boolean
+    isBye: Boolean,
+    // True while this main-draw slot is reserved for a qualifying-round winner
+    isQualifierPlaceholder: Boolean
   },
   player2: {
     id: String,
     name: String,
     seed: Number,
-    isBye: Boolean
+    isBye: Boolean,
+    isQualifierPlaceholder: Boolean
   },
   winner: String,
   score: String,
@@ -136,7 +139,14 @@ const matchSchema = new mongoose.Schema({
   },
   court: String,
   scheduledTime: Date,
-  completedTime: Date
+  completedTime: Date,
+  // Only set on qualifyingStage.matches entries: identifies which main-draw
+  // Round 1 match/slot this qualifying match's winner should be promoted into.
+  advancesToMatchNumber: Number,
+  advancesToSlot: {
+    type: String,
+    enum: ['player1', 'player2']
+  }
 });
 
 // Round robin group schema
@@ -225,6 +235,19 @@ const drawSchema = new mongoose.Schema({
   knockoutStage: {
     matches: [matchSchema],
     numberOfRounds: Number,
+    generatedAt: Date,
+    status: {
+      type: String,
+      enum: ['pending', 'in_progress', 'completed'],
+      default: 'pending'
+    }
+  },
+  // Qualifying round for single-elimination categories where accepted entries
+  // exceed the main draw's bracket size — winners feed into main-draw Round 1
+  // slots flagged isQualifierPlaceholder (see matchSchema.advancesToMatchNumber/advancesToSlot).
+  qualifyingStage: {
+    matches: [matchSchema],
+    numberOfRounds: { type: Number, default: 1 },
     generatedAt: Date,
     status: {
       type: String,

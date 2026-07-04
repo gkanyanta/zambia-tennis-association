@@ -769,6 +769,7 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
       ...rawDraw,
       matches: enrichMatches(rawDraw.matches),
       knockoutStage: rawDraw.knockoutStage ? { ...rawDraw.knockoutStage, matches: enrichMatches(rawDraw.knockoutStage.matches) } : undefined,
+      qualifyingStage: rawDraw.qualifyingStage ? { ...rawDraw.qualifyingStage, matches: enrichMatches(rawDraw.qualifyingStage.matches) } : undefined,
     }
   }, [selectedCategory, rawDraw])
 
@@ -834,6 +835,17 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
     const koOffset = 1000 // offset so knockout rounds sort after group rounds
     knockoutMatches.forEach((m: any) => {
       const key = m.round + koOffset
+      if (!matchesByRound[key]) matchesByRound[key] = []
+      matchesByRound[key].push(m)
+    })
+  }
+  // Qualifying matches must be resolved before the main draw, so they get the
+  // highest offset — the descending sort below (line ~952) puts them first.
+  const qualifyingMatches = (draw as any)?.qualifyingStage?.matches || []
+  if (qualifyingMatches.length > 0) {
+    const qOffset = 2000
+    qualifyingMatches.forEach((m: any) => {
+      const key = m.round + qOffset
       if (!matchesByRound[key]) matchesByRound[key] = []
       matchesByRound[key].push(m)
     })
@@ -959,6 +971,7 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
               <div className="space-y-3">
                 {matches.map((match: any) => {
                   const isBye = match.player1?.isBye || match.player2?.isBye
+                  const isQualifierPending = match.player1?.isQualifierPlaceholder || match.player2?.isQualifierPlaceholder
                   const isEditing = editingMatch === match._id
 
                   return (
@@ -969,13 +982,13 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-4">
-                            <div className={`flex-1 ${match.winner === match.player1?.id ? 'font-bold' : ''}`}>
+                            <div className={`flex-1 ${match.winner === match.player1?.id ? 'font-bold' : ''} ${match.player1?.isQualifierPlaceholder ? 'italic text-amber-600 dark:text-amber-400' : ''}`}>
                               {match.player1?.name || 'TBD'}
                               {match.player1?.seed && <span className="text-xs text-muted-foreground ml-1">[{match.player1.seed}]</span>}
                               {match.winner === match.player1?.id && <CheckCircle2 className="h-4 w-4 inline ml-1 text-green-600" />}
                             </div>
                             <div className="text-sm text-muted-foreground">vs</div>
-                            <div className={`flex-1 text-right ${match.winner === match.player2?.id ? 'font-bold' : ''}`}>
+                            <div className={`flex-1 text-right ${match.winner === match.player2?.id ? 'font-bold' : ''} ${match.player2?.isQualifierPlaceholder ? 'italic text-amber-600 dark:text-amber-400' : ''}`}>
                               {match.player2?.name || 'TBD'}
                               {match.player2?.seed && <span className="text-xs text-muted-foreground ml-1">[{match.player2.seed}]</span>}
                               {match.winner === match.player2?.id && <CheckCircle2 className="h-4 w-4 inline ml-1 text-green-600" />}
@@ -986,7 +999,7 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
                           )}
                         </div>
 
-                        {!isFinalized && !isBye && match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye && (
+                        {!isFinalized && !isBye && !isQualifierPending && match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye && (
                           <div className="ml-4">
                             {isEditing ? (
                               <div className="flex items-center gap-2">

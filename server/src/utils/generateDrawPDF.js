@@ -162,6 +162,21 @@ function renderSingleElimination(doc, tournament, category) {
   } else {
     renderSinglePageBracket(doc, tournament, category, roundMatches, numberOfRounds);
   }
+
+  // Render qualifying stage, if present, on its own page (mirrors knockoutStage
+  // treatment in renderRoundRobin) — never mixed into the main draw's Round 1.
+  if (draw.qualifyingStage && draw.qualifyingStage.matches && draw.qualifyingStage.matches.length > 0) {
+    doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
+    const qMatches = draw.qualifyingStage.matches;
+    const qRounds = draw.qualifyingStage.numberOfRounds || 1;
+    const qRoundMatches = {};
+    for (let r = 1; r <= qRounds; r++) {
+      qRoundMatches[r] = qMatches
+        .filter(m => m.round === r)
+        .sort((a, b) => a.matchNumber - b.matchNumber);
+    }
+    renderSinglePageBracket(doc, tournament, category, qRoundMatches, qRounds, 'Qualifying');
+  }
 }
 
 /**
@@ -394,6 +409,16 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
       .fillColor(COLORS.byeText)
       .font('Helvetica-Oblique')
       .text('BYE', nameX, textY, { width: fullWidth, lineBreak: false });
+    doc.font('Helvetica');
+    return;
+  }
+
+  if (player && player.isQualifierPlaceholder) {
+    doc
+      .fontSize(nameFontSize)
+      .fillColor(COLORS.byeText)
+      .font('Helvetica-Oblique')
+      .text(player.name, nameX, textY, { width: fullWidth, lineBreak: false });
     doc.font('Helvetica');
     return;
   }

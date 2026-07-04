@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -11,13 +11,23 @@ import { tournamentService } from '@/services/tournamentService'
 import type { Draw, Match, MatchPlayer, TournamentCategory, TournamentEntry } from '@/types/tournament'
 import { getRoundName } from '@/types/tournament'
 
-type SlotSource = 'empty' | 'entry' | 'walkin' | 'bye'
+type SlotSource = 'empty' | 'entry' | 'walkin' | 'bye' | 'qualifier'
 
 interface Slot {
   source: SlotSource
   entryId?: string
   walkinName?: string
   seed?: number
+  /** Derived (not user-set) 1-based ordinal among all 'qualifier' slots, top-to-bottom. */
+  qualifierNumber?: number
+}
+
+/** One qualifying match: two accepted entries competing for one reserved main-draw slot. */
+interface QualifyingMatch {
+  entryIdA?: string
+  entryIdB?: string
+  /** Index into `qualifierSlotIndexes` — which reserved slot this match feeds. */
+  assignedSlotIndex?: number
 }
 
 interface ManualDrawBuilderProps {
@@ -50,6 +60,10 @@ const generateWalkinId = () => {
 const slotToPlayer = (slot: Slot, entries: TournamentEntry[]): MatchPlayer => {
   if (slot.source === 'bye' || slot.source === 'empty') {
     return { id: 'bye', name: 'BYE', isBye: true }
+  }
+  if (slot.source === 'qualifier') {
+    const n = slot.qualifierNumber ?? 0
+    return { id: `qualifier-${n}`, name: `Qualifier ${n}`, isQualifierPlaceholder: true }
   }
   if (slot.source === 'entry' && slot.entryId) {
     const entry = entries.find(e => e.id === slot.entryId)
@@ -87,6 +101,10 @@ const buildSingleEliminationDraw = (slots: Slot[], entries: TournamentEntry[]): 
     const hasBye = p1.isBye || p2.isBye
     const realPlayer = p1.isBye ? (p2.isBye ? undefined : p2) : p1
     const bothByes = p1.isBye && p2.isBye
+    // A qualifier placeholder is not yet a resolved player — never auto-advance
+    // it via a BYE walkover; the match stays scheduled until the qualifying
+    // match is actually decided (see updateMatchResult's promotion logic).
+    const autoCompletable = hasBye && !!realPlayer && !realPlayer.isQualifierPlaceholder
 
     matches.push({
       id: `match-${matchNumber}`,
@@ -95,8 +113,8 @@ const buildSingleEliminationDraw = (slots: Slot[], entries: TournamentEntry[]): 
       roundName: getRoundName(1, numberOfRounds),
       player1: p1,
       player2: p2,
-      status: bothByes ? 'completed' : hasBye && realPlayer ? 'completed' : 'scheduled',
-      winner: hasBye && realPlayer ? realPlayer.id : undefined,
+      status: bothByes ? 'completed' : autoCompletable ? 'completed' : 'scheduled',
+      winner: autoCompletable ? realPlayer!.id : undefined,
     })
     matchNumber++
   }
@@ -172,6 +190,11 @@ export function ManualDrawBuilder({
 
     const playerToSlot = (p: any): Slot => {
       if (!p || p.isBye) return { source: 'bye' }
+      // Preserve qualifier placeholders as-is — editMode can't redefine the
+      // qualifying bracket (see updateManualDrawSlots), so this must round-trip
+      // unchanged rather than falling through to the walk-in fallback below,
+      // which would mint a new random id each save and break the promotion link.
+      if (p.isQualifierPlaceholder) return { source: 'qualifier' }
       const matchedEntry = p.id ? entryByPlayerId.get(p.id) : undefined
       if (matchedEntry) return { source: 'entry', entryId: matchedEntry.id, seed: p.seed ?? matchedEntry.seed }
       if (p.id && String(p.id).startsWith('walkin-')) return { source: 'walkin', walkinName: p.name || '', seed: p.seed }
@@ -206,6 +229,49 @@ export function ManualDrawBuilder({
   const usedEntryIds = useMemo(
     () => new Set(slots.filter(s => s.source === 'entry' && s.entryId).map(s => s.entryId!)),
     [slots]
+  )
+
+  // Slots carry a derived (not user-set) qualifierNumber so "Qualifier 1",
+  // "Qualifier 2", etc. always match top-to-bottom Round-1 order.
+  const effectiveSlots = useMemo(() => {
+    let qNum = 0
+    return slots.map(s => {
+      if (s.source === 'qualifier') {
+        qNum += 1
+        return { ...s, qualifierNumber: qNum }
+      }
+      return s
+    })
+  }, [slots])
+
+  const qualifierSlotIndexes = useMemo(
+    () => slots.map((s, i) => ({ s, i })).filter(x => x.s.source === 'qualifier').map(x => x.i),
+    [slots]
+  )
+
+  // Fixed candidate pool: accepted entries not placed in a main-draw 'entry'
+  // slot. Every one of these must end up in exactly one qualifying match.
+  const qualifyingPool = useMemo(
+    () => acceptedEntries.filter(e => !usedEntryIds.has(e.id)),
+    [acceptedEntries, usedEntryIds]
+  )
+
+  const [qualifyingMatches, setQualifyingMatches] = useState<QualifyingMatch[]>([])
+
+  // Keep qualifyingMatches sized to the number of reserved Qualifier slots,
+  // preserving already-filled rows when the count grows/shrinks.
+  useEffect(() => {
+    setQualifyingMatches(prev => {
+      const needed = qualifierSlotIndexes.length
+      if (prev.length === needed) return prev
+      const next = Array.from({ length: needed }, (_, i) => prev[i] ?? { assignedSlotIndex: i })
+      return next
+    })
+  }, [qualifierSlotIndexes.length])
+
+  const usedQualifyingEntryIds = useMemo(
+    () => new Set(qualifyingMatches.flatMap(m => [m.entryIdA, m.entryIdB].filter(Boolean) as string[])),
+    [qualifyingMatches]
   )
 
   const changeBracketSize = (size: BracketSize) => {
@@ -265,7 +331,66 @@ export function ManualDrawBuilder({
         if (!s.walkinName || !s.walkinName.trim()) return `Slot ${i + 1}: walk-in name is required`
       }
     }
+
+    // Qualifying pool/bracket validation only applies when building a fresh
+    // draw — editMode can't redefine the qualifying bracket (see
+    // updateManualDrawSlots), it only round-trips existing Qualifier slots unchanged.
+    if (!editMode && qualifierSlotIndexes.length > 0) {
+      if (qualifyingPool.length !== 2 * qualifierSlotIndexes.length) {
+        return `${qualifierSlotIndexes.length} Qualifier slot(s) need exactly ${2 * qualifierSlotIndexes.length} unused accepted entries to fill the qualifying bracket, but ${qualifyingPool.length} are unused. Adjust the main-draw slots or the number of Qualifier slots.`
+      }
+      if (qualifyingMatches.length !== qualifierSlotIndexes.length) {
+        return `Expected ${qualifierSlotIndexes.length} qualifying match(es), found ${qualifyingMatches.length}`
+      }
+      const usedQualIds = new Set<string>()
+      const assignedSlots = new Set<number>()
+      for (let i = 0; i < qualifyingMatches.length; i++) {
+        const qm = qualifyingMatches[i]
+        if (!qm.entryIdA || !qm.entryIdB) return `Qualifying match ${i + 1}: both players are required`
+        if (qm.entryIdA === qm.entryIdB) return `Qualifying match ${i + 1}: cannot pair a player against themselves`
+        if (usedQualIds.has(qm.entryIdA) || usedQualIds.has(qm.entryIdB)) {
+          return `Qualifying match ${i + 1}: a player is already used in another qualifying match`
+        }
+        usedQualIds.add(qm.entryIdA)
+        usedQualIds.add(qm.entryIdB)
+        if (qm.assignedSlotIndex == null || qm.assignedSlotIndex < 0 || qm.assignedSlotIndex >= qualifierSlotIndexes.length) {
+          return `Qualifying match ${i + 1}: must be assigned to a Qualifier slot`
+        }
+        if (assignedSlots.has(qm.assignedSlotIndex)) {
+          return `Two qualifying matches are assigned to the same Qualifier slot`
+        }
+        assignedSlots.add(qm.assignedSlotIndex)
+      }
+    }
     return null
+  }
+
+  const buildQualifyingStage = (): NonNullable<Draw['qualifyingStage']> => {
+    const matches: Match[] = qualifyingMatches.map((qm, i) => {
+      const entryA = acceptedEntries.find(e => e.id === qm.entryIdA)!
+      const entryB = acceptedEntries.find(e => e.id === qm.entryIdB)!
+      const targetSlotIndex = qualifierSlotIndexes[qm.assignedSlotIndex!]
+      return {
+        id: `qualifying-match-${i + 1}`,
+        matchNumber: i + 1,
+        round: 1,
+        roundName: 'Qualifying',
+        player1: { id: entryA.playerId, name: entryA.playerName, seed: entryA.seed },
+        player2: { id: entryB.playerId, name: entryB.playerName, seed: entryB.seed },
+        status: 'scheduled',
+        advancesToMatchNumber: Math.floor(targetSlotIndex / 2) + 1,
+        advancesToSlot: targetSlotIndex % 2 === 0 ? 'player1' : 'player2',
+      }
+    })
+    return { matches, numberOfRounds: 1, generatedAt: new Date().toISOString() }
+  }
+
+  const buildDraw = (): Draw => {
+    const draw = buildSingleEliminationDraw(effectiveSlots, acceptedEntries)
+    if (!editMode && qualifierSlotIndexes.length > 0) {
+      draw.qualifyingStage = buildQualifyingStage()
+    }
+    return draw
   }
 
   const handlePreview = () => {
@@ -275,13 +400,17 @@ export function ManualDrawBuilder({
       return
     }
     setError(null)
-    setPreview(buildSingleEliminationDraw(slots, acceptedEntries))
+    setPreview(buildDraw())
   }
 
   const slotsToPayload = () => {
     // Project each slot into the wire format expected by updateManualDrawSlots.
     // Walk-ins get a stable synthetic id; entries contribute their playerId.
-    return slots.map(s => {
+    // Uses effectiveSlots so an existing 'qualifier' slot reconstructs the same
+    // stable id/name it already has (see playerToSlot above) — since
+    // updateManualDrawSlots only touches a match when its slot id actually
+    // differs, this makes re-saving a qualifier placeholder in editMode a safe no-op.
+    return effectiveSlots.map(s => {
       const player = slotToPlayer(s, acceptedEntries)
       return {
         id: player.id,
@@ -304,7 +433,7 @@ export function ManualDrawBuilder({
       if (editMode) {
         await tournamentService.updateManualDrawSlots(tournamentId, categoryId, slotsToPayload())
       } else {
-        const drawToSave = preview ?? buildSingleEliminationDraw(slots, acceptedEntries)
+        const drawToSave = preview ?? buildDraw()
         await tournamentService.saveManualDraw(tournamentId, categoryId, drawToSave, confirmOverwrite)
       }
       await onSaved()
@@ -325,6 +454,20 @@ export function ManualDrawBuilder({
       e => !usedEntryIds.has(e.id) || e.id === slot.entryId
     )
 
+    // A qualifier placeholder can't be redefined while editing an existing
+    // draw (editMode has no way to send a new qualifyingStage) — round-trip
+    // it read-only instead of exposing an interactive select for it.
+    if (editMode && slot.source === 'qualifier') {
+      return (
+        <div key={index} className="flex items-center gap-2 py-1">
+          <div className="w-14 shrink-0 text-sm text-muted-foreground">Slot {index + 1}</div>
+          <div className="h-9 flex-1 min-w-0 flex items-center px-2 text-sm text-amber-600 italic font-medium border rounded-md bg-amber-50">
+            Qualifier {slot.qualifierNumber} (reserved — edit via full draw rebuild)
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div key={index} className="flex items-center gap-2 py-1">
         <div className="w-14 shrink-0 text-sm text-muted-foreground">Slot {index + 1}</div>
@@ -344,6 +487,11 @@ export function ManualDrawBuilder({
           <option value="empty">— choose —</option>
           <option value="bye">BYE</option>
           <option value="walkin">Walk-in (type name)</option>
+          {!editMode && (
+            <option value="qualifier">
+              Qualifier (reserved){slot.source === 'qualifier' && slot.qualifierNumber ? ` — Qualifier ${slot.qualifierNumber}` : ''}
+            </option>
+          )}
           {entryOptions.length > 0 && (
             <optgroup label="Accepted entries">
               {entryOptions.map(e => (
@@ -379,6 +527,75 @@ export function ManualDrawBuilder({
             }}
           />
         )}
+      </div>
+    )
+  }
+
+  const updateQualifyingMatch = (index: number, patch: Partial<QualifyingMatch>) => {
+    setQualifyingMatches(prev => prev.map((qm, i) => (i === index ? { ...qm, ...patch } : qm)))
+    setPreview(null)
+  }
+
+  const renderQualifyingPanel = () => {
+    const overflow = qualifierSlotIndexes.length
+    return (
+      <div className="border rounded-md p-4 space-y-3 bg-amber-50">
+        <div className="text-sm font-medium text-amber-800">
+          Qualifying — {acceptedEntries.length} accepted entries into a {bracketSize}-slot draw ⇒{' '}
+          {overflow} slot{overflow === 1 ? '' : 's'} reserved for Qualifier{overflow === 1 ? '' : 's'}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Assign the {2 * overflow} unused accepted entries into {overflow} qualifying match
+          {overflow === 1 ? '' : 'es'}. Each match's winner fills its assigned Qualifier slot once
+          you record that qualifying match's result.
+        </p>
+        {qualifyingMatches.map((qm, i) => {
+          const optionsA = qualifyingPool.filter(e => !usedQualifyingEntryIds.has(e.id) || e.id === qm.entryIdA)
+          const optionsB = qualifyingPool.filter(e => !usedQualifyingEntryIds.has(e.id) || e.id === qm.entryIdB)
+          return (
+            <div key={i} className="flex items-center gap-2 py-1">
+              <div className="w-28 shrink-0 text-sm text-muted-foreground">Qualifying {i + 1}</div>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-sm flex-1 min-w-0"
+                value={qm.entryIdA ?? ''}
+                onChange={e => updateQualifyingMatch(i, { entryIdA: e.target.value || undefined })}
+              >
+                <option value="">— choose —</option>
+                {optionsA.map(e => (
+                  <option key={e.id} value={e.id}>{e.playerName}</option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground shrink-0">vs</span>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-sm flex-1 min-w-0"
+                value={qm.entryIdB ?? ''}
+                onChange={e => updateQualifyingMatch(i, { entryIdB: e.target.value || undefined })}
+              >
+                <option value="">— choose —</option>
+                {optionsB.map(e => (
+                  <option key={e.id} value={e.id}>{e.playerName}</option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground shrink-0">feeds into</span>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-sm w-36 shrink-0"
+                value={qm.assignedSlotIndex ?? ''}
+                onChange={e =>
+                  updateQualifyingMatch(i, {
+                    assignedSlotIndex: e.target.value === '' ? undefined : parseInt(e.target.value, 10),
+                  })
+                }
+              >
+                <option value="">— choose —</option>
+                {qualifierSlotIndexes.map((_, slotOrdinal) => (
+                  <option key={slotOrdinal} value={slotOrdinal}>
+                    Qualifier {slotOrdinal + 1}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -491,8 +708,10 @@ export function ManualDrawBuilder({
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-            {slots.map((slot, index) => renderSlotRow(slot, index))}
+            {effectiveSlots.map((slot, index) => renderSlotRow(slot, index))}
           </div>
+
+          {!editMode && qualifierSlotIndexes.length > 0 && renderQualifyingPanel()}
 
           <div className="flex gap-3 pt-2">
             <Button onClick={handlePreview}>

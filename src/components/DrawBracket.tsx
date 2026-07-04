@@ -13,11 +13,35 @@ export function DrawBracket({ draw, onMatchClick }: DrawBracketProps) {
     return null
   }
 
-  if (draw.type === 'round_robin') {
-    return <RoundRobinView draw={draw} onMatchClick={onMatchClick} />
-  }
+  const body =
+    draw.type === 'round_robin' ? (
+      <RoundRobinView draw={draw} onMatchClick={onMatchClick} />
+    ) : (
+      <SingleEliminationBracket draw={draw} onMatchClick={onMatchClick} />
+    )
 
-  return <SingleEliminationBracket draw={draw} onMatchClick={onMatchClick} />
+  const qualifying = draw.qualifyingStage
+  if (!qualifying?.matches?.length) return body
+
+  return (
+    <div className="space-y-8">
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-bold mb-4">Qualifying</h3>
+          <SingleEliminationBracket
+            draw={{
+              ...draw,
+              type: 'single_elimination',
+              matches: qualifying.matches,
+              numberOfRounds: qualifying.numberOfRounds || 1,
+            }}
+            onMatchClick={onMatchClick}
+          />
+        </CardContent>
+      </Card>
+      {body}
+    </div>
+  )
 }
 
 // ─── Single Elimination Bracket ──────────────────────────────────────────────
@@ -140,7 +164,9 @@ const BracketMatch = forwardRef<
   { match: Match & { _id?: string }; onClick?: () => void }
 >(({ match, onClick }, ref) => {
   const isClickable =
-    match.player1 && match.player2 && !match.player1.isBye && !match.player2.isBye
+    match.player1 && match.player2 &&
+    !match.player1.isBye && !match.player2.isBye &&
+    !match.player1.isQualifierPlaceholder && !match.player2.isQualifierPlaceholder
   const isCompleted = match.status === 'completed' || match.status === 'walkover'
 
   return (
@@ -182,7 +208,7 @@ function BracketPlayer({
   score,
   showScore,
 }: {
-  player?: { id: string; name: string; seed?: number; isBye?: boolean }
+  player?: { id: string; name: string; seed?: number; isBye?: boolean; isQualifierPlaceholder?: boolean }
   isWinner: boolean
   score?: string
   showScore?: boolean
@@ -191,6 +217,14 @@ function BracketPlayer({
     return (
       <div className="py-1.5 px-2 text-xs text-muted-foreground italic">
         TBD
+      </div>
+    )
+  }
+
+  if (player.isQualifierPlaceholder) {
+    return (
+      <div className="py-1.5 px-2 text-xs text-amber-600 dark:text-amber-400 italic font-medium">
+        {player.name}
       </div>
     )
   }

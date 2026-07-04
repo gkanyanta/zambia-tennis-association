@@ -997,6 +997,10 @@ export const saveManualDraw = async (req, res) => {
         if (m?.player1) all.push({ player: m.player1, where: `knockout match ${m.matchNumber || ''} player1` });
         if (m?.player2) all.push({ player: m.player2, where: `knockout match ${m.matchNumber || ''} player2` });
       }
+      for (const m of (draw.qualifyingStage && draw.qualifyingStage.matches) || []) {
+        if (m?.player1) all.push({ player: m.player1, where: `qualifying match ${m.matchNumber || ''} player1` });
+        if (m?.player2) all.push({ player: m.player2, where: `qualifying match ${m.matchNumber || ''} player2` });
+      }
       return all;
     };
     const slots = collectPlayers();
@@ -1025,6 +1029,38 @@ export const saveManualDraw = async (req, res) => {
       seenIds.set(id, player.name);
     }
 
+    // Every "reserved for a qualifier" slot in the main draw must be fed by
+    // exactly one qualifying match, and every qualifying match must feed
+    // exactly one such slot — catch dangling references in either direction.
+    const placeholderSlots = new Set();
+    for (const m of draw.matches || []) {
+      if (m?.player1?.isQualifierPlaceholder) placeholderSlots.add(`${m.matchNumber}:player1`);
+      if (m?.player2?.isQualifierPlaceholder) placeholderSlots.add(`${m.matchNumber}:player2`);
+    }
+    const feedTargets = new Set();
+    for (const m of (draw.qualifyingStage && draw.qualifyingStage.matches) || []) {
+      if (m.advancesToMatchNumber == null || !m.advancesToSlot) {
+        return res.status(400).json({
+          success: false,
+          message: `Qualifying match ${m.matchNumber || ''} must specify advancesToMatchNumber and advancesToSlot`
+        });
+      }
+      const key = `${m.advancesToMatchNumber}:${m.advancesToSlot}`;
+      if (feedTargets.has(key)) {
+        return res.status(400).json({
+          success: false,
+          message: `Two qualifying matches both target main draw match ${m.advancesToMatchNumber} (${m.advancesToSlot})`
+        });
+      }
+      feedTargets.add(key);
+    }
+    if (placeholderSlots.size !== feedTargets.size || [...placeholderSlots].some(k => !feedTargets.has(k))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Qualifier placeholder slots in the main draw must exactly match the qualifying matches that feed them (found a mismatch between placeholders and qualifying-match targets)'
+      });
+    }
+
     const tournament = await Tournament.findById(tournamentId);
     if (!tournament) {
       return res.status(404).json({ success: false, message: 'Tournament not found' });
@@ -1041,7 +1077,8 @@ export const saveManualDraw = async (req, res) => {
       const hasScoredMatch = [
         ...(existing.matches || []),
         ...((existing.roundRobinGroups || []).flatMap(g => g.matches || [])),
-        ...((existing.knockoutStage && existing.knockoutStage.matches) || [])
+        ...((existing.knockoutStage && existing.knockoutStage.matches) || []),
+        ...((existing.qualifyingStage && existing.qualifyingStage.matches) || [])
       ].some(m => m && (m.winner || (m.status && m.status !== 'scheduled')));
 
       if (hasScoredMatch && !confirmOverwrite) {
@@ -1267,10 +1304,10 @@ export const updateMatchResult = async (req, res) => {
       });
     }
 
-    // Find and update match — search draw.matches, roundRobinGroups, then knockoutStage
+    // Find and update match — search draw.matches, roundRobinGroups, knockoutStage, then qualifyingStage
     let match = category.draw.matches.id(matchId);
     let matchGroup = null;
-    let matchSource = 'draw'; // 'draw' | 'roundRobin' | 'knockout'
+    let matchSource = 'draw'; // 'draw' | 'roundRobin' | 'knockout' | 'qualifying'
 
     if (!match && category.draw.roundRobinGroups) {
       for (const group of category.draw.roundRobinGroups) {
@@ -1288,6 +1325,11 @@ export const updateMatchResult = async (req, res) => {
       if (match) matchSource = 'knockout';
     }
 
+    if (!match && category.draw.qualifyingStage?.matches) {
+      match = category.draw.qualifyingStage.matches.id(matchId);
+      if (match) matchSource = 'qualifying';
+    }
+
     if (!match) {
       return res.status(404).json({
         success: false,
@@ -1300,8 +1342,10 @@ export const updateMatchResult = async (req, res) => {
     match.status = status || 'completed';
     match.completedTime = new Date();
 
-    // For single elimination, advance winner to next round
-    if (category.draw.type === 'single_elimination') {
+    // For single elimination, advance winner to next round (not applicable to
+    // qualifying matches, which promote into the main draw via a separate
+    // cross-bracket block below instead of same-bracket round advancement)
+    if (category.draw.type === 'single_elimination' && matchSource !== 'qualifying') {
       const nextRound = match.round + 1;
 
       // Find this match's position WITHIN its round (not global matchNumber)
@@ -1347,6 +1391,25 @@ export const updateMatchResult = async (req, res) => {
         const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
         if (isFirstPlayer) nextMatches[nextMatchIndex].player1 = winnerPlayer;
         else nextMatches[nextMatchIndex].player2 = winnerPlayer;
+      }
+    }
+
+    // For a qualifying match, promote the winner into their reserved main-draw
+    // slot (a different, cross-bracket advancement from the same-bracket cases
+    // above). Only overwrites a slot still flagged isQualifierPlaceholder, so
+    // a manual edit of that slot elsewhere is never silently clobbered.
+    if (matchSource === 'qualifying' && match.winner && match.advancesToMatchNumber != null && match.advancesToSlot) {
+      const targetMatch = category.draw.matches.find(m => m.matchNumber === match.advancesToMatchNumber);
+      if (targetMatch) {
+        const winnerPlayer = match.player1.id === match.winner ? match.player1 : match.player2;
+        const currentSlot = targetMatch[match.advancesToSlot];
+        if (currentSlot?.isQualifierPlaceholder) {
+          targetMatch[match.advancesToSlot] = {
+            id: winnerPlayer.id,
+            name: winnerPlayer.name,
+            seed: winnerPlayer.seed
+          };
+        }
       }
     }
 
@@ -1437,7 +1500,7 @@ function enrichDoublesNames(category) {
   };
 
   const enrichPlayer = (p) => {
-    if (!p || !p.id || p.isBye) return;
+    if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return;
     const partner = partnerMap[p.id];
     if (partner) {
       p.name = `${surname(p.name)} / ${surname(partner)}`;
@@ -1466,6 +1529,9 @@ function enrichDoublesNames(category) {
   }
   if (category.draw.knockoutStage?.matches) {
     enrichMatches(category.draw.knockoutStage.matches);
+  }
+  if (category.draw.qualifyingStage?.matches) {
+    enrichMatches(category.draw.qualifyingStage.matches);
   }
 }
 

@@ -15,6 +15,7 @@
  *   - "main"               for single-elim / feed-in matches in draw.matches
  *   - "group:<groupName>"  for round-robin group-stage matches
  *   - "knockout"           for the post-group knockout bracket
+ *   - "qualifying"         for the pre-main-draw qualifying bracket
  */
 export function* iterDrawMatches(draw) {
   if (!draw) return;
@@ -34,6 +35,12 @@ export function* iterDrawMatches(draw) {
   if (draw.knockoutStage && draw.knockoutStage.matches) {
     for (const m of draw.knockoutStage.matches) {
       yield { match: m, stage: 'knockout' };
+    }
+  }
+
+  if (draw.qualifyingStage && draw.qualifyingStage.matches) {
+    for (const m of draw.qualifyingStage.matches) {
+      yield { match: m, stage: 'qualifying' };
     }
   }
 }

@@ -13,12 +13,14 @@
  *   - "main"               for single-elim / feed-in matches in draw.matches
  *   - "group:<groupName>"  for round-robin group-stage matches
  *   - "knockout"           for the post-group knockout bracket
+ *   - "qualifying"         for the pre-main-draw qualifying bracket
  */
 export interface DrawLike {
   type?: string
   matches?: any[]
   roundRobinGroups?: Array<{ groupName?: string; matches?: any[] }>
   knockoutStage?: { matches?: any[] } | null
+  qualifyingStage?: { matches?: any[] } | null
 }
 
 export function* iterDrawMatches<M = any>(
@@ -41,6 +43,12 @@ export function* iterDrawMatches<M = any>(
   if (draw.knockoutStage && draw.knockoutStage.matches) {
     for (const m of draw.knockoutStage.matches) {
       yield { match: m as M, stage: 'knockout' }
+    }
+  }
+
+  if (draw.qualifyingStage && draw.qualifyingStage.matches) {
+    for (const m of draw.qualifyingStage.matches) {
+      yield { match: m as M, stage: 'qualifying' }
     }
   }
 }

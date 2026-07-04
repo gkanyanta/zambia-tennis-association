@@ -75,6 +75,10 @@ export interface Match {
   court?: string
   scheduledTime?: string
   completedTime?: string
+  // Only set on qualifyingStage matches: which main-draw Round 1 match/slot
+  // this qualifying match's winner should be promoted into.
+  advancesToMatchNumber?: number
+  advancesToSlot?: 'player1' | 'player2'
 }
 
 export interface MatchPlayer {
@@ -82,6 +86,8 @@ export interface MatchPlayer {
   name: string
   seed?: number
   isBye?: boolean
+  // True while this main-draw slot is reserved for a qualifying-round winner
+  isQualifierPlaceholder?: boolean
 }
 
 export interface Draw {
@@ -102,6 +108,12 @@ export interface Draw {
   }
   mixerRounds?: MixerRound[]
   mixerStandings?: MixerStanding[]
+  qualifyingStage?: {
+    matches: Match[]
+    numberOfRounds?: number
+    generatedAt?: string
+    status?: 'pending' | 'in_progress' | 'completed'
+  }
 }
 
 export interface RoundRobinGroup {
