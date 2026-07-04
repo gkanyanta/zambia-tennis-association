@@ -168,7 +168,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
     }
 
     const enrichPlayer = (p: any) => {
-      if (!p || !p.id || p.isBye) return p
+      if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return p
       const partner = partnerMap[p.id]
       if (!partner) return p
       return { ...p, name: `${surname(p.name)} / ${surname(partner)}` }
@@ -191,6 +191,10 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
       knockoutStage: (category.draw as any).knockoutStage ? {
         ...(category.draw as any).knockoutStage,
         matches: enrichMatches((category.draw as any).knockoutStage.matches || [])
+      } : undefined,
+      qualifyingStage: (category.draw as any).qualifyingStage ? {
+        ...(category.draw as any).qualifyingStage,
+        matches: enrichMatches((category.draw as any).qualifyingStage.matches || [])
       } : undefined
     }
   }, [category.draw, category.entries, isDoubles])

@@ -884,7 +884,7 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
       return parts[parts.length - 1]
     }
     const enrichPlayer = (p: any) => {
-      if (!p || !p.id || p.isBye) return p
+      if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return p
       const partner = partnerMap[p.id]
       if (!partner) return p
       return { ...p, name: `${surname(p.name)} / ${surname(partner)}` }
@@ -897,6 +897,7 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
       matches: enrichMatches(rawDraw.matches),
       roundRobinGroups: rawDraw.roundRobinGroups?.map((g: any) => ({ ...g, matches: enrichMatches(g.matches) })),
       knockoutStage: rawDraw.knockoutStage ? { ...rawDraw.knockoutStage, matches: enrichMatches(rawDraw.knockoutStage.matches) } : undefined,
+      qualifyingStage: rawDraw.qualifyingStage ? { ...rawDraw.qualifyingStage, matches: enrichMatches(rawDraw.qualifyingStage.matches) } : undefined,
       standings: rawDraw.standings ? {
         ...rawDraw.standings,
         champion: rawDraw.standings.champion ? enrichPlayer(rawDraw.standings.champion) : undefined,
@@ -1035,13 +1036,17 @@ function PublicResultsView({ tournament }: { tournament: Tournament }) {
     if (Object.keys(partnerMap).length === 0) return rawDraw
     const surname = (n: string) => { const p = (n || '').trim().split(/\s+/); return p[p.length - 1] }
     const enrich = (p: any) => {
-      if (!p || !p.id || p.isBye) return p
+      if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return p
       const partner = partnerMap[p.id]
       return partner ? { ...p, name: `${surname(p.name)} / ${surname(partner)}` } : p
     }
     return {
       ...rawDraw,
       matches: (rawDraw.matches || []).map((m: any) => ({ ...m, player1: enrich(m.player1), player2: enrich(m.player2) })),
+      qualifyingStage: rawDraw.qualifyingStage ? {
+        ...rawDraw.qualifyingStage,
+        matches: (rawDraw.qualifyingStage.matches || []).map((m: any) => ({ ...m, player1: enrich(m.player1), player2: enrich(m.player2) })),
+      } : undefined,
       standings: rawDraw.standings ? {
         ...rawDraw.standings,
         champion: rawDraw.standings.champion ? enrich(rawDraw.standings.champion) : undefined,
@@ -1051,8 +1056,11 @@ function PublicResultsView({ tournament }: { tournament: Tournament }) {
     }
   }, [activeCategory, rawDraw])
 
-  // Get completed matches
-  const completedMatches = draw?.matches?.filter((m: any) => m.status === 'completed' && !m.player1?.isBye && !m.player2?.isBye) || []
+  // Get completed matches (main draw + qualifying, since qualifying matches are real results too)
+  const completedMatches = [
+    ...(draw?.matches || []),
+    ...(draw?.qualifyingStage?.matches || []),
+  ].filter((m: any) => m.status === 'completed' && !m.player1?.isBye && !m.player2?.isBye)
 
   // Group completed matches by round
   const matchesByRound: Record<number, any[]> = {}
