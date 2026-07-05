@@ -467,9 +467,19 @@ function renderPlayerLine(doc, player, x, y, isWinner, isBye, matchCompleted, sc
     doc.text(' ', { continued: true, lineBreak: false });
   }
 
-  // Player name — don't truncate doubles pairs (contain " / ")
+  // Player name. Doubles pairs now show full names ("Full Name1 / Full Name2"),
+  // which are long enough to overflow the box — truncate each name in the pair
+  // independently (rather than skipping truncation for the whole string) so the
+  // " / " separator is preserved and neither name swallows the other's space.
   const isDoublesPair = player.name && player.name.includes(' / ');
-  const displayName = isDoublesPair ? player.name : truncateName(player.name, maxNameChars);
+  let displayName;
+  if (isDoublesPair) {
+    const [n1, n2] = player.name.split(' / ');
+    const perNameMax = Math.max(8, Math.floor((maxNameChars - 3) / 2));
+    displayName = `${truncateName(n1, perNameMax)} / ${truncateName(n2, perNameMax)}`;
+  } else {
+    displayName = truncateName(player.name, maxNameChars);
+  }
   doc
     .fontSize(nameFontSize)
     .fillColor(isWinner ? '#059669' : COLORS.primary)
@@ -745,9 +755,18 @@ function renderCrossTable(doc, group, startY) {
     doc.fontSize(fontSize).font('Helvetica-Bold').fillColor(COLORS.primary);
     doc.text(`${i + 1}`, MARGIN + 2, textY, { width: numColWidth - 4, align: 'center', lineBreak: false });
 
-    // Player name — don't truncate doubles pairs
+    // Player name. Doubles pairs show full names, so truncate each name in the
+    // pair independently rather than skipping truncation for the whole string.
     const isDoublesPair = player.name && player.name.includes(' / ');
-    const displayName = isDoublesPair ? player.name : truncateName(player.name, Math.floor(nameColWidth / (fontSize * 0.6)));
+    const maxChars = Math.floor(nameColWidth / (fontSize * 0.6));
+    let displayName;
+    if (isDoublesPair) {
+      const [n1, n2] = player.name.split(' / ');
+      const perNameMax = Math.max(8, Math.floor((maxChars - 3) / 2));
+      displayName = `${truncateName(n1, perNameMax)} / ${truncateName(n2, perNameMax)}`;
+    } else {
+      displayName = truncateName(player.name, maxChars);
+    }
     doc.fontSize(fontSize).font('Helvetica').fillColor(COLORS.primary);
     doc.text(displayName, MARGIN + numColWidth + 4, textY, { width: nameColWidth - 8, lineBreak: false });
 

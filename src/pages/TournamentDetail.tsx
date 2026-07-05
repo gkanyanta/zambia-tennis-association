@@ -878,16 +878,11 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
     }
     if (Object.keys(partnerMap).length === 0) return rawDraw
 
-    const surname = (fullName: string) => {
-      if (!fullName) return ''
-      const parts = fullName.trim().split(/\s+/)
-      return parts[parts.length - 1]
-    }
     const enrichPlayer = (p: any) => {
       if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return p
       const partner = partnerMap[p.id]
       if (!partner) return p
-      return { ...p, name: `${surname(p.name)} / ${surname(partner)}` }
+      return { ...p, name: `${p.name} / ${partner}` }
     }
     const enrichMatches = (matches: any[]) =>
       (matches || []).map((m: any) => ({ ...m, player1: enrichPlayer(m.player1), player2: enrichPlayer(m.player2) }))
@@ -1034,11 +1029,10 @@ function PublicResultsView({ tournament }: { tournament: Tournament }) {
       if (entry.partnerName && entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName
     }
     if (Object.keys(partnerMap).length === 0) return rawDraw
-    const surname = (n: string) => { const p = (n || '').trim().split(/\s+/); return p[p.length - 1] }
     const enrich = (p: any) => {
       if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return p
       const partner = partnerMap[p.id]
-      return partner ? { ...p, name: `${surname(p.name)} / ${surname(partner)}` } : p
+      return partner ? { ...p, name: `${p.name} / ${partner}` } : p
     }
     return {
       ...rawDraw,

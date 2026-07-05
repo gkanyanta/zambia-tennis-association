@@ -1500,7 +1500,7 @@ export const updateMatchResult = async (req, res) => {
  * Called after each match result so standings stay up-to-date in the PDF.
  */
 /**
- * Enrich doubles draw player names with partner names (I.Lastname / I.Lastname format).
+ * Enrich doubles draw player names with partner names (Full Name / Full Name format).
  * Modifies category.draw in place for PDF rendering. Does NOT save to database.
  */
 function enrichDoublesNames(category) {
@@ -1516,17 +1516,11 @@ function enrichDoublesNames(category) {
   }
   if (Object.keys(partnerMap).length === 0) return;
 
-  const surname = (name) => {
-    if (!name) return '';
-    const parts = name.trim().split(/\s+/);
-    return parts[parts.length - 1];
-  };
-
   const enrichPlayer = (p) => {
     if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return;
     const partner = partnerMap[p.id];
     if (partner) {
-      p.name = `${surname(p.name)} / ${surname(partner)}`;
+      p.name = `${p.name} / ${partner}`;
     }
   };
 

@@ -52,12 +52,6 @@ function getRoundName(round: number, totalRounds: number): string {
   return `Round ${round}`
 }
 
-function surname(fullName: string): string {
-  if (!fullName) return ''
-  const parts = fullName.trim().split(/\s+/)
-  return parts[parts.length - 1]
-}
-
 export function PublicOrderOfPlay({ tournament }: Props) {
   const matchLookup = useMemo(() => {
     const map: Record<string, {
@@ -82,8 +76,8 @@ export function PublicOrderOfPlay({ tournament }: Props) {
 
       const enrichName = (p: any): string => {
         if (!p) return 'TBD'
-        if (isDoubles && p.id && partnerMap[p.id]) {
-          return `${surname(p.name)} / ${surname(partnerMap[p.id])}`
+        if (isDoubles && p.id && !p.isQualifierPlaceholder && partnerMap[p.id]) {
+          return `${p.name} / ${partnerMap[p.id]}`
         }
         return p.name || 'TBD'
       }
@@ -92,6 +86,7 @@ export function PublicOrderOfPlay({ tournament }: Props) {
         ...(draw.matches || []),
         ...(draw.roundRobinGroups || []).flatMap((g: any) => g.matches || []),
         ...((draw.knockoutStage?.matches) || []),
+        ...((draw.qualifyingStage?.matches) || []),
       ]
       const totalRounds = draw.numberOfRounds || draw.totalRounds || 1
 

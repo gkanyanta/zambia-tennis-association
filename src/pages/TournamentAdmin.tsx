@@ -758,11 +758,10 @@ function ResultsManagement({ tournament, onRefresh }: { tournament: Tournament; 
       if (entry.partnerName && entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName
     }
     if (Object.keys(partnerMap).length === 0) return rawDraw
-    const surname = (n: string) => { const p = (n || '').trim().split(/\s+/); return p[p.length - 1] }
     const enrich = (pl: any) => {
-      if (!pl || !pl.id || pl.isBye) return pl
+      if (!pl || !pl.id || pl.isBye || pl.isQualifierPlaceholder) return pl
       const partner = partnerMap[pl.id]
-      return partner ? { ...pl, name: `${surname(pl.name)} / ${surname(partner)}` } : pl
+      return partner ? { ...pl, name: `${pl.name} / ${partner}` } : pl
     }
     const enrichMatches = (ms: any[]) => (ms || []).map((m: any) => ({ ...m, player1: enrich(m.player1), player2: enrich(m.player2) }))
     return {

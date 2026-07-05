@@ -161,17 +161,11 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
     }
     if (Object.keys(partnerMap).length === 0) return category.draw
 
-    const surname = (fullName: string) => {
-      if (!fullName) return ''
-      const parts = fullName.trim().split(/\s+/)
-      return parts[parts.length - 1]
-    }
-
     const enrichPlayer = (p: any) => {
       if (!p || !p.id || p.isBye || p.isQualifierPlaceholder) return p
       const partner = partnerMap[p.id]
       if (!partner) return p
-      return { ...p, name: `${surname(p.name)} / ${surname(partner)}` }
+      return { ...p, name: `${p.name} / ${partner}` }
     }
 
     const enrichMatches = (matches: any[]) =>

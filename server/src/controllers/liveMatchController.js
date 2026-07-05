@@ -84,7 +84,7 @@ export const startLiveMatch = async (req, res) => {
       }
     }
 
-    // For doubles categories, combine player + partner surname: "Banda / Zulu"
+    // For doubles categories, combine player + partner full names: "Banda Chola / Zulu Mwape"
     let p1Name = match.player1.name;
     let p2Name = match.player2.name;
     const isDoubles = category.format === 'doubles' || category.format === 'mixed_doubles';
@@ -96,11 +96,10 @@ export const startLiveMatch = async (req, res) => {
           if (entry.playerZpin) partnerMap[entry.playerZpin] = entry.partnerName;
         }
       }
-      const surname = name => name ? name.trim().split(/\s+/).pop() : '';
       const pn1 = partnerMap[match.player1.id];
-      if (pn1) p1Name = `${surname(match.player1.name)} / ${surname(pn1)}`;
+      if (pn1) p1Name = `${match.player1.name} / ${pn1}`;
       const pn2 = partnerMap[match.player2.id];
-      if (pn2) p2Name = `${surname(match.player2.name)} / ${surname(pn2)}`;
+      if (pn2) p2Name = `${match.player2.name} / ${pn2}`;
     }
 
     const liveMatch = await LiveMatch.create({
