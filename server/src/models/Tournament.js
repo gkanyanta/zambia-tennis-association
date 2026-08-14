@@ -282,9 +282,11 @@ const categorySchema = new mongoose.Schema({
     enum: ['boys', 'girls', 'mens', 'womens', 'mixed'],
     required: true
   },
+  // Free-form label (e.g. 'U10', 'U20', 'Open', '35+'). Not an enum because
+  // admins can define custom age-limit categories (e.g. U20) at tournament
+  // creation/edit time — see TournamentCreate.tsx custom category form.
   ageGroup: {
-    type: String,
-    enum: ['U10', 'U12', 'U14', 'U16', 'U18', 'Open', '35+', '45+', '55+', '65+']
+    type: String
   },
   minAge: Number,
   maxAge: Number,

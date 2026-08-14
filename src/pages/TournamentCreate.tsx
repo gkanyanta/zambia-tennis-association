@@ -43,6 +43,16 @@ const MADALAS_CATEGORIES = [
   { code: 'XD45', name: "Mixed Doubles 45+", gender: 'mixed' as const, minAge: 45, type: 'madalas' as const, format: 'mixed_doubles' as const },
 ]
 
+// Admin-defined junior categories with a custom age limit (e.g. U20), for
+// tournaments that need an age band outside the standard U10-U18 set.
+interface CustomCategory {
+  code: string
+  name: string
+  gender: 'boys' | 'girls'
+  maxAge: number
+  type: 'junior'
+}
+
 type TournamentType = 'junior' | 'senior' | 'madalas' | 'mixed'
 
 export function TournamentCreate() {
@@ -71,6 +81,9 @@ export function TournamentCreate() {
   // Tournament type and categories
   const [tournamentType, setTournamentType] = useState<TournamentType>('junior')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
+  const [customCategoryAge, setCustomCategoryAge] = useState<number | ''>('')
+  const [customCategoryGender, setCustomCategoryGender] = useState<'boys' | 'girls'>('boys')
   const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
   const [drawSize, setDrawSize] = useState<number | ''>('')
@@ -135,13 +148,28 @@ export function TournamentCreate() {
           })
           setCategoryFees(fees)
 
-          // Pre-select categories by matching codes
+          // Pre-select categories by matching codes. Any junior category not
+          // in the standard list is a previously-saved custom category (e.g.
+          // U20) — reconstruct it from the stored fields so it can be edited.
           const allCats = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
           const codes = new Set<string>()
+          const loadedCustom: CustomCategory[] = []
           t.categories.forEach((c: any) => {
             const match = allCats.find(ac => ac.code === c.categoryCode)
-            if (match) codes.add(match.code)
+            if (match) {
+              codes.add(match.code)
+            } else if (c.type === 'junior' && (c.gender === 'boys' || c.gender === 'girls') && c.maxAge && c.categoryCode) {
+              loadedCustom.push({
+                code: c.categoryCode,
+                name: c.name,
+                gender: c.gender,
+                maxAge: c.maxAge,
+                type: 'junior'
+              })
+              codes.add(c.categoryCode)
+            }
           })
+          setCustomCategories(loadedCustom)
           setSelectedCategories(codes)
 
           // Use draw settings from first category
@@ -172,24 +200,59 @@ export function TournamentCreate() {
 
   const getCurrentCategories = () => {
     switch (tournamentType) {
-      case 'junior': return JUNIOR_CATEGORIES
+      case 'junior': return [...JUNIOR_CATEGORIES, ...customCategories]
       case 'senior': return SENIOR_CATEGORIES
       case 'madalas': return MADALAS_CATEGORIES
-      case 'mixed': return [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
-      default: return JUNIOR_CATEGORIES
+      case 'mixed': return [...JUNIOR_CATEGORIES, ...customCategories, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+      default: return [...JUNIOR_CATEGORIES, ...customCategories]
     }
   }
 
   const selectAllBoys = () => {
     const newSelected = new Set(selectedCategories)
-    JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').forEach(c => newSelected.add(c.code))
+    ;[...JUNIOR_CATEGORIES, ...customCategories].filter(c => c.gender === 'boys').forEach(c => newSelected.add(c.code))
     setSelectedCategories(newSelected)
   }
 
   const selectAllGirls = () => {
     const newSelected = new Set(selectedCategories)
-    JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').forEach(c => newSelected.add(c.code))
+    ;[...JUNIOR_CATEGORIES, ...customCategories].filter(c => c.gender === 'girls').forEach(c => newSelected.add(c.code))
     setSelectedCategories(newSelected)
+  }
+
+  const addCustomCategory = () => {
+    if (customCategoryAge === '' || Number(customCategoryAge) <= 0) {
+      alert('Please enter a valid age limit')
+      return
+    }
+    const age = Number(customCategoryAge)
+    const genderCode = customCategoryGender === 'boys' ? 'B' : 'G'
+    const code = `${genderCode}${age}U`
+
+    if ([...JUNIOR_CATEGORIES, ...customCategories].some(c => c.code === code)) {
+      alert(`A ${customCategoryGender === 'boys' ? 'Boys' : 'Girls'} ${age} & Under category already exists`)
+      return
+    }
+
+    const newCategory: CustomCategory = {
+      code,
+      name: `${customCategoryGender === 'boys' ? 'Boys' : 'Girls'} ${age} & Under`,
+      gender: customCategoryGender,
+      maxAge: age,
+      type: 'junior'
+    }
+    setCustomCategories(prev => [...prev, newCategory])
+    setSelectedCategories(prev => new Set(prev).add(code))
+    setCustomCategoryAge('')
+  }
+
+  const removeCustomCategory = (code: string) => {
+    setCustomCategories(prev => prev.filter(c => c.code !== code))
+    setSelectedCategories(prev => {
+      const next = new Set(prev)
+      next.delete(code)
+      return next
+    })
   }
 
   const selectAllMens = () => {
@@ -238,7 +301,7 @@ export function TournamentCreate() {
       const tournamentYear = new Date(startDate).getFullYear()
       const dec31 = new Date(tournamentYear, 11, 31, 23, 59, 59)
 
-      const allCategories = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+      const allCategories = [...JUNIOR_CATEGORIES, ...customCategories, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
 
       const categories = Array.from(selectedCategories).map(code => {
         const cat = allCategories.find(c => c.code === code)!
@@ -608,7 +671,7 @@ export function TournamentCreate() {
                   <div>
                     <h4 className="font-semibold mb-3 text-blue-600 dark:text-blue-400">Boys Categories</h4>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                      {JUNIOR_CATEGORIES.filter(c => c.gender === 'boys').map(cat => (
+                      {[...JUNIOR_CATEGORIES.filter(c => c.gender === 'boys'), ...customCategories.filter(c => c.gender === 'boys')].map(cat => (
                         <label
                           key={cat.code}
                           className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -634,6 +697,16 @@ export function TournamentCreate() {
                               </svg>
                             </div>
                           )}
+                          {customCategories.some(c => c.code === cat.code) && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeCustomCategory(cat.code) }}
+                              className="absolute top-2 left-2 h-5 w-5 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs leading-none"
+                              title="Remove custom category"
+                            >
+                              ×
+                            </button>
+                          )}
                         </label>
                       ))}
                     </div>
@@ -642,7 +715,7 @@ export function TournamentCreate() {
                   <div>
                     <h4 className="font-semibold mb-3 text-pink-600 dark:text-pink-400">Girls Categories</h4>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                      {JUNIOR_CATEGORIES.filter(c => c.gender === 'girls').map(cat => (
+                      {[...JUNIOR_CATEGORIES.filter(c => c.gender === 'girls'), ...customCategories.filter(c => c.gender === 'girls')].map(cat => (
                         <label
                           key={cat.code}
                           className={`relative flex flex-col p-4 border-2 rounded-lg cursor-pointer transition-all ${
@@ -668,8 +741,53 @@ export function TournamentCreate() {
                               </svg>
                             </div>
                           )}
+                          {customCategories.some(c => c.code === cat.code) && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeCustomCategory(cat.code) }}
+                              className="absolute top-2 left-2 h-5 w-5 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs leading-none"
+                              title="Remove custom category"
+                            >
+                              ×
+                            </button>
+                          )}
                         </label>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Custom Category Builder */}
+                  <div className="p-4 border-2 border-dashed border-orange-300 dark:border-orange-800 rounded-lg space-y-3">
+                    <h4 className="font-semibold text-orange-600 dark:text-orange-400">Add Custom Category</h4>
+                    <p className="text-sm text-muted-foreground">
+                      For tournaments that need a non-standard age limit (e.g. U20). Creates a Boys or Girls category with the age limit you set.
+                    </p>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Gender</label>
+                        <select
+                          value={customCategoryGender}
+                          onChange={(e) => setCustomCategoryGender(e.target.value as 'boys' | 'girls')}
+                          className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="boys">Boys</option>
+                          <option value="girls">Girls</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Age Limit</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 20"
+                          value={customCategoryAge}
+                          onChange={(e) => setCustomCategoryAge(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-28"
+                        />
+                      </div>
+                      <Button type="button" onClick={addCustomCategory} size="sm" variant="outline">
+                        Add Category
+                      </Button>
                     </div>
                   </div>
                 </>
@@ -770,7 +888,7 @@ export function TournamentCreate() {
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {Array.from(selectedCategories).map(code => {
-                      const allCats = [...JUNIOR_CATEGORIES, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
+                      const allCats = [...JUNIOR_CATEGORIES, ...customCategories, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
                       const cat = allCats.find(c => c.code === code)
                       if (!cat) return null
                       const isDoubles = 'format' in cat && (cat.format === 'doubles' || cat.format === 'mixed_doubles')
