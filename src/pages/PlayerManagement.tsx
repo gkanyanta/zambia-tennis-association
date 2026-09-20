@@ -202,7 +202,10 @@ export function PlayerManagement() {
       const suggested = age < 18 ? 'junior' : 'adult'
       setSuggestedMembershipType(suggested)
 
-      if (mode === 'create' && !formData.membershipType) {
+      // A player under 18 is always a junior: the ZPIN prefix is permanent, so
+      // an "adult" left over from before the date of birth was entered would
+      // issue a child a senior ZPIN.
+      if (mode === 'create' && (!formData.membershipType || (age < 18 && formData.membershipType !== 'junior'))) {
         setFormData(prev => ({ ...prev, membershipType: suggested }))
       }
     } else {

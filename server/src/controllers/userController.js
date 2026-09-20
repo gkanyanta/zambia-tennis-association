@@ -142,12 +142,26 @@ export const createUser = async (req, res) => {
       });
     }
 
+    // The ZPIN prefix is permanent (ZTAJ for juniors, ZTAS for seniors), so it
+    // has to follow the date of birth rather than whatever the form happened to
+    // hold. A child submitted as "adult" was previously issued a senior ZPIN.
+    let effectiveMembershipType = membershipType;
+    let membershipTypeCorrected = false;
+    if (dateOfBirth) {
+      const ageNow = Math.floor((new Date() - new Date(dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000));
+      if (ageNow < 18 && membershipType && membershipType !== 'junior') {
+        effectiveMembershipType = 'junior';
+        membershipTypeCorrected = true;
+        console.log(`Membership type corrected to junior for ${firstName} ${lastName} (age ${ageNow}, submitted "${membershipType}")`);
+      }
+    }
+
     // Auto-generate ZPIN if not provided and user is a player with membership type
     let finalZpin = zpin;
-    if (!finalZpin && role === 'player' && membershipType) {
+    if (!finalZpin && role === 'player' && effectiveMembershipType) {
       try {
-        finalZpin = await generateNextZPIN(membershipType);
-        console.log(`Auto-generated ZPIN: ${finalZpin} for ${membershipType} player`);
+        finalZpin = await generateNextZPIN(effectiveMembershipType);
+        console.log(`Auto-generated ZPIN: ${finalZpin} for ${effectiveMembershipType} player`);
       } catch (error) {
         console.error('Failed to auto-generate ZPIN:', error);
         // Continue without ZPIN rather than failing the whole request
@@ -184,7 +198,7 @@ export const createUser = async (req, res) => {
       phone,
       address,
       zpin: finalZpin,
-      membershipType,
+      membershipType: effectiveMembershipType,
       membershipStatus,
       club,
       parentGuardianName,
@@ -198,6 +212,9 @@ export const createUser = async (req, res) => {
 
     res.status(201).json({
       success: true,
+      message: membershipTypeCorrected
+        ? `Created as a junior (${firstName} ${lastName} is under 18) with ZPIN ${finalZpin}.`
+        : undefined,
       data: userResponse
     });
   } catch (error) {
