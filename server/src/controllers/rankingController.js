@@ -352,14 +352,83 @@ export const linkPlayerToRanking = async (req, res) => {
       return res.status(404).json({ success: false, message: `No player found with ZPIN ${zpin}` });
     }
 
+    // A player may only hold one active ranking row per category and period.
+    // Imported lists often carry the same person under a slightly different
+    // spelling, so linking can collide with a row that is already theirs.
+    const conflict = await Ranking.findOne({
+      _id: { $ne: ranking._id },
+      playerId: user._id,
+      category: ranking.category,
+      rankingPeriod: ranking.rankingPeriod,
+      isActive: true
+    });
+
+    if (conflict && !req.body.merge) {
+      return res.status(409).json({
+        success: false,
+        code: 'RANKING_EXISTS',
+        message: `${user.firstName} ${user.lastName} (${user.zpin}) already has a ${ranking.category} ranking for ${ranking.rankingPeriod}: "${conflict.playerName}" with ${conflict.totalPoints} points from ${conflict.tournamentResults.length} result(s). Merge the two rows to combine their results.`,
+        data: {
+          conflictId: conflict._id,
+          conflictName: conflict.playerName,
+          conflictPoints: conflict.totalPoints,
+          conflictResults: conflict.tournamentResults.length,
+          thisName: ranking.playerName,
+          thisPoints: ranking.totalPoints,
+          thisResults: ranking.tournamentResults.length
+        }
+      });
+    }
+
+    let mergedResults = 0;
+    if (conflict) {
+      // Fold the other row's results into this one, keyed on tournament and
+      // year so a result held by both is not counted twice.
+      const keyOf = (r) => `${(r.tournamentName || '').trim().toLowerCase()}|${r.year}`;
+      const byKey = new Map(ranking.tournamentResults.map(r => [keyOf(r), r]));
+
+      for (const result of conflict.tournamentResults) {
+        const key = keyOf(result);
+        const existing = byKey.get(key);
+        if (!existing) {
+          const copy = result.toObject ? result.toObject() : { ...result };
+          delete copy._id;
+          ranking.tournamentResults.push(copy);
+          byKey.set(key, copy);
+          mergedResults++;
+        } else if ((result.points || 0) + (result.upsetBonus || 0) > (existing.points || 0) + (existing.upsetBonus || 0)) {
+          // Same tournament recorded twice — keep the better record
+          existing.points = result.points;
+          existing.position = result.position;
+          existing.upsetBonus = result.upsetBonus;
+          existing.tournamentDate = result.tournamentDate;
+          mergedResults++;
+        }
+      }
+
+      // Retire the other row first: the unique index only counts active rows,
+      // so it has to let go of the player before this row can take them. The
+      // row itself is kept, not deleted, so nothing is lost.
+      conflict.isActive = false;
+      await conflict.save();
+
+      ranking.calculateTotalPoints();
+    }
+
     ranking.playerId = user._id;
     ranking.playerZpin = user.zpin;
     ranking.playerName = `${user.firstName} ${user.lastName}`;
     await ranking.save();
 
+    if (conflict) {
+      await Ranking.updateRankings(ranking.category, ranking.rankingPeriod);
+    }
+
     res.status(200).json({
       success: true,
-      message: `Linked to ${user.firstName} ${user.lastName} (${user.zpin})`,
+      message: conflict
+        ? `Linked to ${user.firstName} ${user.lastName} (${user.zpin}) and merged "${conflict.playerName}" into this row (${mergedResults} result(s) added, ${ranking.totalPoints} points total).`
+        : `Linked to ${user.firstName} ${user.lastName} (${user.zpin})`,
       data: ranking
     });
   } catch (error) {

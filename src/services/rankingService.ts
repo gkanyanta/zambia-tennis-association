@@ -142,10 +142,15 @@ export const rankingService = {
     return response.data;
   },
 
-  async linkPlayer(rankingId: string, zpin: string): Promise<Ranking> {
+  /**
+   * Link a ranking row to a player account. If the player already holds an
+   * active row in the same category and period, the call fails with a 409
+   * (code RANKING_EXISTS); pass merge to fold that row into this one.
+   */
+  async linkPlayer(rankingId: string, zpin: string, merge = false): Promise<Ranking> {
     const response = await apiFetch(`/rankings/${rankingId}/link-player`, {
       method: 'PATCH',
-      body: JSON.stringify({ zpin }),
+      body: JSON.stringify({ zpin, merge }),
     });
     return response.data;
   },

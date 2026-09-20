@@ -186,17 +186,33 @@ export function Rankings() {
     }
   };
 
-  const handleLinkPlayer = async () => {
+  const handleLinkPlayer = async (merge = false) => {
     if (!linkModal || !linkZpin.trim()) return;
     setLinkLoading(true);
     setLinkError('');
     try {
-      await rankingService.linkPlayer(linkModal.rankingId, linkZpin.trim());
+      await rankingService.linkPlayer(linkModal.rankingId, linkZpin.trim(), merge);
       setLinkModal(null);
       setLinkZpin('');
       await fetchRankings();
     } catch (err: any) {
-      setLinkError(err.message || 'Player not found. Check the ZPIN and try again.');
+      // The player already has a row in this category and period — the same
+      // person under two spellings. Offer to combine them.
+      if (err.code === 'RANKING_EXISTS' && !merge) {
+        const d = err.data || {};
+        const confirmed = confirm(
+          `${err.message}\n\nCombine "${d.conflictName}" (${d.conflictPoints} pts) into "${d.thisName}" (${d.thisPoints} pts)?\n\n` +
+          `The results of both are kept, duplicates of the same tournament are counted once, and the other row is archived rather than deleted.`
+        );
+        if (confirmed) {
+          setLinkLoading(false);
+          await handleLinkPlayer(true);
+          return;
+        }
+        setLinkError('Linking cancelled — the rows were left as they are.');
+      } else {
+        setLinkError(err.message || 'Player not found. Check the ZPIN and try again.');
+      }
     } finally {
       setLinkLoading(false);
     }
@@ -236,7 +252,7 @@ export function Rankings() {
             />
             {linkError && <p className="text-sm text-destructive mb-2">{linkError}</p>}
             <div className="flex gap-2 mt-4">
-              <Button className="flex-1" onClick={handleLinkPlayer} disabled={linkLoading || !linkZpin.trim()}>
+              <Button className="flex-1" onClick={() => handleLinkPlayer()} disabled={linkLoading || !linkZpin.trim()}>
                 {linkLoading ? 'Linking...' : 'Link'}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => { setLinkModal(null); setLinkZpin(''); setLinkError(''); }}>

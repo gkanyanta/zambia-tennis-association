@@ -31,7 +31,15 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || 'Something went wrong');
+    // Carry the status and any error code through so callers can react to a
+    // specific failure (e.g. a 409 the user can resolve) instead of only
+    // showing the message.
+    const error: Error & { status?: number; code?: string; data?: unknown } =
+      new Error(data.message || 'Something went wrong');
+    error.status = response.status;
+    error.code = data.code;
+    error.data = data.data;
+    throw error;
   }
 
   return data;
