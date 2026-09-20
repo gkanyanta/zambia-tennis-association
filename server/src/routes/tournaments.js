@@ -48,7 +48,8 @@ import {
   cutToDrawSize,
   promoteAlternate,
   demoteToAlternate,
-  toggleCategoryRegistration
+  toggleCategoryRegistration,
+  updateCategorySettings
 } from '../controllers/tournamentController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -86,6 +87,7 @@ router.post('/:tournamentId/categories/:categoryId/cut-to-draw', protect, author
 router.post('/:tournamentId/categories/:categoryId/entries/:entryId/promote', protect, authorize('admin', 'staff'), promoteAlternate);
 router.post('/:tournamentId/categories/:categoryId/entries/:entryId/demote', protect, authorize('admin', 'staff'), demoteToAlternate);
 router.patch('/:tournamentId/categories/:categoryId/toggle-registration', protect, authorize('admin', 'staff'), toggleCategoryRegistration);
+router.patch('/:tournamentId/categories/:categoryId/settings', protect, authorize('admin', 'staff'), updateCategorySettings);
 router.put('/:tournamentId/categories/:categoryId/seeds', protect, authorize('admin', 'staff'), bulkUpdateSeeds);
 router.post('/:tournamentId/categories/:categoryId/auto-seed', protect, authorize('admin', 'staff'), autoSeedCategory);
 

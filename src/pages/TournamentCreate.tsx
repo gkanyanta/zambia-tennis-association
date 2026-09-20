@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Save, Calendar, MapPin, Users, Phone, FileText, Trophy, Settings } from 'lucide-react'
 import { tournamentService } from '@/services/tournamentService'
+import { DRAW_TYPE_LABELS, type DrawType } from '@/types/tournament'
 
 // Standard junior categories
 const JUNIOR_CATEGORIES = [
@@ -84,12 +85,20 @@ export function TournamentCreate() {
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
   const [customCategoryAge, setCustomCategoryAge] = useState<number | ''>('')
   const [customCategoryGender, setCustomCategoryGender] = useState<'boys' | 'girls'>('boys')
-  const [drawType, setDrawType] = useState<'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'>('single_elimination')
+  const [drawType, setDrawType] = useState<DrawType>('single_elimination')
   const [maxEntries, setMaxEntries] = useState(32)
   const [drawSize, setDrawSize] = useState<number | ''>('')
 
   // Per-category entry fees (code -> fee)
   const [categoryFees, setCategoryFees] = useState<Record<string, string>>({})
+  // Per-category draw format overrides (code -> draw type). Empty means the
+  // default above is used, so small categories can run a round robin while
+  // bigger ones run a knockout.
+  const [categoryDrawTypes, setCategoryDrawTypes] = useState<Record<string, DrawType>>({})
+  // Existing per-category draw sizes, kept as loaded so saving an edit never
+  // flattens categories that were set up differently
+  const [categoryMaxEntries, setCategoryMaxEntries] = useState<Record<string, number>>({})
+  const [categoryDrawSizes, setCategoryDrawSizes] = useState<Record<string, number>>({})
 
   // Registration settings
   const [tournamentLevel, setTournamentLevel] = useState<'club' | 'regional' | 'national' | 'international'>('regional')
@@ -148,6 +157,20 @@ export function TournamentCreate() {
           })
           setCategoryFees(fees)
 
+          // Load per-category draw settings
+          const drawTypes: Record<string, DrawType> = {}
+          const maxes: Record<string, number> = {}
+          const sizes: Record<string, number> = {}
+          t.categories.forEach((c: any) => {
+            if (!c.categoryCode) return
+            if (c.drawType) drawTypes[c.categoryCode] = c.drawType
+            if (c.maxEntries) maxes[c.categoryCode] = c.maxEntries
+            if (c.drawSize) sizes[c.categoryCode] = c.drawSize
+          })
+          setCategoryDrawTypes(drawTypes)
+          setCategoryMaxEntries(maxes)
+          setCategoryDrawSizes(sizes)
+
           // Pre-select categories by matching codes. Any junior category not
           // in the standard list is a previously-saved custom category (e.g.
           // U20) — reconstruct it from the stored fields so it can be edited.
@@ -187,6 +210,28 @@ export function TournamentCreate() {
     }
     fetchTournament()
   }, [tournamentId])
+
+  // The controls under "Category Settings" are defaults that apply to every
+  // selected category; the per-category controls above them override one
+  // category at a time.
+  const applyDrawTypeToAll = (value: DrawType) => {
+    setDrawType(value)
+    setCategoryDrawTypes(Object.fromEntries(Array.from(selectedCategories).map(code => [code, value])))
+  }
+
+  const applyMaxEntriesToAll = (value: number) => {
+    setMaxEntries(value)
+    setCategoryMaxEntries(Object.fromEntries(Array.from(selectedCategories).map(code => [code, value])))
+  }
+
+  const applyDrawSizeToAll = (value: number | '') => {
+    setDrawSize(value)
+    if (value === '') {
+      setCategoryDrawSizes({})
+    } else {
+      setCategoryDrawSizes(Object.fromEntries(Array.from(selectedCategories).map(code => [code, value])))
+    }
+  }
 
   const toggleCategory = (code: string) => {
     const newSelected = new Set(selectedCategories)
@@ -314,9 +359,11 @@ export function TournamentCreate() {
           type: cat.type,
           gender: cat.gender,
           format: ('format' in cat) ? cat.format : 'singles',
-          drawType,
-          maxEntries,
-          ...(drawSize !== '' ? { drawSize: Number(drawSize) } : {}),
+          drawType: categoryDrawTypes[cat.code] || drawType,
+          maxEntries: categoryMaxEntries[cat.code] ?? maxEntries,
+          ...(categoryDrawSizes[cat.code]
+            ? { drawSize: categoryDrawSizes[cat.code] }
+            : drawSize !== '' ? { drawSize: Number(drawSize) } : {}),
           entries: [],
           ...(catFee !== undefined && catFee !== '' ? { entryFee: Number(catFee) } : {})
         }
@@ -879,22 +926,29 @@ export function TournamentCreate() {
                 </div>
               )}
 
-              {/* Per-Category Entry Fees */}
+              {/* Per-Category Settings */}
               {selectedCategories.size > 0 && (
                 <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-                  <h4 className="font-semibold">Entry Fees per Category (optional)</h4>
+                  <h4 className="font-semibold">Settings per Category (optional)</h4>
                   <p className="text-sm text-muted-foreground">
-                    Override the default entry fee (K{entryFee}) for specific categories. Fee is per player — doubles partners each pay separately.
+                    Override the default entry fee (K{entryFee}) and draw format for individual categories —
+                    e.g. round robin where entries are few, knockout where they are many.
+                    Fees are per player — doubles partners each pay separately.
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  <div className="space-y-2">
+                    <div className="hidden md:grid md:grid-cols-[1fr_120px_minmax(0,260px)] gap-3 text-xs font-medium text-muted-foreground px-1">
+                      <span>Category</span>
+                      <span>Entry Fee</span>
+                      <span>Draw Format</span>
+                    </div>
                     {Array.from(selectedCategories).map(code => {
                       const allCats = [...JUNIOR_CATEGORIES, ...customCategories, ...SENIOR_CATEGORIES, ...MADALAS_CATEGORIES]
                       const cat = allCats.find(c => c.code === code)
                       if (!cat) return null
                       const isDoubles = 'format' in cat && (cat.format === 'doubles' || cat.format === 'mixed_doubles')
                       return (
-                        <div key={code} className="flex flex-col gap-1">
-                          <label className="text-xs font-medium">
+                        <div key={code} className="grid grid-cols-1 md:grid-cols-[1fr_120px_minmax(0,260px)] gap-2 md:gap-3 md:items-center">
+                          <label className="text-sm font-medium">
                             {cat.name}
                             {isDoubles && <span className="text-purple-600 ml-1">(Doubles)</span>}
                           </label>
@@ -904,8 +958,22 @@ export function TournamentCreate() {
                             placeholder={`K${entryFee}`}
                             value={categoryFees[code] || ''}
                             onChange={(e) => setCategoryFees({ ...categoryFees, [code]: e.target.value })}
-                            className="h-8 text-sm"
+                            className="h-9 text-sm"
                           />
+                          <select
+                            value={categoryDrawTypes[code] || drawType}
+                            onChange={(e) => setCategoryDrawTypes({
+                              ...categoryDrawTypes,
+                              [code]: e.target.value as DrawType
+                            })}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                          >
+                            {(Object.keys(DRAW_TYPE_LABELS) as DrawType[])
+                              .filter(t => t !== 'mixer' || cat.type === 'madalas')
+                              .map(t => (
+                                <option key={t} value={t}>{DRAW_TYPE_LABELS[t]}</option>
+                              ))}
+                          </select>
                         </div>
                       )
                     })}
@@ -915,13 +983,13 @@ export function TournamentCreate() {
 
               {/* Category Settings */}
               <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-                <h4 className="font-semibold">Category Settings (applies to all selected)</h4>
+                <h4 className="font-semibold">Default Category Settings (applies to all selected)</h4>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Draw Format</label>
                     <select
                       value={drawType}
-                      onChange={(e) => setDrawType(e.target.value as any)}
+                      onChange={(e) => applyDrawTypeToAll(e.target.value as DrawType)}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       <option value="single_elimination">Single Elimination (Knockout)</option>
@@ -936,7 +1004,7 @@ export function TournamentCreate() {
                     <label className="block text-sm font-medium mb-2">Max Players per Category</label>
                     <select
                       value={maxEntries}
-                      onChange={(e) => setMaxEntries(Number(e.target.value))}
+                      onChange={(e) => applyMaxEntriesToAll(Number(e.target.value))}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       <option value="8">8 players/teams</option>
@@ -949,7 +1017,7 @@ export function TournamentCreate() {
                     <label className="block text-sm font-medium mb-2">Draw Size (optional)</label>
                     <select
                       value={drawSize}
-                      onChange={(e) => setDrawSize(e.target.value === '' ? '' : Number(e.target.value))}
+                      onChange={(e) => applyDrawSizeToAll(e.target.value === '' ? '' : Number(e.target.value))}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
                       <option value="">Same as max entries</option>

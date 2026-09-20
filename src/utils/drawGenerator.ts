@@ -179,12 +179,18 @@ export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw 
 }
 
 // Generate Round Robin Draw
-export function generateRoundRobinDraw(entries: TournamentEntry[]): Draw {
+/**
+ * Round robin. `maxPlayersPerGroup` caps the group size — pass the entry
+ * count (or a large number) to keep everyone in a single group so that
+ * everyone plays everyone, which is what small categories usually want.
+ */
+export function generateRoundRobinDraw(entries: TournamentEntry[], maxPlayersPerGroup = 5): Draw {
   const acceptedEntries = entries.filter(e => e.status === 'accepted')
   const numPlayers = acceptedEntries.length
 
-  // Determine number of groups (typically 4-6 players per group)
-  const numGroups = Math.ceil(numPlayers / 5)
+  // Determine number of groups from the requested group size
+  const groupCap = Math.max(2, Math.min(maxPlayersPerGroup || 5, numPlayers || 2))
+  const numGroups = Math.max(1, Math.ceil(numPlayers / groupCap))
   const playersPerGroup = Math.ceil(numPlayers / numGroups)
 
   // Shuffle and distribute players into groups

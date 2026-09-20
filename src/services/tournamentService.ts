@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import type { DrawType } from '@/types/tournament';
 
 export interface Tournament {
   _id: string;
@@ -43,7 +44,7 @@ export interface TournamentCategory {
   maxAge?: number;
   minAge?: number;
   ageCalculationDate?: string;
-  drawType: 'single_elimination' | 'round_robin' | 'feed_in' | 'mixer';
+  drawType: DrawType;
   entryFee?: number;
   format?: 'singles' | 'doubles' | 'mixed_doubles';
   maxEntries: number;
@@ -447,6 +448,22 @@ export const tournamentService = {
         method: 'POST',
         body: JSON.stringify({ draw: drawData }),
       }
+    );
+    return response.data;
+  },
+
+  /**
+   * Update one category's draw settings. Categories are independent, so a
+   * small category can run a round robin while a big one runs a knockout.
+   */
+  async updateCategorySettings(
+    tournamentId: string,
+    categoryId: string,
+    settings: { drawType?: DrawType; maxEntries?: number; drawSize?: number | null; confirmClearDraw?: boolean }
+  ): Promise<{ drawType: DrawType; maxEntries: number; drawSize?: number; drawCleared: boolean }> {
+    const response = await apiFetch(
+      `/tournaments/${tournamentId}/categories/${categoryId}/settings`,
+      { method: 'PATCH', body: JSON.stringify(settings) }
     );
     return response.data;
   },

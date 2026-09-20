@@ -15,7 +15,8 @@ import {
   generateMixerDraw
 } from '@/utils/drawGenerator'
 import { tournamentService } from '@/services/tournamentService'
-import type { TournamentCategory, Draw, Match, MixerRating } from '@/types/tournament'
+import type { TournamentCategory, Draw, Match, MixerRating, DrawType } from '@/types/tournament'
+import { DRAW_TYPE_LABELS } from '@/types/tournament'
 
 interface DrawGenerationProps {
   category: TournamentCategory
@@ -32,6 +33,10 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   const [showPreview, setShowPreview] = useState(false)
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null)
   const [showMatchDialog, setShowMatchDialog] = useState(false)
+  const [changingFormat, setChangingFormat] = useState(false)
+  // Round-robin group size: '' means auto (one group for a small category,
+  // groups of 5 once it gets large)
+  const [rrGroupSize, setRrGroupSize] = useState<number | ''>('')
 
   const acceptedEntries = category.entries.filter(e => e.status === 'accepted')
   const seededEntries = acceptedEntries.filter(e => e.seed).length
@@ -56,6 +61,14 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   const mixerRatings = (category as any).mixerRatings as MixerRating[] | undefined
   const hasMixerRatings = mixerRatings && mixerRatings.length > 0
   const isMixer = category.drawType === 'mixer'
+  // The format can be switched from here while nothing has been played
+  const canEditFormat = !!tournamentId && !!categoryId && !hasPlayedMatches
+  // Up to 6 players everyone plays everyone; beyond that the draw splits into
+  // groups of 5 so the number of matches stays manageable (a knockout stage
+  // can then be generated from the group winners).
+  const effectiveRrGroupSize = rrGroupSize === ''
+    ? (acceptedEntries.length <= 6 ? acceptedEntries.length : 5)
+    : rrGroupSize
   const canGenerateMixer = isMixer && hasMixerRatings
 
   const handleSaveMixerRatings = async (ratings: MixerRating[]) => {
@@ -70,6 +83,32 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
     if (onRefresh) await onRefresh()
   }
 
+  // Draw format is per category, so it can be switched here once the entry
+  // count is known (e.g. round robin for a small category).
+  const handleChangeDrawType = async (newType: DrawType) => {
+    if (!tournamentId || !categoryId || newType === category.drawType) return
+
+    const hasDraw = !!category.draw
+    if (hasDraw && !confirm(
+      `Change the draw format to ${DRAW_TYPE_LABELS[newType]}? The current draw for ${category.name} will be discarded and must be regenerated. Entries, seeds and payments are not affected.`
+    )) return
+
+    setChangingFormat(true)
+    try {
+      await tournamentService.updateCategorySettings(tournamentId, categoryId, {
+        drawType: newType,
+        confirmClearDraw: hasDraw
+      })
+      setPreviewDraw(null)
+      setShowPreview(false)
+      if (onRefresh) await onRefresh()
+    } catch (error: any) {
+      alert(error.message || 'Failed to change the draw format')
+    } finally {
+      setChangingFormat(false)
+    }
+  }
+
   const handleGeneratePreview = () => {
     let draw: Draw
 
@@ -78,7 +117,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
         draw = generateSingleEliminationDraw(acceptedEntries)
         break
       case 'round_robin':
-        draw = generateRoundRobinDraw(acceptedEntries)
+        draw = generateRoundRobinDraw(acceptedEntries, effectiveRrGroupSize)
         break
       case 'feed_in':
         draw = generateFeedInDraw(acceptedEntries)
@@ -262,6 +301,21 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                     Export PDF
                   </Button>
                 )}
+                {canEditFormat && (
+                  <select
+                    value={category.drawType}
+                    disabled={changingFormat}
+                    onChange={(e) => handleChangeDrawType(e.target.value as DrawType)}
+                    title="Change the draw format for this category"
+                    className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                  >
+                    {(Object.keys(DRAW_TYPE_LABELS) as DrawType[])
+                      .filter(t => t !== 'mixer' || category.type === 'madalas' || category.drawType === 'mixer')
+                      .map(t => (
+                        <option key={t} value={t}>{DRAW_TYPE_LABELS[t]}</option>
+                      ))}
+                  </select>
+                )}
                 <Button variant="outline" onClick={handleRegenerateDraw} disabled={hasPlayedMatches} title={hasPlayedMatches ? 'Cannot regenerate — matches have been played' : ''}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Draw
@@ -376,14 +430,65 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
               <div className="text-sm text-muted-foreground">Seeded Players</div>
             </div>
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold capitalize">{category.drawType.replace('_', ' ')}</div>
-              <div className="text-sm text-muted-foreground">Draw Type</div>
+              {canEditFormat ? (
+                <>
+                  <select
+                    value={category.drawType}
+                    disabled={changingFormat}
+                    onChange={(e) => handleChangeDrawType(e.target.value as DrawType)}
+                    className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm font-medium disabled:opacity-50"
+                  >
+                    {(Object.keys(DRAW_TYPE_LABELS) as DrawType[])
+                      .filter(t => t !== 'mixer' || category.type === 'madalas' || category.drawType === 'mixer')
+                      .map(t => (
+                        <option key={t} value={t}>{DRAW_TYPE_LABELS[t]}</option>
+                      ))}
+                  </select>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {changingFormat ? 'Updating…' : 'Draw Format'}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold capitalize">{category.drawType.replace('_', ' ')}</div>
+                  <div className="text-sm text-muted-foreground">Draw Type</div>
+                </>
+              )}
             </div>
             <div className="text-center p-4 border rounded-lg">
               <div className="text-2xl font-bold">{category.maxEntries}</div>
               <div className="text-sm text-muted-foreground">Max Entries</div>
             </div>
           </div>
+
+          {/* Round-robin grouping */}
+          {category.drawType === 'round_robin' && !category.draw && canGenerateDraw && (
+            <div className="p-4 border rounded-lg bg-muted/50 flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm">Round Robin Grouping</h4>
+                <p className="text-xs text-muted-foreground">
+                  One group means every player plays every other player — best for small categories.
+                  {' '}This draw will have {Math.max(1, Math.ceil(acceptedEntries.length / Math.max(2, Math.min(effectiveRrGroupSize || 5, acceptedEntries.length || 2))))} group(s).
+                </p>
+              </div>
+              <select
+                value={rrGroupSize}
+                onChange={(e) => setRrGroupSize(e.target.value === '' ? '' : Number(e.target.value))}
+                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm md:w-64"
+              >
+                <option value="">
+                  {acceptedEntries.length <= 6
+                    ? `Auto — one group of ${acceptedEntries.length}`
+                    : 'Auto — groups of 5'}
+                </option>
+                <option value={acceptedEntries.length}>One group ({acceptedEntries.length} players)</option>
+                <option value="3">Groups of 3</option>
+                <option value="4">Groups of 4</option>
+                <option value="5">Groups of 5</option>
+                <option value="6">Groups of 6</option>
+              </select>
+            </div>
+          )}
 
           {/* Mixer Rating Assignment */}
           {isMixer && canGenerateDraw && (

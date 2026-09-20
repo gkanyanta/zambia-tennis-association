@@ -4235,6 +4235,80 @@ export const demoteToAlternate = async (req, res) => {
 // @desc    Toggle registration open/closed for a specific category
 // @route   PATCH /api/tournaments/:tournamentId/categories/:categoryId/toggle-registration
 // @access  Private (Admin/Staff)
+// @desc    Update a single category's draw settings (format, sizes)
+// @route   PATCH /api/tournaments/:tournamentId/categories/:categoryId/settings
+// @access  Private (Admin/Staff)
+export const updateCategorySettings = async (req, res) => {
+  try {
+    const { tournamentId, categoryId } = req.params;
+    const { drawType, maxEntries, drawSize, confirmClearDraw } = req.body;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ success: false, message: 'Tournament not found' });
+
+    const category = tournament.categories.id(categoryId);
+    if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    const validDrawTypes = ['single_elimination', 'round_robin', 'feed_in', 'mixer'];
+    if (drawType !== undefined && !validDrawTypes.includes(drawType)) {
+      return res.status(400).json({ success: false, message: `Invalid draw format: ${drawType}` });
+    }
+
+    // Changing the format invalidates an existing draw, so only allow it while
+    // nothing has been played. BYEs auto-advance without being played, so they
+    // must not count as results.
+    const drawTypeChanged = drawType !== undefined && drawType !== category.drawType;
+    if (drawTypeChanged && category.draw) {
+      const isRealMatch = (m) => !m.player1?.isBye && !m.player2?.isBye;
+      const played =
+        (category.draw.matches || []).some(m => isRealMatch(m) && (m.winner || m.score)) ||
+        (category.draw.roundRobinGroups || []).some(g => (g.matches || []).some(m => isRealMatch(m) && (m.winner || m.score))) ||
+        (category.draw.mixerRounds || []).some(r => (r.courts || []).some(c => c.status === 'completed'));
+
+      if (played) {
+        return res.status(400).json({
+          success: false,
+          message: 'Results have already been recorded for this category. Clear the results before changing the draw format.'
+        });
+      }
+
+      // An unplayed draw would no longer match the new format, but discarding
+      // it must be a deliberate choice — never a side effect of this call.
+      if (!confirmClearDraw) {
+        return res.status(409).json({
+          success: false,
+          code: 'DRAW_EXISTS',
+          message: `${category.name} already has a ${category.draw.type.replace('_', ' ')} draw. Confirm to discard it and regenerate in the new format.`
+        });
+      }
+
+      category.draw = undefined;
+    }
+
+    // Only draw settings are touched — entries, seeds and payments are left
+    // exactly as they are.
+    if (drawType !== undefined) category.drawType = drawType;
+    if (maxEntries !== undefined) category.maxEntries = Number(maxEntries);
+    if (drawSize !== undefined) category.drawSize = drawSize === null || drawSize === '' ? undefined : Number(drawSize);
+
+    await tournament.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Settings updated for ${category.name}`,
+      data: {
+        categoryId: category._id,
+        drawType: category.drawType,
+        maxEntries: category.maxEntries,
+        drawSize: category.drawSize,
+        drawCleared: drawTypeChanged
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const toggleCategoryRegistration = async (req, res) => {
   try {
     const { tournamentId, categoryId } = req.params;

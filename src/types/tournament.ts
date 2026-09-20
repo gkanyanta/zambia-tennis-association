@@ -1,4 +1,14 @@
 export type DrawType = 'single_elimination' | 'round_robin' | 'feed_in' | 'mixer'
+
+// Labels shown wherever an admin picks a draw format. Formats are per
+// category, so a small category can run a round robin while a larger one
+// runs a knockout.
+export const DRAW_TYPE_LABELS: Record<DrawType, string> = {
+  single_elimination: 'Single Elimination (Knockout)',
+  round_robin: 'Round Robin (Everyone plays everyone)',
+  feed_in: 'Feed-in (Compass Draw)',
+  mixer: 'Mixer (Social Doubles with A/B Pairs)'
+}
 export type CategoryType = 'junior' | 'senior' | 'madalas'
 export type Gender = 'boys' | 'girls' | 'mens' | 'womens' | 'mixed'
 export type AgeGroup = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'Open' | '35+' | '45+' | '55+' | '65+'
