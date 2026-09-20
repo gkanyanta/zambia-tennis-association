@@ -2809,9 +2809,11 @@ export const publicRegister = async (req, res) => {
       };
     }
 
-    // Generate pay-later token and link if not paying now and there's a fee
+    // Generate pay-later token and link if there's a fee. Even on a Pay Now
+    // registration the payer may close the payment widget, so the email must
+    // always carry a way back to complete payment.
     let payLaterLink = '';
-    if (!payNow && totalFee > 0) {
+    if (totalFee > 0) {
       const payLaterToken = jwt.sign(
         { tournamentId: tournament._id, purpose: 'PAY_LATER', payerEmail: payer.email, amount: totalFee },
         process.env.JWT_SECRET,
@@ -2845,12 +2847,9 @@ export const publicRegister = async (req, res) => {
             <p><strong>Payment:</strong></p>
             <p>Total Entry Fee: K${totalFee}</p>
             <p>Each player has an individual reference number shown above. You can pay for each entry separately.</p>
-            ${payNow
-              ? '<p>Status: Payment Pending</p>'
-              : `<p>Status: Pay Later — Entries will be confirmed upon payment</p>
-                 <p><a href="${payLaterLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Complete Payment Now</a></p>
-                 <p style="font-size:12px;color:#666;">You can also pay later by visiting <a href="${process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com'}/pay/tournament">zambiatennisassociation.com/pay/tournament</a> and entering each player's individual reference number.</p>`
-            }
+            <p>Status: ${payNow ? 'Payment Pending' : 'Pay Later — Entries will be confirmed upon payment'}</p>
+            <p><a href="${payLaterLink}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Complete Payment Now</a></p>
+            <p style="font-size:12px;color:#666;">You can also pay by visiting <a href="${process.env.WEB_BASE_URL || 'https://zambiatennisassociation.com'}/pay/tournament">zambiatennisassociation.com/pay/tournament</a> and entering each player's individual reference number.</p>
             ` : ''}
             ${errors.length > 0 ? `
             <p><strong>Note:</strong> Some entries could not be processed:</p>

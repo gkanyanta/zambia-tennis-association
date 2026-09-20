@@ -256,10 +256,20 @@ export const initializeTournamentPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Tournament not found' });
     }
 
-    const { entryReferenceNumber } = req.body;
+    const { entryReferenceNumber, entryReferenceNumbers } = req.body;
 
-    // Must have either a logged-in user or a specific entry reference to pay
-    if (!entryReferenceNumber && !req.user) {
+    // One call can settle several entries at once (e.g. a parent registering
+    // multiple children pays for the whole batch in a single transaction).
+    const referenceList = [
+      ...(Array.isArray(entryReferenceNumbers) ? entryReferenceNumbers : []),
+      ...(entryReferenceNumber ? [entryReferenceNumber] : [])
+    ]
+      .filter(Boolean)
+      .map(r => r.toString().trim().toUpperCase());
+    const referenceSet = new Set(referenceList);
+
+    // Must have either a logged-in user or at least one entry reference to pay
+    if (referenceSet.size === 0 && !req.user) {
       return res.status(400).json({ success: false, message: 'Entry reference number is required.' });
     }
 
@@ -271,8 +281,8 @@ export const initializeTournamentPayment = async (req, res) => {
       for (const entry of cat.entries) {
         if (entry.status !== 'pending_payment') continue;
         if (entry.paymentStatus === 'paid') continue; // Guard: already paid, skip
-        if (entryReferenceNumber) {
-          if (entry.entryReferenceNumber === entryReferenceNumber) {
+        if (referenceSet.size > 0) {
+          if (entry.entryReferenceNumber && referenceSet.has(entry.entryReferenceNumber.toUpperCase())) {
             const entryTotal = (entry.entryFee || 0) + (entry.partnerEntryFee || 0);
             entriesToTag.push({ catId: cat._id.toString(), entryId: entry._id.toString(), fee: entryTotal });
             totalAmount += entryTotal;

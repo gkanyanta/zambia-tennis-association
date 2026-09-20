@@ -124,6 +124,13 @@ export function TournamentDetail() {
     }
   }
 
+  // Entry fees may be defined per category rather than on the tournament,
+  // so check both before deciding whether to offer payment.
+  const hasEntryFees = !!tournament && (
+    (tournament.entryFee || 0) > 0 ||
+    (tournament.categories || []).some((c: any) => (c.entryFee || 0) > 0)
+  )
+
   const handlePayEntryFee = async (entryReferenceNumber?: string) => {
     try {
       setPayingEntryFee(true)
@@ -549,7 +556,7 @@ export function TournamentDetail() {
             <TabsContent value="entries">
               <PublicEntriesView
                 tournament={tournament}
-                onPayNow={tournament.entryFee > 0 ? handlePayEntryFee : undefined}
+                onPayNow={hasEntryFees ? handlePayEntryFee : undefined}
                 payingEntryFee={payingEntryFee}
                 isAdmin={user?.role === 'admin' || user?.role === 'staff'}
               />
@@ -574,6 +581,14 @@ export function TournamentDetail() {
       </section>
     </div>
   )
+}
+
+// What an entry still owes. Fees can be set per category (tournament.entryFee
+// is then 0), so fall back through entry -> category -> tournament.
+function entryAmountDue(entry: any, category: any, tournament: any): number {
+  const playerFee = entry?.entryFee ?? category?.entryFee ?? tournament?.entryFee ?? 0
+  const partnerFee = entry?.partnerEntryFee ?? 0
+  return playerFee + partnerFee
 }
 
 function PublicEntriesView({
@@ -810,7 +825,7 @@ function PublicEntriesView({
                         <td className="px-4 py-2.5">
                           <div className="flex flex-col gap-1.5 items-start">
                             {statusBadge(entry.status)}
-                            {entry.status === 'pending_payment' && onPayNow && (
+                            {entry.status === 'pending_payment' && onPayNow && (entryAmountDue(entry, category, tournament) > 0) && (
                               <Button
                                 size="sm"
                                 variant="outline"

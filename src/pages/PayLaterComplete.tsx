@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Loader2, AlertCircle, CreditCard, Trophy, Search } from 'lucide-react'
 import { apiFetch } from '@/services/api'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { lencoPaymentService } from '@/services/lencoPaymentService'
 import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 
 interface PayLaterEntry {
@@ -20,6 +21,7 @@ interface PayLaterEntry {
   partnerFee?: number
   status?: string
   paymentStatus?: string
+  entryReferenceNumber?: string
 }
 
 interface PayLaterData {
@@ -136,29 +138,28 @@ export function PayLaterComplete() {
     setProcessing(true)
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'https://zta-backend-y10h.onrender.com'}/api/membership/bulk-payment/initialize`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'tournament-entry',
-            tournamentId: data.tournamentId,
-            amount: data.amount,
-            email: data.payerEmail,
-            entryIds: data.entries.map(e => e.entryId)
-          })
-        }
+      // Pay every pending entry in this group under one transaction
+      const entryRefs = Array.from(new Set(
+        data.entries
+          .map(e => e.entryReferenceNumber)
+          .filter((r): r is string => !!r)
+      ))
+      if (entryRefs.length === 0 && data.entryReferenceNumber) {
+        entryRefs.push(data.entryReferenceNumber)
+      }
+
+      const payment = await lencoPaymentService.initializeTournamentPayment(
+        data.tournamentId,
+        undefined,
+        entryRefs
       )
 
-      const paymentData = await response.json()
-
-      if (paymentData.success && paymentData.data?.publicKey) {
+      if (payment?.publicKey) {
         await initializeLencoWidget({
-          key: paymentData.data.publicKey,
-          reference: paymentData.data.reference,
-          email: data.payerEmail,
-          amount: data.amount,
+          key: payment.publicKey,
+          reference: payment.reference,
+          email: payment.email || data.payerEmail,
+          amount: payment.amount,
           currency: 'ZMW',
           channels: ['card', 'mobile-money'],
           onSuccess: (response) => {
@@ -168,7 +169,7 @@ export function PayLaterComplete() {
             setProcessing(false)
           },
           onConfirmationPending: () => {
-            navigate(`/payment/verify?reference=${paymentData.data.reference}&type=tournament-entry&pending=true`)
+            navigate(`/payment/verify?reference=${payment.reference}&type=tournament-entry&pending=true`)
           }
         })
       } else {

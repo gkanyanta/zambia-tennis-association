@@ -36,6 +36,7 @@ import { clubService, Club } from '@/services/clubService'
 import { apiFetch } from '@/services/api'
 import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import { initializeLencoWidget } from '@/utils/lencoWidget'
+import { lencoPaymentService } from '@/services/lencoPaymentService'
 import debounce from 'lodash/debounce'
 
 interface SelectedEntry {
@@ -553,13 +554,41 @@ export function TournamentRegister() {
         throw new Error(data.message || 'Failed to submit entries')
       }
 
-      if (payImmediately && data.payment) {
-        // Launch payment widget
+      // Each registered entry carries its own reference number; the batch is
+      // paid together under a single Lenco transaction.
+      const registered: any[] = data.data?.registered || []
+      const entryRefs: string[] = registered
+        .map((r: any) => r.entryReferenceNumber)
+        .filter(Boolean)
+      const refListMsg = entryRefs.length
+        ? `\n\nYour reference number${entryRefs.length > 1 ? 's' : ''}: ${entryRefs.join(', ')}\nYou can use ${entryRefs.length > 1 ? 'these' : 'this'} to pay at any time from the Pay Entry Fees page.`
+        : ''
+      const totalDue: number = data.data?.totalFee ?? 0
+
+      if (payImmediately && entryRefs.length > 0 && totalDue > 0) {
+        // Initialize the payment, then launch the Lenco widget. The entries
+        // already exist at this point, so a payment failure must not be
+        // reported as a registration failure.
+        let payment
+        try {
+          payment = await lencoPaymentService.initializeTournamentPayment(
+            id!,
+            undefined,
+            entryRefs
+          )
+        } catch (payErr: any) {
+          console.error('Payment initialization failed:', payErr)
+          setSubmitting(false)
+          alert(`Entries submitted, but payment could not be started (${payErr.message || 'unknown error'}).${refListMsg}`)
+          navigate(`/tournaments/${id}`)
+          return
+        }
+
         await initializeLencoWidget({
-          key: data.payment.publicKey,
-          reference: data.payment.reference,
-          email: payerEmail,
-          amount: data.payment.amount,
+          key: payment.publicKey,
+          reference: payment.reference,
+          email: payment.email || payerEmail,
+          amount: payment.amount,
           currency: 'ZMW',
           channels: ['card', 'mobile-money'],
           onSuccess: (response) => {
@@ -568,20 +597,16 @@ export function TournamentRegister() {
           onClose: () => {
             setSubmitting(false)
             // Still show success since entries are submitted
-            const refNum = data.data?.entryReferenceNumber
-            const refMsg = refNum ? ` Your reference number is: ${refNum}` : ''
-            alert(`Entries submitted! You can pay later from your confirmation email.${refMsg}`)
+            alert(`Entries submitted, but payment was not completed.${refListMsg}`)
             navigate(`/tournaments/${id}`)
           },
           onConfirmationPending: () => {
-            navigate(`/payment/verify?reference=${data.payment.reference}&type=tournament-entry&pending=true`)
+            navigate(`/payment/verify?reference=${payment.reference}&type=tournament-entry&pending=true`)
           }
         })
       } else {
-        // Pay later - show success with reference number
-        const refNum = data.data?.entryReferenceNumber
-        const refMsg = refNum ? `\n\nYour reference number is: ${refNum}\nYou can use this to pay later at any time.` : ''
-        alert(`${selectedEntries.length} entries submitted successfully! A confirmation email has been sent to ${payerEmail}.${refMsg}`)
+        // Pay later (or nothing to pay) - show success with reference numbers
+        alert(`${selectedEntries.length} entries submitted successfully! A confirmation email has been sent to ${payerEmail}.${refListMsg}`)
         navigate(`/tournaments/${id}`)
       }
     } catch (err: any) {
