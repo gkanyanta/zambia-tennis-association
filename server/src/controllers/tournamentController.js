@@ -173,9 +173,35 @@ export const updateTournament = async (req, res) => {
       }
     }
 
+    const before = {
+      rankingTournament: !!tournament.rankingTournament,
+      grade: tournament.grade,
+      name: tournament.name,
+      year: new Date(tournament.startDate).getFullYear()
+    };
+
     // Apply all fields from req.body
     Object.assign(tournament, req.body);
     await tournament.save();
+
+    // Points are normally awarded when a category is finalized. If the ranking
+    // settings change afterwards, re-apply them to the finalized categories.
+    const rankingSettingsChanged =
+      before.rankingTournament !== !!tournament.rankingTournament ||
+      (tournament.rankingTournament && (
+        before.grade !== tournament.grade ||
+        before.name !== tournament.name ||
+        before.year !== new Date(tournament.startDate).getFullYear()
+      ));
+    if (rankingSettingsChanged && tournament.categories.some(c => c.draw?.finalized)) {
+      if (before.year !== new Date(tournament.startDate).getFullYear()) {
+        // Moved to another ranking year — clear the old year's results too
+        await syncTournamentRankingPoints(
+          { ...tournament.toObject(), name: before.name, startDate: new Date(`${before.year}-06-01`), rankingTournament: false }
+        );
+      }
+      await syncTournamentRankingPoints(tournament, { previousName: before.name });
+    }
 
     res.status(200).json({
       success: true,
@@ -1753,6 +1779,108 @@ export const generateKnockoutStage = async (req, res) => {
   }
 };
 
+const JUNIOR_AGE_GROUPS = [10, 12, 14, 16, 18];
+
+// Drop one tournament's result from a ranking record. A record left with no
+// results at all only existed for that tournament, so it is removed.
+const removeTournamentResult = async (ranking, tournamentName, year) => {
+  const before = ranking.tournamentResults.length;
+  ranking.tournamentResults = ranking.tournamentResults.filter(
+    r => !(r.tournamentName === tournamentName && r.year === year)
+  );
+  if (ranking.tournamentResults.length === before) return false;
+  if (ranking.tournamentResults.length === 0) {
+    await Ranking.deleteOne({ _id: ranking._id });
+  } else {
+    ranking.calculateTotalPoints();
+    await ranking.save();
+  }
+  return true;
+};
+
+// Bring the rankings in line with a tournament's current settings for categories
+// that were finalized earlier — e.g. the "ranking tournament" toggle was switched
+// on (or off) or the grade changed after results were already finalized.
+export const syncTournamentRankingPoints = async (tournament, { previousName } = {}) => {
+  const year = new Date(tournament.startDate).getFullYear();
+  const rankingPeriod = String(year);
+  const finalized = tournament.categories.filter(c =>
+    c.draw?.finalized && ['single_elimination', 'round_robin'].includes(c.draw.type) && rankingCategoryFor(c)
+  );
+  const touched = new Set(finalized.map(c => rankingCategoryFor(c)));
+
+  // Clear this tournament's existing results first so a re-run (or a switch-off)
+  // leaves no stale points behind.
+  const names = [...new Set([tournament.name, previousName].filter(Boolean))];
+  const existing = await Ranking.find({
+    rankingPeriod, isActive: true,
+    tournamentResults: { $elemMatch: { tournamentName: { $in: names }, year } }
+  });
+  for (const ranking of existing) {
+    touched.add(ranking.category);
+    for (const name of names) await removeTournamentResult(ranking, name, year);
+  }
+
+  if (tournament.rankingTournament) {
+    for (const category of finalized) await awardRankingPoints(tournament, category);
+  }
+  for (const cat of touched) await Ranking.updateRankings(cat, rankingPeriod);
+
+  return { categories: finalized.length, rankingCategories: [...touched] };
+};
+
+// A junior who enters more than one age group in a tournament only earns
+// ranking points in ONE of them — their usual age group; the others are
+// walk-ins (no points). A junior who enters a single age group (even an older
+// one) earns points there as normal.
+// The usual group is, among the groups entered here, the junior ranking
+// category holding most of their results from other tournaments this year;
+// with no earlier results it is their natural age group (by tennis age) if
+// entered, otherwise the youngest group entered.
+const primaryJuniorRankingCategory = async (tournament, rankingCat, pid, playerZpin, entry) => {
+  const genderPrefix = rankingCat.split('_')[0]; // 'boys' | 'girls'
+  const juniorCats = JUNIOR_AGE_GROUPS.map(a => `${genderPrefix}_${a}u`);
+  const tournamentYear = new Date(tournament.startDate).getFullYear();
+
+  const isSamePlayer = e =>
+    (e.playerId && e.playerId.toString() === pid) ||
+    (playerZpin && playerZpin !== 'PENDING' && e.playerZpin === playerZpin);
+  const entered = tournament.categories
+    .filter(c => c.type === 'junior' && c.format === 'singles')
+    .filter(c => (c.entries || []).some(e => isSamePlayer(e) && !['withdrawn', 'rejected'].includes(e.status)))
+    .map(c => rankingCategoryFor(c))
+    .filter(c => juniorCats.includes(c));
+  if (entered.length <= 1) return rankingCat;
+
+  const or = [];
+  if (mongoose.Types.ObjectId.isValid(pid)) or.push({ playerId: pid });
+  if (playerZpin && playerZpin !== 'PENDING') or.push({ playerZpin });
+  if (or.length) {
+    const docs = await Ranking.find({
+      $or: or, category: { $in: entered }, rankingPeriod: String(tournamentYear), isActive: true
+    });
+    let best = null;
+    for (const doc of docs) {
+      const others = doc.tournamentResults.filter(
+        r => !(r.tournamentName === tournament.name && r.year === tournamentYear)
+      );
+      if (!others.length) continue;
+      const pts = others.reduce((s, r) => s + (r.points || 0) + (r.upsetBonus || 0), 0);
+      if (!best || others.length > best.count || (others.length === best.count && pts > best.pts)) {
+        best = { category: doc.category, count: others.length, pts };
+      }
+    }
+    if (best) return best.category;
+  }
+
+  const tennisAge = entry?.ageOnDec31
+    ?? (entry?.dateOfBirth ? calculateTennisAge(entry.dateOfBirth, tournamentYear) : null);
+  const naturalAge = tennisAge != null ? JUNIOR_AGE_GROUPS.find(a => tennisAge <= a) : null;
+  const natural = naturalAge ? `${genderPrefix}_${naturalAge}u` : null;
+  if (natural && entered.includes(natural)) return natural;
+  return entered.sort((a, b) => juniorCats.indexOf(a) - juniorCats.indexOf(b))[0];
+};
+
 // Award ranking points to all participants in a single_elimination or round_robin category.
 // Only called when tournament.rankingTournament === true.
 const awardRankingPoints = async (tournament, category) => {
@@ -1919,6 +2047,24 @@ const awardRankingPoints = async (tournament, category) => {
     const playerZpin = entryByPlayerId[pid]?.playerZpin
       || category._partnerZpinById?.[pid]
       || null;
+    const validPlayerId = mongoose.Types.ObjectId.isValid(pid) ? pid : null;
+    const query = validPlayerId
+      ? { playerId: validPlayerId, category: rankingCat, rankingPeriod, isActive: true }
+      : playerZpin
+        ? { playerZpin, category: rankingCat, rankingPeriod, isActive: true }
+        : { playerName, category: rankingCat, rankingPeriod, isActive: true };
+
+    if (category.type === 'junior' && category.format === 'singles') {
+      const primary = await primaryJuniorRankingCategory(tournament, rankingCat, pid, playerZpin, entryByPlayerId[pid]);
+      if (primary !== rankingCat) {
+        console.log(`  Walk-in: ${playerName} plays ${primary} this year — no ${rankingCat} points`);
+        // Undo points from an earlier award run, if any
+        const stale = await Ranking.findOne(query).sort({ createdAt: 1 });
+        if (stale) await removeTournamentResult(stale, tournamentName, tournamentYear);
+        continue;
+      }
+    }
+
     const upsets = upsetCounts[pid] || 0;
     const upsetBonus = upsets * 3;
 
@@ -1935,13 +2081,6 @@ const awardRankingPoints = async (tournament, category) => {
     // a real one (pid is only a valid ObjectId for registered players — draw
     // slots for unregistered "new player" entries carry null/synthetic ids),
     // falling back to zpin then name so legacy records without playerId still match.
-    const validPlayerId = mongoose.Types.ObjectId.isValid(pid) ? pid : null;
-    const query = validPlayerId
-      ? { playerId: validPlayerId, category: rankingCat, rankingPeriod, isActive: true }
-      : playerZpin
-        ? { playerZpin, category: rankingCat, rankingPeriod, isActive: true }
-        : { playerName, category: rankingCat, rankingPeriod, isActive: true };
-
     let ranking = await Ranking.findOne(query).sort({ createdAt: 1 });
     if (!ranking) {
       ranking = new Ranking({
