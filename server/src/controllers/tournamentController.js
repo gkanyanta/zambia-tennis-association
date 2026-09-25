@@ -13,7 +13,7 @@ import {
   getCategoryDetails,
   getAllJuniorCategories
 } from '../utils/tournamentEligibility.js';
-import { generateDrawPDF } from '../utils/generateDrawPDF.js';
+import { generateDrawPDF, loadPartnerLogos } from '../utils/generateDrawPDF.js';
 import { getPoints, roundToPosition, rankingCategoryFor } from '../utils/rankingPoints.js';
 import { syncFeedInConsolation, consolationHasResults, rebuildLinkedConsolation } from '../utils/feedInConsolation.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
@@ -3915,7 +3915,8 @@ export const downloadDrawPDF = async (req, res) => {
       .filter(c => c.consolationOf?.toString() === category._id.toString() && c.draw)
       .sort((a, b) => (a.consolationType === 'third_place') - (b.consolationType === 'third_place'))
       .map(c => c.toObject());
-    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf, linked);
+    const partnerLogos = await loadPartnerLogos(tournament.partnerLogos || []);
+    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf, linked, { partnerLogos });
 
     const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeName(tournament.name)}-${safeName(category.name)}-Draw.pdf`;

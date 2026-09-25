@@ -512,6 +512,15 @@ const tournamentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  // Technical team, printed on exported draws
+  tournamentDirector: { type: String, trim: true },
+  tournamentReferee: { type: String, trim: true },
+  // Logos of co-organisers / sponsors, printed in the header of exported draws
+  partnerLogos: [{
+    name: { type: String, trim: true },
+    url: { type: String, required: true },
+    role: { type: String, enum: ['organiser', 'sponsor'], default: 'sponsor' }
+  }],
   contactEmail: {
     type: String,
     required: true

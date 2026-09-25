@@ -4,9 +4,14 @@ import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Save, Calendar, MapPin, Users, Phone, FileText, Trophy, Settings } from 'lucide-react'
+import { Save, Calendar, MapPin, Users, Phone, FileText, Trophy, Settings, Handshake, Trash2, Upload } from 'lucide-react'
 import { tournamentService } from '@/services/tournamentService'
+import { uploadService } from '@/services/uploadService'
 import { DRAW_TYPE_LABELS, type DrawType } from '@/types/tournament'
+
+type PartnerLogo = { name: string; url: string; role: 'organiser' | 'sponsor' }
+// Matches the number of logo tiles the draw PDF header has room for
+const MAX_PARTNER_LOGOS = 3
 
 // Standard junior categories
 const JUNIOR_CATEGORIES = [
@@ -79,6 +84,12 @@ export function TournamentCreate() {
   const [rules, setRules] = useState('')
   const [prizes, setPrizes] = useState('')
 
+  // Technical team and partner logos (printed on exported draws)
+  const [tournamentDirector, setTournamentDirector] = useState('')
+  const [tournamentReferee, setTournamentReferee] = useState('')
+  const [partnerLogos, setPartnerLogos] = useState<PartnerLogo[]>([])
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+
   // Tournament type and categories
   const [tournamentType, setTournamentType] = useState<TournamentType>('junior')
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
@@ -131,6 +142,9 @@ export function TournamentCreate() {
         setContactPhone(t.contactPhone || '')
         setRules((t as any).rules || '')
         setPrizes((t as any).prizes || '')
+        setTournamentDirector((t as any).tournamentDirector || '')
+        setTournamentReferee((t as any).tournamentReferee || '')
+        setPartnerLogos(((t as any).partnerLogos || []).map((l: any) => ({ name: l.name || '', url: l.url, role: l.role || 'sponsor' })))
         setTournamentLevel((t as any).tournamentLevel || 'regional')
         setAllowPublicRegistration((t as any).allowPublicRegistration ?? true)
         setAllowMultipleCategories((t as any).allowMultipleCategories ?? false)
@@ -398,6 +412,9 @@ export function TournamentCreate() {
         contactPhone,
         rules,
         prizes,
+        tournamentDirector: tournamentDirector.trim(),
+        tournamentReferee: tournamentReferee.trim(),
+        partnerLogos,
         categories,
         // Registration settings
         tournamentLevel,
@@ -637,6 +654,106 @@ export function TournamentCreate() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Per player. Can be overridden per category below.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Partners & Technical Team */}
+          <Card className="border-t-4 border-t-teal-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Handshake className="h-5 w-5" />
+                Partners & Technical Team
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                Shown on exported draw PDFs: partner logos in the header, the technical team at the bottom of each page.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tournament Director</label>
+                  <Input
+                    value={tournamentDirector}
+                    onChange={(e) => setTournamentDirector(e.target.value)}
+                    placeholder="Full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tournament Referee</label>
+                  <Input
+                    value={tournamentReferee}
+                    onChange={(e) => setTournamentReferee(e.target.value)}
+                    placeholder="Full name"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Co-organiser / Sponsor Logos</label>
+                <div className="space-y-3">
+                  {partnerLogos.map((logo, i) => (
+                    <div key={logo.url} className="flex flex-wrap items-center gap-3 p-3 border rounded-lg">
+                      <div className="h-12 w-20 flex items-center justify-center bg-white border rounded shrink-0">
+                        <img src={logo.url} alt={logo.name || 'Partner logo'} className="max-h-10 max-w-[72px] object-contain" />
+                      </div>
+                      <Input
+                        className="flex-1 min-w-[160px]"
+                        value={logo.name}
+                        onChange={(e) => setPartnerLogos(prev => prev.map((l, j) => j === i ? { ...l, name: e.target.value } : l))}
+                        placeholder="Organisation name"
+                      />
+                      <select
+                        className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        value={logo.role}
+                        onChange={(e) => setPartnerLogos(prev => prev.map((l, j) => j === i ? { ...l, role: e.target.value as PartnerLogo['role'] } : l))}
+                      >
+                        <option value="organiser">Co-organiser</option>
+                        <option value="sponsor">Sponsor</option>
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPartnerLogos(prev => prev.filter((_, j) => j !== i))}
+                        title="Remove logo"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {partnerLogos.length < MAX_PARTNER_LOGOS ? (
+                    <label className="inline-flex items-center gap-2 px-4 py-2 border rounded-md cursor-pointer text-sm hover:bg-muted">
+                      <Upload className="h-4 w-4" />
+                      {uploadingLogo ? 'Uploading…' : 'Add logo'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        disabled={uploadingLogo}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          e.target.value = ''
+                          if (!file) return
+                          setUploadingLogo(true)
+                          try {
+                            const url = await uploadService.uploadAffiliationLogo(file)
+                            setPartnerLogos(prev => [...prev, { name: file.name.replace(/\.[^.]+$/, ''), url, role: 'sponsor' }])
+                          } catch (err: any) {
+                            alert(err?.response?.data?.message || err.message || 'Logo upload failed')
+                          } finally {
+                            setUploadingLogo(false)
+                          }
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Up to {MAX_PARTNER_LOGOS} logos fit on a draw.</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    PNG or JPG with a transparent or white background works best. Remember to save the tournament after adding logos.
                   </p>
                 </div>
               </div>

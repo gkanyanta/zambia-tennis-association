@@ -26,6 +26,11 @@ const COLORS = {
   byeText: '#9CA3AF'
 };
 
+// Header: space kept for the ZTA logo on the left, partner logo tiles on the right
+const ZTA_LOGO_SPACE = 130;
+const PARTNER_LOGO_W = 64;
+const MAX_PARTNER_LOGOS = 3;
+
 // Match box dimensions
 const MATCH_BOX_WIDTH = 140;
 const MATCH_BOX_HEIGHT = 36;
@@ -37,9 +42,32 @@ const PLAYER_LINE_HEIGHT = 18;
  * @param {Object} category - The category subdocument
  * @returns {Promise<Buffer>} - PDF buffer
  */
+// Fetch partner logos for the PDF header. PDFKit only embeds PNG and JPEG, so
+// anything else (or a logo that fails to download) is skipped.
+export async function loadPartnerLogos(partnerLogos = []) {
+  const loaded = [];
+  for (const logo of partnerLogos.slice(0, MAX_PARTNER_LOGOS)) {
+    try {
+      // Only fetch from our image host (logos are uploaded there), never arbitrary URLs
+      const url = new URL(logo.url);
+      if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com') continue;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const isPng = buffer.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
+      if (isPng || isJpeg) loaded.push({ name: logo.name, buffer });
+    } catch (e) {
+      console.error(`Partner logo not loaded (${logo.url}):`, e.message);
+    }
+  }
+  return loaded;
+}
+
 // `linked` are the main draw's linked consolation / 3rd place playoff
 // categories (see utils/feedInConsolation.js); their pages follow the main draw.
-export const generateDrawPDF = (tournament, category, linked = []) => {
+// `partnerLogos` are loaded logo buffers (see loadPartnerLogos).
+export const generateDrawPDF = (tournament, category, linked = [], { partnerLogos = [] } = {}) => {
   return new Promise((resolve, reject) => {
     try {
       const draw = category.draw;
@@ -50,8 +78,10 @@ export const generateDrawPDF = (tournament, category, linked = []) => {
       const doc = new PDFDocument({
         size: 'A4',
         layout: 'landscape',
-        margin: MARGIN
+        margin: MARGIN,
+        bufferPages: true // so the technical-team footer can be added to every page at the end
       });
+      doc._partnerLogos = partnerLogos;
 
       const chunks = [];
       doc.on('data', (chunk) => chunks.push(chunk));
@@ -60,6 +90,7 @@ export const generateDrawPDF = (tournament, category, linked = []) => {
 
       if (category.consolationOf) {
         renderConsolation(doc, tournament, category, category, true);
+        renderFooters(doc, tournament);
         doc.end();
         return;
       }
@@ -82,6 +113,7 @@ export const generateDrawPDF = (tournament, category, linked = []) => {
         if (l?.draw) renderConsolation(doc, tournament, category, l, false);
       }
 
+      renderFooters(doc, tournament);
       doc.end();
     } catch (error) {
       reject(error);
@@ -105,35 +137,67 @@ function renderHeader(doc, tournament, category, subtitle) {
     // Logo not available
   }
 
-  // Tournament name — centred across full width
+  // Co-organiser / sponsor logos on the right, each on a white tile like the ZTA logo
+  const logos = doc._partnerLogos || [];
+  let rightWidth = 0;
+  for (let i = logos.length - 1; i >= 0; i--) {
+    const x = MARGIN + CONTENT_WIDTH - 8 - (logos.length - i) * (PARTNER_LOGO_W + 6) + 6;
+    doc.rect(x, MARGIN + 6, PARTNER_LOGO_W, 43).fill('#FFFFFF');
+    try {
+      doc.image(logos[i].buffer, x + 2, MARGIN + 8, { fit: [PARTNER_LOGO_W - 4, 39], align: 'center', valign: 'center' });
+    } catch (e) {
+      // Unreadable image — leave the tile blank
+    }
+    rightWidth += PARTNER_LOGO_W + 6;
+  }
+
+  // Text is centred in the space between the ZTA logo and the partner logos
+  // (page-centred when there are none)
+  const rightSpace = logos.length ? rightWidth + 8 : ZTA_LOGO_SPACE;
+  const textX = MARGIN + ZTA_LOGO_SPACE;
+  const textW = CONTENT_WIDTH - ZTA_LOGO_SPACE - rightSpace;
+  const fitSize = (text, font, size, min) => {
+    doc.font(font);
+    let s = size;
+    while (s > min && doc.fontSize(s).widthOfString(text) > textW) s -= 0.5;
+    return s;
+  };
+
+  // Tournament name
   doc
-    .fontSize(15)
     .fillColor(COLORS.headerText)
-    .font('Helvetica-Bold')
-    .text(tournament.name, MARGIN, MARGIN + 6, {
-      width: CONTENT_WIDTH,
+    .fontSize(fitSize(tournament.name, 'Helvetica-Bold', 15, 8))
+    .text(tournament.name, textX, MARGIN + 6, {
+      width: textW,
+      height: 17,
       align: 'center',
-      lineBreak: false
+      lineBreak: false,
+      ellipsis: true
     });
 
-  // Category + subtitle — centred
+  // Category + subtitle
+  const catLine = `${category.name}${subtitle ? ' — ' + subtitle : ''}`;
   doc
-    .fontSize(10)
-    .font('Helvetica')
-    .text(`${category.name}${subtitle ? ' — ' + subtitle : ''}`, MARGIN, MARGIN + 24, {
-      width: CONTENT_WIDTH,
+    .fontSize(fitSize(catLine, 'Helvetica', 10, 7))
+    .text(catLine, textX, MARGIN + 24, {
+      width: textW,
+      height: 13,
       align: 'center',
-      lineBreak: false
+      lineBreak: false,
+      ellipsis: true
     });
 
-  // Venue, city, dates — centred on third line
+  // Venue, city, dates
   const dateStr = formatDateRange(tournament.startDate, tournament.endDate);
+  const infoLine = `${tournament.venue}, ${tournament.city}  |  ${dateStr}  |  Zambia Tennis Association`;
   doc
-    .fontSize(7)
-    .text(`${tournament.venue}, ${tournament.city}  |  ${dateStr}  |  Zambia Tennis Association`, MARGIN, MARGIN + 40, {
-      width: CONTENT_WIDTH,
+    .fontSize(fitSize(infoLine, 'Helvetica', 7, 5))
+    .text(infoLine, textX, MARGIN + 40, {
+      width: textW,
+      height: 9,
       align: 'center',
-      lineBreak: false
+      lineBreak: false,
+      ellipsis: true
     });
 
   // Reset color
@@ -889,6 +953,35 @@ function renderFeedIn(doc, tournament, category) {
       currentY += MATCH_BOX_HEIGHT + 10;
     }
   }
+}
+
+/**
+ * Technical team line in the bottom margin of every page.
+ */
+function renderFooters(doc, tournament) {
+  const parts = [];
+  if (tournament.tournamentDirector) parts.push(`Tournament Director: ${tournament.tournamentDirector}`);
+  if (tournament.tournamentReferee) parts.push(`Tournament Referee: ${tournament.tournamentReferee}`);
+  if (!parts.length) return;
+
+  const range = doc.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    // Writing inside the bottom margin would otherwise start a new page
+    const bottom = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+    doc
+      .fontSize(7.5)
+      .font('Helvetica')
+      .fillColor(COLORS.secondary)
+      .text(parts.join('      |      '), MARGIN, PAGE_HEIGHT - MARGIN + 10, {
+        width: CONTENT_WIDTH,
+        align: 'center',
+        lineBreak: false
+      });
+    doc.page.margins.bottom = bottom;
+  }
+  doc.fillColor(COLORS.primary);
 }
 
 // ---- Helpers ----
