@@ -945,10 +945,8 @@ export const autoSeedCategory = async (req, res) => {
 // @access  Private (Admin only)
 // The linked feed-in consolation category, if it already has results (a new
 // main draw would orphan them).
-const playedLinkedConsolation = (tournament, category) => {
-  const cons = tournament.categories.find(c => c.consolationOf?.toString() === category._id.toString());
-  return cons && consolationHasResults(cons) ? cons : null;
-};
+const playedLinkedConsolation = (tournament, category) =>
+  tournament.categories.find(c => c.consolationOf?.toString() === category._id.toString() && consolationHasResults(c)) || null;
 
 export const generateDraw = async (req, res) => {
   try {
@@ -3912,9 +3910,12 @@ export const downloadDrawPDF = async (req, res) => {
       enrichDoublesNames(categoryForPdf);
     }
 
-    // A main draw with a feed-in consolation prints the consolation pages too
-    const consolation = tournament.categories.find(c => c.consolationOf?.toString() === category._id.toString());
-    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf, consolation?.draw ? consolation.toObject() : null);
+    // A main draw with a feed-in consolation / 3rd place playoff prints those pages too
+    const linked = tournament.categories
+      .filter(c => c.consolationOf?.toString() === category._id.toString() && c.draw)
+      .sort((a, b) => (a.consolationType === 'third_place') - (b.consolationType === 'third_place'))
+      .map(c => c.toObject());
+    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf, linked);
 
     const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeName(tournament.name)}-${safeName(category.name)}-Draw.pdf`;

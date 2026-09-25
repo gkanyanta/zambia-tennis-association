@@ -326,6 +326,12 @@ const categorySchema = new mongoose.Schema({
   consolationOf: {
     type: mongoose.Schema.Types.ObjectId
   },
+  // Kind of linked draw: feed-in consolation, or a 3rd/4th place playoff
+  // between the main draw's semi-final losers
+  consolationType: {
+    type: String,
+    enum: ['feed_in', 'third_place']
+  },
   // Per-category entry fee (overrides tournament-level entryFee if set)
   entryFee: { type: Number },
   // Category format: singles, doubles, or mixed doubles

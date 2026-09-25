@@ -17,7 +17,7 @@ export function hasLinkedConsolation(category: any, categories?: any[]): boolean
 }
 
 export function drawFormatLabel(category: any, categories?: any[]): string {
-  if (category?.consolationOf) return 'Feed-in consolation'
+  if (category?.consolationOf) return category.consolationType === 'third_place' ? '3rd place playoff' : 'Feed-in consolation'
   if (hasLinkedConsolation(category, categories)) return 'Feed-in (with consolation)'
   return (category?.draw?.type || category?.drawType || '').replace('_', ' ')
 }

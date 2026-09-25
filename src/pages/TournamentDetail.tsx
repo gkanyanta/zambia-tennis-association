@@ -882,8 +882,10 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
   const activeCategoryId = selectedCategoryId || categoriesWithDraws[0]?._id || ''
   const activeCategory = categoriesWithDraws.find((c: any) => c._id === activeCategoryId)
   const rawDraw = (activeCategory as any)?.draw
-  const consolationDraw = (tournament.categories as any[] | undefined)
-    ?.find((c: any) => c.consolationOf && String(c.consolationOf) === String(activeCategoryId))?.draw
+  // Linked feed-in consolation first, then the 3rd place playoff
+  const linkedDraws = ((tournament.categories as any[] | undefined) || [])
+    .filter((c: any) => c.consolationOf && c.draw && String(c.consolationOf) === String(activeCategoryId))
+    .sort((a: any, b: any) => Number(a.consolationType === 'third_place') - Number(b.consolationType === 'third_place'))
 
   // Enrich doubles draws: replace stored player names with "Surname1 / Surname2"
   const draw = useMemo(() => {
@@ -1027,22 +1029,27 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
         </Card>
       )}
 
-      {consolationDraw && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              {(activeCategory as any)?.name} - Consolation Draw
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Players who lose in Round 1 or the Quarter-Finals of the main draw continue here.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <DrawBracket draw={consolationDraw} />
-          </CardContent>
-        </Card>
-      )}
+      {linkedDraws.map((linked: any) => {
+        const isPlayoff = linked.consolationType === 'third_place'
+        return (
+          <Card key={linked._id}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                {(activeCategory as any)?.name} - {isPlayoff ? '3rd / 4th Place Playoff' : 'Consolation Draw'}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {isPlayoff
+                  ? 'The two semi-final losers of the main draw play for 3rd place.'
+                  : 'Players who lose early in the main draw continue here.'}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <DrawBracket draw={linked.draw} />
+            </CardContent>
+          </Card>
+        )
+      })}
     </div>
   )
 }

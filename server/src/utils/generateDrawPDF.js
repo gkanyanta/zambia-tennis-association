@@ -37,9 +37,9 @@ const PLAYER_LINE_HEIGHT = 18;
  * @param {Object} category - The category subdocument
  * @returns {Promise<Buffer>} - PDF buffer
  */
-// `consolation` is the linked feed-in consolation category (see
-// utils/feedInConsolation.js); its pages follow the main draw.
-export const generateDrawPDF = (tournament, category, consolation = null) => {
+// `linked` are the main draw's linked consolation / 3rd place playoff
+// categories (see utils/feedInConsolation.js); their pages follow the main draw.
+export const generateDrawPDF = (tournament, category, linked = []) => {
   return new Promise((resolve, reject) => {
     try {
       const draw = category.draw;
@@ -78,8 +78,8 @@ export const generateDrawPDF = (tournament, category, consolation = null) => {
           renderSingleElimination(doc, tournament, category);
       }
 
-      if (consolation?.draw) {
-        renderConsolation(doc, tournament, category, consolation, false);
+      for (const l of linked || []) {
+        if (l?.draw) renderConsolation(doc, tournament, category, l, false);
       }
 
       doc.end();
@@ -860,7 +860,8 @@ function renderConsolation(doc, tournament, headerCategory, consolation, isFirst
   const rounds = draw.numberOfRounds || 1;
   const rm = byRound(draw.matches || [], rounds);
   newPage();
-  renderSinglePageBracket(doc, tournament, headerCategory, rm, rounds, 'Consolation Draw', namesFrom(rm, rounds));
+  const subtitle = consolation.consolationType === 'third_place' ? '3rd / 4th Place Playoff' : 'Consolation Draw';
+  renderSinglePageBracket(doc, tournament, headerCategory, rm, rounds, subtitle, namesFrom(rm, rounds));
 }
 
 function renderFeedIn(doc, tournament, category) {

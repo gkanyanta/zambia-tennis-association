@@ -13,6 +13,10 @@
 //                  loser (Consolation Round 1) for that semi-final place — never
 //                  the loser of the match their own qualifier went into.
 //
+// A main draw can also have a linked 3rd/4th place playoff category
+// (consolationType 'third_place'): one match between the two semi-final losers.
+// Semi-final losers keep their main-draw points; the playoff awards none.
+//
 // Consolation slots waiting for a main-draw loser are placeholders carrying
 // `feedFromMatchNumber`. Whenever a main-draw result is saved,
 // syncFeedInConsolation() drops the loser into that slot (or a BYE if the main
@@ -55,7 +59,7 @@ function describeFeed(mainDraw, mainMatchNumber, fromQualifying) {
   const mainMatches = mainDraw.matches;
   const roundMatches = mainMatches.filter(x => x.round === m.round).sort((a, b) => a.matchNumber - b.matchNumber);
   const rounds = Math.max(...mainMatches.map(x => x.round));
-  const label = rounds - m.round === 2 ? 'QF' : `R${m.round} match`;
+  const label = rounds - m.round === 1 ? 'SF' : rounds - m.round === 2 ? 'QF' : `R${m.round} match`;
   return `Loser of ${label} ${roundMatches.findIndex(x => x.matchNumber === mainMatchNumber) + 1}`;
 }
 
@@ -243,15 +247,38 @@ export function consolationHasResults(consolation) {
   return [...(d?.qualifyingStage?.matches || []), ...(d?.matches || [])].some(hasResult);
 }
 
+// 3rd/4th place playoff: the two main-draw semi-final losers.
+export function buildThirdPlaceDraw(mainDraw) {
+  const rounds = mainDraw.numberOfRounds || Math.max(...mainDraw.matches.map(m => m.round));
+  const sf = mainDraw.matches.filter(m => m.round === rounds - 1).sort((a, b) => a.matchNumber - b.matchNumber);
+  if (sf.length !== 2) throw new Error('A 3rd place playoff needs a main draw with two semi-finals');
+  return {
+    type: 'single_elimination',
+    bracketSize: 2,
+    numberOfRounds: 1,
+    generatedAt: new Date(),
+    matches: [match(1, 1, '3rd Place Playoff', feedSlot(sf[0].matchNumber), feedSlot(sf[1].matchNumber))]
+  };
+}
+
+export function buildLinkedDraw(linkedCategory, mainDraw) {
+  return linkedCategory.consolationType === 'third_place'
+    ? buildThirdPlaceDraw(mainDraw)
+    : buildFeedInConsolationDraw(mainDraw);
+}
+
+export const linkedCategoriesOf = (tournament, mainCategory) =>
+  tournament.categories.filter(c => c.consolationOf?.toString() === mainCategory._id.toString());
+
 // The main draw of `mainCategory` was replaced: rebuild its linked consolation
-// draw to match. Throws if a consolation match has already been played.
+// and playoff draws to match. Throws if any of them has already been played.
 export function rebuildLinkedConsolation(tournament, mainCategory) {
-  const cons = tournament.categories.find(c => c.consolationOf?.toString() === mainCategory._id.toString());
-  if (!cons) return null;
-  if (consolationHasResults(cons)) {
-    throw new Error(`${cons.name} already has results — it cannot be rebuilt for a new main draw`);
+  const linked = linkedCategoriesOf(tournament, mainCategory);
+  const played = linked.find(consolationHasResults);
+  if (played) {
+    throw new Error(`${played.name} already has results — it cannot be rebuilt for a new main draw`);
   }
-  cons.draw = buildFeedInConsolationDraw(mainCategory.draw);
-  syncFeedInConsolation(tournament, mainCategory);
-  return cons;
+  for (const cons of linked) cons.draw = buildLinkedDraw(cons, mainCategory.draw);
+  if (linked.length) syncFeedInConsolation(tournament, mainCategory);
+  return linked;
 }
