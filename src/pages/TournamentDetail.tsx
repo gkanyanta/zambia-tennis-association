@@ -875,12 +875,15 @@ function PublicEntriesView({
 function PublicDrawsView({ tournament }: { tournament: Tournament }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
 
-  const categoriesWithDraws = tournament.categories?.filter((c: any) => c.draw) || []
+  // Feed-in consolation draws are shown under their main draw, not as their own category
+  const categoriesWithDraws = tournament.categories?.filter((c: any) => c.draw && !c.consolationOf) || []
 
   // Auto-select first category with draw
   const activeCategoryId = selectedCategoryId || categoriesWithDraws[0]?._id || ''
   const activeCategory = categoriesWithDraws.find((c: any) => c._id === activeCategoryId)
   const rawDraw = (activeCategory as any)?.draw
+  const consolationDraw = (tournament.categories as any[] | undefined)
+    ?.find((c: any) => c.consolationOf && String(c.consolationOf) === String(activeCategoryId))?.draw
 
   // Enrich doubles draws: replace stored player names with "Surname1 / Surname2"
   const draw = useMemo(() => {
@@ -1020,6 +1023,23 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
             )}
 
             <DrawBracket draw={draw} />
+          </CardContent>
+        </Card>
+      )}
+
+      {consolationDraw && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              {(activeCategory as any)?.name} - Consolation Draw
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Players who lose in Round 1 or the Quarter-Finals of the main draw continue here.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <DrawBracket draw={consolationDraw} />
           </CardContent>
         </Card>
       )}

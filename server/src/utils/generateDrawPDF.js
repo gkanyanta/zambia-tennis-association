@@ -37,7 +37,9 @@ const PLAYER_LINE_HEIGHT = 18;
  * @param {Object} category - The category subdocument
  * @returns {Promise<Buffer>} - PDF buffer
  */
-export const generateDrawPDF = (tournament, category) => {
+// `consolation` is the linked feed-in consolation category (see
+// utils/feedInConsolation.js); its pages follow the main draw.
+export const generateDrawPDF = (tournament, category, consolation = null) => {
   return new Promise((resolve, reject) => {
     try {
       const draw = category.draw;
@@ -56,6 +58,12 @@ export const generateDrawPDF = (tournament, category) => {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
+      if (category.consolationOf) {
+        renderConsolation(doc, tournament, category, category, true);
+        doc.end();
+        return;
+      }
+
       switch (draw.type) {
         case 'single_elimination':
           renderSingleElimination(doc, tournament, category);
@@ -68,6 +76,10 @@ export const generateDrawPDF = (tournament, category) => {
           break;
         default:
           renderSingleElimination(doc, tournament, category);
+      }
+
+      if (consolation?.draw) {
+        renderConsolation(doc, tournament, category, consolation, false);
       }
 
       doc.end();
@@ -182,7 +194,7 @@ function renderSingleElimination(doc, tournament, category) {
 /**
  * Render bracket that fits on a single page
  */
-function renderSinglePageBracket(doc, tournament, category, roundMatches, numberOfRounds, subtitle) {
+function renderSinglePageBracket(doc, tournament, category, roundMatches, numberOfRounds, subtitle, customRoundNames) {
   const headerBottom = renderHeader(doc, tournament, category, subtitle || 'Draw');
   const bracketTop = headerBottom + 5;
   const bracketBottom = PAGE_HEIGHT - MARGIN;
@@ -205,7 +217,7 @@ function renderSinglePageBracket(doc, tournament, category, roundMatches, number
   const playerLineH = boxHeight / 2;
 
   // Render round labels
-  const roundNames = getRoundNames(numberOfRounds);
+  const roundNames = customRoundNames || getRoundNames(numberOfRounds);
   for (let r = 1; r <= numberOfRounds; r++) {
     const colX = MARGIN + (r - 1) * colWidth;
     doc
@@ -814,6 +826,43 @@ function renderCrossTable(doc, group, startY) {
 /**
  * Render feed-in draw (main bracket + consolation)
  */
+/**
+ * Feed-in consolation draw: Consolation Round 1 (stored as the qualifying
+ * stage) on one page, then the rest of the consolation bracket. Headed with
+ * `headerCategory` (the main draw's name when printed after the main draw).
+ */
+function renderConsolation(doc, tournament, headerCategory, consolation, isFirstPage) {
+  const draw = consolation.draw;
+  const byRound = (matches, rounds) => {
+    const out = {};
+    for (let r = 1; r <= rounds; r++) {
+      out[r] = matches.filter(m => m.round === r).sort((a, b) => a.matchNumber - b.matchNumber);
+    }
+    return out;
+  };
+  const namesFrom = (rm, rounds) =>
+    Array.from({ length: rounds }, (_, i) => rm[i + 1]?.[0]?.roundName || `Consolation Round ${i + 1}`);
+  let first = isFirstPage;
+  const newPage = () => {
+    if (!first) doc.addPage({ size: 'A4', layout: 'landscape', margin: MARGIN });
+    first = false;
+  };
+
+  const q = draw.qualifyingStage?.matches || [];
+  if (q.length) {
+    newPage();
+    const qRounds = draw.qualifyingStage.numberOfRounds || 1;
+    const rm = byRound(q, qRounds);
+    renderSinglePageBracket(doc, tournament, headerCategory, rm, qRounds,
+      draw.qualifyingStage.label || 'Consolation Round 1', namesFrom(rm, qRounds));
+  }
+
+  const rounds = draw.numberOfRounds || 1;
+  const rm = byRound(draw.matches || [], rounds);
+  newPage();
+  renderSinglePageBracket(doc, tournament, headerCategory, rm, rounds, 'Consolation Draw', namesFrom(rm, rounds));
+}
+
 function renderFeedIn(doc, tournament, category) {
   const draw = category.draw;
   const matches = draw.matches || [];

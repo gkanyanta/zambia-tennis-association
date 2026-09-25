@@ -8,7 +8,10 @@
 //                  C2 (draw round 1)     = C1 winners v main Round 2 (QF) losers,
 //                                          fed in reverse order to avoid instant rematches
 //                  C3, consolation final = normal knockout
-//   8-draw main:   consolation draw round 1 = main Round 1 losers, then knockout
+//   8-draw main:   consolation semi-finals = main Round 1 losers, then final.
+//                  Losers of main qualifying matches first play a main Round 1
+//                  loser (Consolation Round 1) for that semi-final place — never
+//                  the loser of the match their own qualifier went into.
 //
 // Consolation slots waiting for a main-draw loser are placeholders carrying
 // `feedFromMatchNumber`. Whenever a main-draw result is saved,
@@ -22,17 +25,39 @@ const isReal = p => !!p?.id && !p.isBye && !p.isQualifierPlaceholder;
 const winnerOf = m => (m.player1?.id === m.winner ? m.player1 : m.player2);
 // Copy of a player for the next round, without the feed-in marker of the slot they came from
 const carry = p => {
-  const { feedFromMatchNumber, _id, ...rest } = p?.toObject ? p.toObject() : (p || {});
+  const { feedFromMatchNumber, feedFromQualifying, _id, ...rest } = p?.toObject ? p.toObject() : (p || {});
   return rest;
 };
 const isDone = m => !!m.winner || m.status === 'completed' || m.status === 'walkover';
 
-const feedSlot = (mainMatchNumber) => ({
-  id: `feed-M${mainMatchNumber}`,
-  name: `Loser of M${mainMatchNumber}`,
+// A slot filled by the loser of main-draw match `mainMatchNumber` (a match of
+// the main draw's qualifying stage when fromQualifying).
+const feedSlot = (mainMatchNumber, fromQualifying = false) => ({
+  id: `feed-${fromQualifying ? 'Q' : 'M'}${mainMatchNumber}`,
+  name: `Loser of ${fromQualifying ? 'qualifying ' : 'M'}${mainMatchNumber}`,
   isQualifierPlaceholder: true,
-  feedFromMatchNumber: mainMatchNumber
+  feedFromMatchNumber: mainMatchNumber,
+  ...(fromQualifying ? { feedFromQualifying: true } : {})
 });
+
+const findMain = (mainDraw, n, fromQualifying) =>
+  (fromQualifying ? mainDraw?.qualifyingStage?.matches : mainDraw?.matches)?.find(x => x.matchNumber === n);
+
+const surname = p => (p?.name || '').trim().split(/\s+/).slice(-1)[0];
+
+// Readable name for a slot still waiting on a main-draw result — match numbers
+// aren't printed on the draw, so name the two players (or the round) instead.
+function describeFeed(mainDraw, mainMatchNumber, fromQualifying) {
+  const m = findMain(mainDraw, mainMatchNumber, fromQualifying);
+  if (!m) return `Loser of M${mainMatchNumber}`;
+  if (isReal(m.player1) && isReal(m.player2)) return `Loser: ${surname(m.player1)} / ${surname(m.player2)}`;
+  if (fromQualifying) return `Loser of qualifying ${mainMatchNumber}`;
+  const mainMatches = mainDraw.matches;
+  const roundMatches = mainMatches.filter(x => x.round === m.round).sort((a, b) => a.matchNumber - b.matchNumber);
+  const rounds = Math.max(...mainMatches.map(x => x.round));
+  const label = rounds - m.round === 2 ? 'QF' : `R${m.round} match`;
+  return `Loser of ${label} ${roundMatches.findIndex(x => x.matchNumber === mainMatchNumber) + 1}`;
+}
 
 const match = (matchNumber, round, roundName, player1, player2, extra = {}) => ({
   matchNumber, round, roundName, player1, player2, status: 'scheduled', ...extra
@@ -44,23 +69,46 @@ export function buildFeedInConsolationDraw(mainDraw) {
   const size = mainDraw.bracketSize || r1.length * 2;
   const now = new Date();
 
+  const mainQualifying = (mainDraw.qualifyingStage?.matches || []).slice().sort((a, b) => a.matchNumber - b.matchNumber);
+
   if (size === 8) {
-    // 4 main R1 losers → 2 matches → consolation final
+    // Semi-final slots: loser of main R1 match i → slot i
+    const slots = r1.map(m => feedSlot(m.matchNumber));
+    const qualifying = [];
+    const intoR1 = new Set(mainQualifying.map(q => q.advancesToMatchNumber));
+    const opponents = r1.filter(m => !intoR1.has(m.matchNumber));
+    if (mainQualifying.length > opponents.length) {
+      throw new Error('Too many qualifying matches to fit into the consolation draw');
+    }
+    const sf = mainQualifying.length + 1; // consolation draw match numbers follow its play-ins
+    mainQualifying.forEach((q, i) => {
+      const idx = r1.indexOf(opponents[i]);
+      qualifying.push(match(i + 1, 1, 'Consolation Round 1',
+        feedSlot(q.matchNumber, true), feedSlot(opponents[i].matchNumber),
+        { advancesToMatchNumber: sf + Math.floor(idx / 2), advancesToSlot: idx % 2 === 0 ? 'player1' : 'player2' }));
+      slots[idx] = { id: `cons-q${i + 1}`, name: `Winner of Cons. R1 match ${i + 1}`, isQualifierPlaceholder: true, qualifierLabel: `C${i + 1}` };
+    });
     return {
       type: 'single_elimination',
       bracketSize: 4,
       numberOfRounds: 2,
       generatedAt: now,
       matches: [
-        match(1, 1, 'Consolation Semi-final', feedSlot(r1[0].matchNumber), feedSlot(r1[1].matchNumber)),
-        match(2, 1, 'Consolation Semi-final', feedSlot(r1[2].matchNumber), feedSlot(r1[3].matchNumber)),
-        match(3, 2, 'Consolation Final', undefined, undefined)
-      ]
+        match(sf, 1, 'Consolation Semi-final', slots[0], slots[1]),
+        match(sf + 1, 1, 'Consolation Semi-final', slots[2], slots[3]),
+        match(sf + 2, 2, 'Consolation Final', undefined, undefined)
+      ],
+      ...(qualifying.length ? {
+        qualifyingStage: { label: 'Consolation Round 1', matches: qualifying, numberOfRounds: 1, generatedAt: now, status: 'pending' }
+      } : {})
     };
   }
 
   if (size !== 16) {
     throw new Error(`Feed-in consolation is only set up for 8- and 16-player main draws (this one is ${size})`);
+  }
+  if (mainQualifying.length) {
+    throw new Error('Feed-in consolation for a 16-player main draw with qualifying matches is not supported');
   }
 
   const r2 = byRound(2);
@@ -73,7 +121,7 @@ export function buildFeedInConsolationDraw(mainDraw) {
   }
   for (let k = 0; k < 4; k++) {
     main.push(match(5 + k, 1, 'Consolation Round 2',
-      { id: `cons-q${k + 1}`, name: `Winner of C${k + 1}`, isQualifierPlaceholder: true, qualifierLabel: `C${k + 1}` },
+      { id: `cons-q${k + 1}`, name: `Winner of Cons. R1 match ${k + 1}`, isQualifierPlaceholder: true, qualifierLabel: `C${k + 1}` },
       feedSlot(r2[3 - k].matchNumber)));
   }
   main.push(match(9, 2, 'Consolation Semi-final'));
@@ -93,6 +141,7 @@ export function buildFeedInConsolationDraw(mainDraw) {
 // The loser of a finished main-draw match, BYE for a bye match, or null if
 // the match has no result yet.
 function mainLoser(m) {
+  // (m is a main-draw or main-qualifying match)
   if (!m) return null;
   if (isBye(m.player1) || isBye(m.player2)) return m.winner ? BYE() : null;
   if (!m.winner || !['completed', 'walkover'].includes(m.status)) return null;
@@ -100,10 +149,15 @@ function mainLoser(m) {
   return isReal(loser) ? { id: loser.id, name: loser.name } : null;
 }
 
-const hasResult = m => !!m.winner || (['completed', 'walkover'].includes(m.status) && !isBye(m.player1) && !isBye(m.player2));
+// A real played result — BYE advancements don't count
+const hasResult = m => !!m.winner && !isBye(m.player1) && !isBye(m.player2);
 
-function setSlot(m, slot, player, feedFromMatchNumber) {
-  m[slot] = { ...player, ...(feedFromMatchNumber != null ? { feedFromMatchNumber } : {}) };
+function setSlot(m, slot, player, feedFromMatchNumber, feedFromQualifying) {
+  m[slot] = {
+    ...player,
+    ...(feedFromMatchNumber != null ? { feedFromMatchNumber } : {}),
+    ...(feedFromQualifying ? { feedFromQualifying: true } : {})
+  };
 }
 
 function advanceInBracket(draw, m) {
@@ -163,7 +217,7 @@ export function syncFeedInConsolation(tournament, category) {
   for (const cons of consolations) {
     if (!cons.draw) continue;
     const main = category.consolationOf ? tournament.categories.id(cons.consolationOf) : category;
-    const mainMatches = main?.draw?.matches || [];
+    const mainDraw = main?.draw;
 
     // Only these rounds take players fed in from the main draw
     const feedMatches = [...(cons.draw.qualifyingStage?.matches || []), ...cons.draw.matches.filter(m => m.round === 1)];
@@ -172,12 +226,32 @@ export function syncFeedInConsolation(tournament, category) {
       for (const slot of ['player1', 'player2']) {
         const from = m[slot]?.feedFromMatchNumber;
         if (from == null) continue;
-        const loser = mainLoser(mainMatches.find(x => x.matchNumber === from));
-        if (loser) setSlot(m, slot, loser, from);
-        else if (!m[slot].isQualifierPlaceholder) setSlot(m, slot, feedSlot(from), from); // main result was cleared
+        const fromQ = !!m[slot].feedFromQualifying;
+        const loser = mainLoser(findMain(mainDraw, from, fromQ));
+        if (loser) setSlot(m, slot, loser, from, fromQ);
+        else setSlot(m, slot, { ...feedSlot(from, fromQ), name: describeFeed(mainDraw, from, fromQ) }, from, fromQ); // waiting (or main result cleared)
       }
     }
     resolveByes(cons.draw);
     cons.markModified('draw');
   }
+}
+
+// True once any real consolation match has a result (byes don't count).
+export function consolationHasResults(consolation) {
+  const d = consolation?.draw;
+  return [...(d?.qualifyingStage?.matches || []), ...(d?.matches || [])].some(hasResult);
+}
+
+// The main draw of `mainCategory` was replaced: rebuild its linked consolation
+// draw to match. Throws if a consolation match has already been played.
+export function rebuildLinkedConsolation(tournament, mainCategory) {
+  const cons = tournament.categories.find(c => c.consolationOf?.toString() === mainCategory._id.toString());
+  if (!cons) return null;
+  if (consolationHasResults(cons)) {
+    throw new Error(`${cons.name} already has results — it cannot be rebuilt for a new main draw`);
+  }
+  cons.draw = buildFeedInConsolationDraw(mainCategory.draw);
+  syncFeedInConsolation(tournament, mainCategory);
+  return cons;
 }

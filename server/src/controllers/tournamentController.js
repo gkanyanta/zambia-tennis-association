@@ -15,7 +15,7 @@ import {
 } from '../utils/tournamentEligibility.js';
 import { generateDrawPDF } from '../utils/generateDrawPDF.js';
 import { getPoints, roundToPosition, rankingCategoryFor } from '../utils/rankingPoints.js';
-import { syncFeedInConsolation } from '../utils/feedInConsolation.js';
+import { syncFeedInConsolation, consolationHasResults, rebuildLinkedConsolation } from '../utils/feedInConsolation.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
 import { generateOrderOfPlayPDF } from '../utils/generateOrderOfPlayPDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
@@ -943,6 +943,13 @@ export const autoSeedCategory = async (req, res) => {
 // @desc    Generate draw for category
 // @route   POST /api/tournaments/:tournamentId/categories/:categoryId/draw
 // @access  Private (Admin only)
+// The linked feed-in consolation category, if it already has results (a new
+// main draw would orphan them).
+const playedLinkedConsolation = (tournament, category) => {
+  const cons = tournament.categories.find(c => c.consolationOf?.toString() === category._id.toString());
+  return cons && consolationHasResults(cons) ? cons : null;
+};
+
 export const generateDraw = async (req, res) => {
   try {
     const { tournamentId, categoryId } = req.params;
@@ -975,8 +982,13 @@ export const generateDraw = async (req, res) => {
       });
     }
 
-    // Set the draw
+    if (playedLinkedConsolation(tournament, category)) {
+      return res.status(409).json({ success: false, message: `${playedLinkedConsolation(tournament, category).name} already has results — the main draw can no longer be replaced` });
+    }
+
+    // Set the draw (and rebuild a linked feed-in consolation draw to match)
     category.draw = draw;
+    rebuildLinkedConsolation(tournament, category);
     await tournament.save();
 
     res.status(200).json({
@@ -1148,12 +1160,17 @@ export const saveManualDraw = async (req, res) => {
       }
     }
 
+    if (playedLinkedConsolation(tournament, category)) {
+      return res.status(409).json({ success: false, message: `${playedLinkedConsolation(tournament, category).name} already has results — the main draw can no longer be replaced` });
+    }
+
     // Stamp as manual and persist; do not require accepted entries
     category.draw = {
       ...draw,
       mode: 'manual',
       generatedAt: draw.generatedAt || new Date()
     };
+    rebuildLinkedConsolation(tournament, category);
     await tournament.save();
 
     res.status(200).json({
@@ -1321,6 +1338,9 @@ export const updateManualDrawSlots = async (req, res) => {
         else r2.player2 = undefined;
       }
     }
+
+    // Round-1 slot changes alter who feeds a linked consolation draw
+    syncFeedInConsolation(tournament, category);
 
     await tournament.save();
     res.status(200).json({ success: true, data: category });
@@ -3892,7 +3912,9 @@ export const downloadDrawPDF = async (req, res) => {
       enrichDoublesNames(categoryForPdf);
     }
 
-    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf);
+    // A main draw with a feed-in consolation prints the consolation pages too
+    const consolation = tournament.categories.find(c => c.consolationOf?.toString() === category._id.toString());
+    const pdfBuffer = await generateDrawPDF(tournament, categoryForPdf, consolation?.draw ? consolation.toObject() : null);
 
     const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeName(tournament.name)}-${safeName(category.name)}-Draw.pdf`;

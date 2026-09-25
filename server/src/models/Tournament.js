@@ -127,7 +127,9 @@ const matchSchema = new mongoose.Schema({
     // from even after the placeholder is resolved.
     qualifierLabel: String,
     // Feed-in consolation slot: filled with the loser of this main-draw match
-    feedFromMatchNumber: Number
+    // (of the main draw's qualifying stage when feedFromQualifying)
+    feedFromMatchNumber: Number,
+    feedFromQualifying: Boolean
   },
   player2: {
     id: String,
@@ -136,7 +138,8 @@ const matchSchema = new mongoose.Schema({
     isBye: Boolean,
     isQualifierPlaceholder: Boolean,
     qualifierLabel: String,
-    feedFromMatchNumber: Number
+    feedFromMatchNumber: Number,
+    feedFromQualifying: Boolean
   },
   winner: String,
   score: String,
