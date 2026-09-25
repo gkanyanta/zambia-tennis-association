@@ -43,6 +43,10 @@ const syncTournamentStatus = async (tournament) => {
   return tournament;
 };
 
+// Withdrawn and rejected entries no longer hold a place, so they must not stop
+// the player entering this or another category again.
+const isLiveEntry = e => !['withdrawn', 'rejected'].includes(e.status);
+
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
 // @access  Public
@@ -397,7 +401,7 @@ export const submitEntry = async (req, res) => {
     }
 
     // Check if player already entered in this category
-    const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
+    const existingEntry = category.entries.find(e => e.playerZpin === player.zpin && isLiveEntry(e));
     if (existingEntry) {
       return res.status(400).json({
         success: false,
@@ -414,7 +418,7 @@ export const submitEntry = async (req, res) => {
       const otherCategory = tournament.categories.find(cat =>
         cat._id.toString() !== categoryId &&
         cat.format === category.format &&
-        cat.entries.some(e => e.playerZpin === player.zpin)
+        cat.entries.some(e => e.playerZpin === player.zpin && isLiveEntry(e))
       );
       if (otherCategory) {
         return res.status(400).json({
@@ -1789,7 +1793,8 @@ const removeTournamentResult = async (ranking, tournamentName, year) => {
     r => !(r.tournamentName === tournamentName && r.year === year)
   );
   if (ranking.tournamentResults.length === before) return false;
-  if (ranking.tournamentResults.length === 0) {
+  // Keep an emptied row that marks a junior's home age group — it holds the flag.
+  if (ranking.tournamentResults.length === 0 && !ranking.primaryAgeGroup) {
     await Ranking.deleteOne({ _id: ranking._id });
   } else {
     ranking.calculateTotalPoints();
@@ -1829,32 +1834,58 @@ export const syncTournamentRankingPoints = async (tournament, { previousName } =
   return { categories: finalized.length, rankingCategories: [...touched] };
 };
 
-// A junior who enters more than one age group in a tournament only earns
-// ranking points in ONE of them — their usual age group; the others are
+// A junior with an admin-set home age group (Ranking.primaryAgeGroup) only
+// earns points there in tournaments from Ranking.primaryAgeGroupFrom onwards;
+// every other age group they play is a walk-in. Their former ranking stays.
+// Otherwise, a junior who enters more than one age group in a tournament only
+// earns ranking points in ONE of them — their usual age group; the others are
 // walk-ins (no points). A junior who enters a single age group (even an older
 // one) earns points there as normal.
 // The usual group is, among the groups entered here, the junior ranking
 // category holding most of their results from other tournaments this year;
 // with no earlier results it is their natural age group (by tennis age) if
 // entered, otherwise the youngest group entered.
-const primaryJuniorRankingCategory = async (tournament, rankingCat, pid, playerZpin, entry) => {
+const primaryJuniorRankingCategory = async (tournament, rankingCat, pid, playerZpin, entry, playerName) => {
   const genderPrefix = rankingCat.split('_')[0]; // 'boys' | 'girls'
   const juniorCats = JUNIOR_AGE_GROUPS.map(a => `${genderPrefix}_${a}u`);
   const tournamentYear = new Date(tournament.startDate).getFullYear();
 
-  const isSamePlayer = e =>
-    (e.playerId && e.playerId.toString() === pid) ||
-    (playerZpin && playerZpin !== 'PENDING' && e.playerZpin === playerZpin);
-  const entered = tournament.categories
-    .filter(c => c.type === 'junior' && c.format === 'singles')
-    .filter(c => (c.entries || []).some(e => isSamePlayer(e) && !['withdrawn', 'rejected'].includes(e.status)))
-    .map(c => rankingCategoryFor(c))
-    .filter(c => juniorCats.includes(c));
-  if (entered.length <= 1) return rankingCat;
-
   const or = [];
   if (mongoose.Types.ObjectId.isValid(pid)) or.push({ playerId: pid });
   if (playerZpin && playerZpin !== 'PENDING') or.push({ playerZpin });
+
+  // An admin-set home age group always wins for tournaments from the date it
+  // was set: every other age group is a walk-in. Earlier tournaments keep the
+  // normal rules, except the home group is preferred when they entered it.
+  let home = null;
+  if (or.length) {
+    home = await Ranking.findOne({
+      $or: or, category: { $in: juniorCats }, rankingPeriod: String(tournamentYear),
+      isActive: true, primaryAgeGroup: true
+    });
+    if (home && (!home.primaryAgeGroupFrom || new Date(tournament.startDate) >= home.primaryAgeGroupFrom)) {
+      return home.category;
+    }
+  }
+
+  const isSamePlayer = e =>
+    (e.playerId && e.playerId.toString() === pid) ||
+    (playerZpin && playerZpin !== 'PENDING' && e.playerZpin === playerZpin);
+  // Walk-ins added straight into a draw have no entry, only a named draw slot.
+  const sameName = n => playerName && n && n.trim().toLowerCase() === playerName.trim().toLowerCase();
+  const inDraw = c => [
+    ...(c.draw?.matches || []),
+    ...(c.draw?.roundRobinGroups || []).flatMap(g => g.matches || [])
+  ].some(m => [m.player1, m.player2].some(p => p && !p.isBye && (p.id === pid || sameName(p.name))));
+  const entered = tournament.categories
+    .filter(c => c.type === 'junior' && c.format === 'singles')
+    .filter(c =>
+      (c.entries || []).some(e => isSamePlayer(e) && !['withdrawn', 'rejected'].includes(e.status)) || inDraw(c))
+    .map(c => rankingCategoryFor(c))
+    .filter(c => juniorCats.includes(c));
+  if (entered.length <= 1) return rankingCat;
+  if (home && entered.includes(home.category)) return home.category;
+
   if (or.length) {
     const docs = await Ranking.find({
       $or: or, category: { $in: entered }, rankingPeriod: String(tournamentYear), isActive: true
@@ -1940,7 +1971,10 @@ const awardRankingPoints = async (tournament, category) => {
     const allStandings = [];
     for (const group of (category.draw.roundRobinGroups || [])) {
       for (let i = 0; i < (group.standings || []).length; i++) {
-        allStandings.push({ ...group.standings[i], groupRank: i + 1 });
+        // Standings are mongoose subdocuments — spreading one copies its internals,
+        // not its fields, so convert to a plain object first.
+        const s = group.standings[i];
+        allStandings.push({ ...(s.toObject ? s.toObject() : s), groupRank: i + 1 });
       }
     }
     // Sort overall by points then wins
@@ -2039,12 +2073,38 @@ const awardRankingPoints = async (tournament, category) => {
     }
   }
 
-  for (const [pid, { playerName, position }] of Object.entries(playerPositions)) {
+  // Walk-ins added straight into a draw carry a synthetic "walkin-…" id. When
+  // the same name has an entry elsewhere in this tournament, it is that player.
+  const entryIdsByName = {};
+  if (category.type === 'junior') {
+    for (const c of tournament.categories) {
+      if (c.type !== 'junior' || c.gender !== category.gender) continue;
+      for (const e of c.entries || []) {
+        if (!e.playerId || !e.playerName) continue;
+        const key = e.playerName.trim().toLowerCase();
+        (entryIdsByName[key] ||= new Map()).set(e.playerId.toString(), e);
+      }
+    }
+  }
+
+  for (let [pid, { playerName, position }] of Object.entries(playerPositions)) {
     const pts = getPoints(grade, position);
     if (pts <= 0) continue;
 
+    let walkinEntry = null;
+    if (!mongoose.Types.ObjectId.isValid(pid)) {
+      const matches = entryIdsByName[playerName?.trim().toLowerCase()];
+      if (matches?.size === 1) {
+        const [[realId, e]] = [...matches];
+        upsetCounts[realId] = upsetCounts[pid];
+        pid = realId;
+        walkinEntry = e;
+      }
+    }
+
     // Resolve ZPIN: main player from entries, partner from the _partnerZpinById map
     const playerZpin = entryByPlayerId[pid]?.playerZpin
+      || walkinEntry?.playerZpin
       || category._partnerZpinById?.[pid]
       || null;
     const validPlayerId = mongoose.Types.ObjectId.isValid(pid) ? pid : null;
@@ -2055,7 +2115,7 @@ const awardRankingPoints = async (tournament, category) => {
         : { playerName, category: rankingCat, rankingPeriod, isActive: true };
 
     if (category.type === 'junior' && category.format === 'singles') {
-      const primary = await primaryJuniorRankingCategory(tournament, rankingCat, pid, playerZpin, entryByPlayerId[pid]);
+      const primary = await primaryJuniorRankingCategory(tournament, rankingCat, pid, playerZpin, entryByPlayerId[pid] || walkinEntry, playerName);
       if (primary !== rankingCat) {
         console.log(`  Walk-in: ${playerName} plays ${primary} this year — no ${rankingCat} points`);
         // Undo points from an earlier award run, if any
@@ -2431,7 +2491,7 @@ export const getPlayerEligibleCategories = async (req, res) => {
     // If multiple categories not allowed, check if player is already entered in any category
     if (!tournament.allowMultipleCategories) {
       const enteredCategory = tournament.categories.find(cat =>
-        cat.entries.some(e => e.playerZpin === player.zpin)
+        cat.entries.some(e => e.playerZpin === player.zpin && isLiveEntry(e))
       );
       if (enteredCategory) {
         return res.status(200).json({
@@ -2629,7 +2689,7 @@ export const publicRegister = async (req, res) => {
         }
 
         // Check if player already entered in this category
-        const existingEntry = category.entries.find(e => e.playerZpin === player.zpin);
+        const existingEntry = category.entries.find(e => e.playerZpin === player.zpin && isLiveEntry(e));
         if (existingEntry) {
           errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player already entered in this category' });
           continue;
@@ -2641,7 +2701,7 @@ export const publicRegister = async (req, res) => {
           const otherCategory = tournament.categories.find(cat =>
             cat._id.toString() !== categoryId &&
             cat.format === category.format &&
-            cat.entries.some(e => e.playerZpin === player.zpin)
+            cat.entries.some(e => e.playerZpin === player.zpin && isLiveEntry(e))
           );
           if (otherCategory) {
             errors.push({

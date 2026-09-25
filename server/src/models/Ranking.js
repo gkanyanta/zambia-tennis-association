@@ -68,6 +68,16 @@ const rankingSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Junior's home age group for this ranking period, set by an admin.
+  primaryAgeGroup: {
+    type: Boolean,
+    default: false
+  },
+  // Tournaments starting on/after this date follow the home age group strictly;
+  // earlier results in other age groups are kept.
+  primaryAgeGroupFrom: {
+    type: Date
   }
 }, {
   timestamps: true
