@@ -33,6 +33,7 @@ import { MobileMoneyOnlyNotice } from '@/components/MobileMoneyOnlyNotice'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/AuthContext'
 import { apiFetch } from '@/services/api'
+import { drawFormatLabel } from '@/types/tournament'
 
 export function TournamentDetail() {
   const { id } = useParams<{ id: string }>()
@@ -377,7 +378,7 @@ export function TournamentDetail() {
                                 <p className="text-sm text-muted-foreground">
                                   {category.type} • {category.gender}
                                   {category.ageGroup && ` • ${category.ageGroup}`}
-                                  {' • '}{category.drawType.replace('_', ' ')}
+                                  {' • '}{drawFormatLabel(category, tournament?.categories)}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -963,7 +964,7 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
               </CardTitle>
               <div className="flex gap-2 items-center">
                 <Badge variant="outline">
-                  {draw.type.replace('_', ' ')}
+                  {drawFormatLabel(activeCategory, tournament?.categories)}
                 </Badge>
                 {draw.bracketSize && (
                   <Badge variant="outline">

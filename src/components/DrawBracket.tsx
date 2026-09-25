@@ -27,7 +27,7 @@ export function DrawBracket({ draw, onMatchClick }: DrawBracketProps) {
     <div className="space-y-8">
       <Card>
         <CardContent className="p-6">
-          <h3 className="text-lg font-bold mb-4">Qualifying</h3>
+          <h3 className="text-lg font-bold mb-4">{qualifying.label || 'Qualifying'}</h3>
           <SingleEliminationBracket
             draw={{
               ...draw,

@@ -15,6 +15,7 @@ import {
 } from '../utils/tournamentEligibility.js';
 import { generateDrawPDF } from '../utils/generateDrawPDF.js';
 import { getPoints, roundToPosition, rankingCategoryFor } from '../utils/rankingPoints.js';
+import { syncFeedInConsolation } from '../utils/feedInConsolation.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
 import { generateOrderOfPlayPDF } from '../utils/generateOrderOfPlayPDF.js';
 import MembershipSubscription from '../models/MembershipSubscription.js';
@@ -348,6 +349,13 @@ export const submitEntry = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Category not found'
+      });
+    }
+
+    if (category.consolationOf) {
+      return res.status(400).json({
+        success: false,
+        message: 'Players cannot enter a consolation draw directly'
       });
     }
 
@@ -1470,6 +1478,10 @@ export const updateMatchResult = async (req, res) => {
     if (matchGroup) {
       recomputeRoundRobinStandings(matchGroup);
     }
+
+    // Feed main-draw losers into a linked feed-in consolation draw, and
+    // auto-advance consolation players who meet a BYE
+    syncFeedInConsolation(tournament, category);
 
     // Round-robin: also sync result to the OTHER copy of the match.
     // Matches exist in both draw.matches and roundRobinGroups[].matches.
@@ -2629,6 +2641,12 @@ export const publicRegister = async (req, res) => {
       const category = tournament.categories.id(categoryId);
       if (!category) {
         errors.push({ playerId, error: 'Category not found' });
+        continue;
+      }
+
+      // Consolation draws are filled from the main draw, never by entry
+      if (category.consolationOf) {
+        errors.push({ playerId, error: 'Players cannot enter a consolation draw directly' });
         continue;
       }
 
@@ -4447,6 +4465,12 @@ export const updateCategorySettings = async (req, res) => {
 
     const category = tournament.categories.id(categoryId);
     if (!category) return res.status(404).json({ success: false, message: 'Category not found' });
+
+    const linkedToConsolation = category.consolationOf ||
+      tournament.categories.some(c => c.consolationOf?.toString() === category._id.toString());
+    if (linkedToConsolation && drawType !== undefined && drawType !== category.drawType) {
+      return res.status(400).json({ success: false, message: 'This draw is part of a feed-in draw with a consolation draw — its format cannot be changed' });
+    }
 
     const validDrawTypes = ['single_elimination', 'round_robin', 'feed_in', 'mixer'];
     if (drawType !== undefined && !validDrawTypes.includes(drawType)) {

@@ -9,6 +9,19 @@ export const DRAW_TYPE_LABELS: Record<DrawType, string> = {
   feed_in: 'Feed-in (Compass Draw)',
   mixer: 'Mixer (Social Doubles with A/B Pairs)'
 }
+// A main draw with a linked feed-in consolation category (server:
+// utils/feedInConsolation.js) is stored as single elimination, but is shown as
+// feed-in so officials recognise the format.
+export function hasLinkedConsolation(category: any, categories?: any[]): boolean {
+  return !!category?._id && !!categories?.some(c => c?.consolationOf && String(c.consolationOf) === String(category._id))
+}
+
+export function drawFormatLabel(category: any, categories?: any[]): string {
+  if (category?.consolationOf) return 'Feed-in consolation'
+  if (hasLinkedConsolation(category, categories)) return 'Feed-in (with consolation)'
+  return (category?.draw?.type || category?.drawType || '').replace('_', ' ')
+}
+
 export type CategoryType = 'junior' | 'senior' | 'madalas'
 export type Gender = 'boys' | 'girls' | 'mens' | 'womens' | 'mixed'
 export type AgeGroup = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'Open' | '35+' | '45+' | '55+' | '65+'
@@ -122,6 +135,7 @@ export interface Draw {
   mixerRounds?: MixerRound[]
   mixerStandings?: MixerStanding[]
   qualifyingStage?: {
+    label?: string
     matches: Match[]
     numberOfRounds?: number
     generatedAt?: string

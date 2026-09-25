@@ -16,18 +16,20 @@ import {
 } from '@/utils/drawGenerator'
 import { tournamentService } from '@/services/tournamentService'
 import type { TournamentCategory, Draw, Match, MixerRating, DrawType } from '@/types/tournament'
-import { DRAW_TYPE_LABELS } from '@/types/tournament'
+import { DRAW_TYPE_LABELS, drawFormatLabel, hasLinkedConsolation } from '@/types/tournament'
 
 interface DrawGenerationProps {
   category: TournamentCategory
   tournamentId?: string
   categoryId?: string
   onGenerateDraw: (draw: Draw) => Promise<void>
+  // All categories of the tournament — used to spot a linked feed-in consolation draw
+  categories?: any[]
   onUpdateMatch?: (matchId: string, result: { winner: string; score: string; status?: string }) => Promise<void>
   onRefresh?: () => Promise<void>
 }
 
-export function DrawGeneration({ category, tournamentId, categoryId, onGenerateDraw, onUpdateMatch, onRefresh }: DrawGenerationProps) {
+export function DrawGeneration({ category, categories, tournamentId, categoryId, onGenerateDraw, onUpdateMatch, onRefresh }: DrawGenerationProps) {
   const [previewDraw, setPreviewDraw] = useState<Draw | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -62,7 +64,10 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
   const hasMixerRatings = mixerRatings && mixerRatings.length > 0
   const isMixer = category.drawType === 'mixer'
   // The format can be switched from here while nothing has been played
-  const canEditFormat = !!tournamentId && !!categoryId && !hasPlayedMatches
+  // A feed-in pair (main draw + linked consolation) is built together, so its
+  // format can't be switched and it can't be regenerated from here
+  const isFeedInPair = !!(category as any).consolationOf || hasLinkedConsolation(category, categories)
+  const canEditFormat = !!tournamentId && !!categoryId && !hasPlayedMatches && !isFeedInPair
   // Up to 6 players everyone plays everyone; beyond that the draw splits into
   // groups of 5 so the number of matches stays manageable (a knockout stage
   // can then be generated from the group winners).
@@ -316,10 +321,12 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                       ))}
                   </select>
                 )}
+                {!isFeedInPair && (
                 <Button variant="outline" onClick={handleRegenerateDraw} disabled={hasPlayedMatches} title={hasPlayedMatches ? 'Cannot regenerate — matches have been played' : ''}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Regenerate Draw
                 </Button>
+                )}
                 {category.draw?.type === 'round_robin' && rrGroups.length >= 2 && (
                   <Button
                     onClick={handleGenerateKnockout}
@@ -338,7 +345,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
               <div>
                 <span className="text-muted-foreground">Draw Type:</span>
                 <Badge variant="outline" className="ml-2">
-                  {category.draw.type.replace('_', ' ')}
+                  {drawFormatLabel(category, categories)}
                 </Badge>
               </div>
               {category.draw.bracketSize && (
@@ -450,7 +457,7 @@ export function DrawGeneration({ category, tournamentId, categoryId, onGenerateD
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold capitalize">{category.drawType.replace('_', ' ')}</div>
+                  <div className="text-2xl font-bold capitalize">{drawFormatLabel(category, categories)}</div>
                   <div className="text-sm text-muted-foreground">Draw Type</div>
                 </>
               )}

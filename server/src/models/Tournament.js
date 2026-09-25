@@ -125,7 +125,9 @@ const matchSchema = new mongoose.Schema({
     // e.g. "Q1" — set when the slot is reserved for a qualifier and kept on
     // the winner once promoted, so the main draw still shows where they came
     // from even after the placeholder is resolved.
-    qualifierLabel: String
+    qualifierLabel: String,
+    // Feed-in consolation slot: filled with the loser of this main-draw match
+    feedFromMatchNumber: Number
   },
   player2: {
     id: String,
@@ -133,7 +135,8 @@ const matchSchema = new mongoose.Schema({
     seed: Number,
     isBye: Boolean,
     isQualifierPlaceholder: Boolean,
-    qualifierLabel: String
+    qualifierLabel: String,
+    feedFromMatchNumber: Number
   },
   winner: String,
   score: String,
@@ -251,6 +254,8 @@ const drawSchema = new mongoose.Schema({
   // exceed the main draw's bracket size — winners feed into main-draw Round 1
   // slots flagged isQualifierPlaceholder (see matchSchema.advancesToMatchNumber/advancesToSlot).
   qualifyingStage: {
+    // Heading shown above these matches (defaults to "Qualifying")
+    label: String,
     matches: [matchSchema],
     numberOfRounds: { type: Number, default: 1 },
     generatedAt: Date,
@@ -313,6 +318,11 @@ const categorySchema = new mongoose.Schema({
   },
   entries: [entrySchema],
   draw: drawSchema,
+  // Set on a feed-in consolation category: the main-draw category whose losers
+  // are fed into it (see utils/feedInConsolation.js). Awards no ranking points.
+  consolationOf: {
+    type: mongoose.Schema.Types.ObjectId
+  },
   // Per-category entry fee (overrides tournament-level entryFee if set)
   entryFee: { type: Number },
   // Category format: singles, doubles, or mixed doubles

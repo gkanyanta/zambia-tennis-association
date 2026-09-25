@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Plus, Users, Trophy, Grid3x3, Settings, Trash2, AlertTriangle, CheckCircle2, Lock, Radio, ClipboardEdit } from 'lucide-react'
-import type { Draw } from '@/types/tournament'
+import { drawFormatLabel, type Draw } from '@/types/tournament'
 import { tournamentService, Tournament, TournamentCategory } from '@/services/tournamentService'
 import { liveMatchService } from '@/services/liveMatchService'
 import { apiFetch } from '@/services/api'
@@ -305,7 +305,7 @@ function TournamentOverview({ tournament }: { tournament: Tournament }) {
                 <div>
                   <div className="font-medium">{category.name}</div>
                   <div className="text-sm text-muted-foreground">
-                    {category.type} • {category.gender} • {category.ageGroup || 'Open'} • {category.drawType.replace('_', ' ')}
+                    {category.type} • {category.gender} • {category.ageGroup || 'Open'} • {drawFormatLabel(category, tournament.categories)}
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -614,6 +614,7 @@ function DrawsManagement({ tournament, onRefresh }: { tournament: Tournament; on
       ) : (
         <DrawGeneration
           category={selectedCategory as any}
+          categories={tournament.categories as any[]}
           tournamentId={tournament._id}
           categoryId={(selectedCategory as any)?._id}
           onGenerateDraw={handleGenerateDraw}

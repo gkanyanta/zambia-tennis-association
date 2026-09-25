@@ -38,6 +38,9 @@ export function getPoints(grade, position) {
 export function rankingCategoryFor(cat) {
   const { type, gender, format, ageGroup } = cat;
 
+  // Feed-in consolation draws are extra matches, not ranking events
+  if (cat.consolationOf) return null;
+
   if (type === 'senior') {
     if (format === 'singles') {
       if (gender === 'mens')   return 'men_senior';

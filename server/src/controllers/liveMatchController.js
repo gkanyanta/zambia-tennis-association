@@ -3,6 +3,7 @@ import Tournament from '../models/Tournament.js';
 import User from '../models/User.js';
 import { createInitialState, awardPoint, undoPoint, getDisplayScore, getScoreString } from '../utils/tennisScoring.js';
 import { postMatchEvent } from '../services/socialMediaService.js';
+import { syncFeedInConsolation } from '../utils/feedInConsolation.js';
 
 // @desc    Start a new live scoring session
 // @route   POST /api/live-matches
@@ -506,6 +507,7 @@ export const endMatch = async (req, res) => {
           }
           // Recompute round-robin standings
           if (matchGroup) recomputeRoundRobinStandings(matchGroup);
+          syncFeedInConsolation(tournament, category);
           await tournament.save();
         }
       }
@@ -767,6 +769,7 @@ async function updateTournamentDraw(liveMatch, matchState) {
       recomputeRoundRobinStandings(matchGroup);
     }
 
+    syncFeedInConsolation(tournament, category);
     await tournament.save();
   } catch (error) {
     console.error('Error updating tournament draw:', error);
@@ -955,6 +958,7 @@ export const resyncCompletedResults = async (req, res) => {
         recomputeRoundRobinStandings(matchGroup);
       }
 
+      syncFeedInConsolation(tournament, category);
       synced++;
     }
 
