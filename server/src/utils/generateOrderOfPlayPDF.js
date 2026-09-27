@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { technicalTeamLine } from './pdfBranding.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,14 +99,45 @@ function renderPageHeader(doc, tournament) {
     });
   doc.restore();
 
+  // Co-organiser / sponsor logos: a centred strip under the header (a portrait
+  // header has no room for them beside the tournament name)
+  const logos = doc._partnerLogos || [];
+  if (logos.length) {
+    const tileW = 90, tileH = 38, gap = 14, top = MARGIN + 62;
+    doc.save();
+    doc.fontSize(6.5).font('Helvetica').fillColor(COLORS.secondary)
+      .text('In collaboration with', MARGIN, top, { width: CONTENT_WIDTH, align: 'center', lineBreak: false });
+    const rowW = logos.length * tileW + (logos.length - 1) * gap;
+    let x = MARGIN + (CONTENT_WIDTH - rowW) / 2;
+    for (const logo of logos) {
+      doc.rect(x, top + 10, tileW, tileH).lineWidth(0.5).strokeColor(COLORS.border).stroke();
+      try {
+        doc.image(logo.buffer, x + 3, top + 12, { fit: [tileW - 6, tileH - 4], align: 'center', valign: 'center' });
+      } catch (e) {
+        // Unreadable image — leave the tile blank
+      }
+      x += tileW + gap;
+    }
+    doc.restore();
+    return top + 10 + tileH + 6;
+  }
+
   return MARGIN + 65;
 }
 
 /**
  * Render page footer
  */
-function renderFooter(doc) {
+function renderFooter(doc, tournament) {
   doc.save();
+  const team = technicalTeamLine(tournament);
+  if (team) {
+    doc
+      .fontSize(7.5)
+      .fillColor(COLORS.primary)
+      .font('Helvetica')
+      .text(team, MARGIN, PAGE_HEIGHT - MARGIN - 27, { width: CONTENT_WIDTH, align: 'center', lineBreak: false });
+  }
   doc
     .fontSize(7)
     .fillColor(COLORS.secondary)
@@ -133,12 +165,20 @@ function getMatchLabel(tournament, categoryId, matchId) {
       if (match) break;
     }
   }
+  if (!match) match = category.draw.knockoutStage?.matches?.id(matchId);
+  let isQualifying = false;
+  if (!match) {
+    match = category.draw.qualifyingStage?.matches?.id(matchId);
+    isQualifying = !!match;
+  }
 
   if (!match) return `${category.name}: Match TBD`;
 
   const p1 = match.player1?.name || 'TBD';
   const p2 = match.player2?.name || 'TBD';
-  const round = match.roundName || `R${match.round}`;
+  const round = isQualifying
+    ? (category.draw.qualifyingStage.label || 'Qualifying')
+    : match.roundName || `R${match.round}`;
 
   return `${category.name} ${round}: ${p1} vs ${p2}`;
 }
@@ -148,7 +188,8 @@ function getMatchLabel(tournament, categoryId, matchId) {
  * @param {Object} tournament - The tournament document
  * @returns {Promise<Buffer>} - PDF buffer
  */
-export const generateOrderOfPlayPDF = (tournament) => {
+// `partnerLogos` are loaded logo buffers (see pdfBranding.loadPartnerLogos).
+export const generateOrderOfPlayPDF = (tournament, { partnerLogos = [] } = {}) => {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -156,6 +197,7 @@ export const generateOrderOfPlayPDF = (tournament) => {
         layout: 'portrait',
         margin: MARGIN
       });
+      doc._partnerLogos = partnerLogos;
 
       const chunks = [];
       doc.on('data', (chunk) => chunks.push(chunk));
@@ -171,7 +213,8 @@ export const generateOrderOfPlayPDF = (tournament) => {
       }
 
       const sortedDays = Object.keys(slotsByDay).sort();
-      const bottomLimit = PAGE_HEIGHT - MARGIN - 30; // leave room for footer
+      // leave room for the footer (and the technical team line above it)
+      const bottomLimit = PAGE_HEIGHT - MARGIN - (technicalTeamLine(tournament) ? 42 : 30);
 
       let isFirstPage = true;
 
@@ -187,7 +230,7 @@ export const generateOrderOfPlayPDF = (tournament) => {
         }
 
         let y = renderPageHeader(doc, tournament);
-        renderFooter(doc);
+        renderFooter(doc, tournament);
         isFirstPage = false;
 
         // Day heading
@@ -220,7 +263,7 @@ export const generateOrderOfPlayPDF = (tournament) => {
           if (y + neededHeight > bottomLimit) {
             doc.addPage();
             y = renderPageHeader(doc, tournament);
-            renderFooter(doc);
+            renderFooter(doc, tournament);
 
             // Re-render day heading on new page
             y += 8;
@@ -273,7 +316,7 @@ export const generateOrderOfPlayPDF = (tournament) => {
               if (y + 24 > bottomLimit) {
                 doc.addPage();
                 y = renderPageHeader(doc, tournament);
-                renderFooter(doc);
+                renderFooter(doc, tournament);
                 y += 8;
                 doc.save();
                 doc

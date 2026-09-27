@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { technicalTeamLine } from './pdfBranding.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +30,6 @@ const COLORS = {
 // Header: space kept for the ZTA logo on the left, partner logo tiles on the right
 const ZTA_LOGO_SPACE = 130;
 const PARTNER_LOGO_W = 64;
-const MAX_PARTNER_LOGOS = 3;
 
 // Match box dimensions
 const MATCH_BOX_WIDTH = 140;
@@ -42,31 +42,9 @@ const PLAYER_LINE_HEIGHT = 18;
  * @param {Object} category - The category subdocument
  * @returns {Promise<Buffer>} - PDF buffer
  */
-// Fetch partner logos for the PDF header. PDFKit only embeds PNG and JPEG, so
-// anything else (or a logo that fails to download) is skipped.
-export async function loadPartnerLogos(partnerLogos = []) {
-  const loaded = [];
-  for (const logo of partnerLogos.slice(0, MAX_PARTNER_LOGOS)) {
-    try {
-      // Only fetch from our image host (logos are uploaded there), never arbitrary URLs
-      const url = new URL(logo.url);
-      if (url.protocol !== 'https:' || url.hostname !== 'res.cloudinary.com') continue;
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) continue;
-      const buffer = Buffer.from(await res.arrayBuffer());
-      const isPng = buffer.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-      const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8;
-      if (isPng || isJpeg) loaded.push({ name: logo.name, buffer });
-    } catch (e) {
-      console.error(`Partner logo not loaded (${logo.url}):`, e.message);
-    }
-  }
-  return loaded;
-}
-
 // `linked` are the main draw's linked consolation / 3rd place playoff
 // categories (see utils/feedInConsolation.js); their pages follow the main draw.
-// `partnerLogos` are loaded logo buffers (see loadPartnerLogos).
+// `partnerLogos` are loaded logo buffers (see pdfBranding.loadPartnerLogos).
 export const generateDrawPDF = (tournament, category, linked = [], { partnerLogos = [] } = {}) => {
   return new Promise((resolve, reject) => {
     try {
@@ -959,10 +937,8 @@ function renderFeedIn(doc, tournament, category) {
  * Technical team line in the bottom margin of every page.
  */
 function renderFooters(doc, tournament) {
-  const parts = [];
-  if (tournament.tournamentDirector) parts.push(`Tournament Director: ${tournament.tournamentDirector}`);
-  if (tournament.tournamentReferee) parts.push(`Tournament Referee: ${tournament.tournamentReferee}`);
-  if (!parts.length) return;
+  const line = technicalTeamLine(tournament);
+  if (!line) return;
 
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
@@ -974,7 +950,7 @@ function renderFooters(doc, tournament) {
       .fontSize(7.5)
       .font('Helvetica')
       .fillColor(COLORS.secondary)
-      .text(parts.join('      |      '), MARGIN, PAGE_HEIGHT - MARGIN + 10, {
+      .text(line, MARGIN, PAGE_HEIGHT - MARGIN + 10, {
         width: CONTENT_WIDTH,
         align: 'center',
         lineBreak: false

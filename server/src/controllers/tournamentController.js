@@ -13,7 +13,8 @@ import {
   getCategoryDetails,
   getAllJuniorCategories
 } from '../utils/tournamentEligibility.js';
-import { generateDrawPDF, loadPartnerLogos } from '../utils/generateDrawPDF.js';
+import { generateDrawPDF } from '../utils/generateDrawPDF.js';
+import { loadPartnerLogos } from '../utils/pdfBranding.js';
 import { getPoints, roundToPosition, rankingCategoryFor } from '../utils/rankingPoints.js';
 import { syncFeedInConsolation, consolationHasResults, rebuildLinkedConsolation } from '../utils/feedInConsolation.js';
 import { generateBudgetPDF, generateFinanceReportPDF } from '../utils/generateFinancePDF.js';
@@ -4208,7 +4209,8 @@ export const downloadOrderOfPlayPDF = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No order of play data to export' });
     }
 
-    const pdfBuffer = await generateOrderOfPlayPDF(tournament);
+    const partnerLogos = await loadPartnerLogos(tournament.partnerLogos || []);
+    const pdfBuffer = await generateOrderOfPlayPDF(tournament, { partnerLogos });
 
     const safeName = (str) => str.replace(/[^a-zA-Z0-9_-]/g, '_');
     const filename = `${safeName(tournament.name)}-Order-of-Play.pdf`;
