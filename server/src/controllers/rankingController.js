@@ -15,14 +15,24 @@ export const getRankingsByCategory = async (req, res) => {
       query.rankingPeriod = period;
     }
 
+    // Public endpoint: only non-sensitive player fields
     const rankings = await Ranking.find(query)
       .sort({ rank: 1 })
-      .populate('playerId', 'firstName lastName email zpin');
+      .populate('playerId', 'firstName lastName zpin club');
+
+    // A linked player's club comes from their player record, which is kept up
+    // to date; the club stored on the ranking row is only a fallback for
+    // players not linked to an account.
+    const data = rankings.map(r => {
+      const row = r.toObject();
+      if (row.playerId?.club) row.club = row.playerId.club;
+      return row;
+    });
 
     res.status(200).json({
       success: true,
-      count: rankings.length,
-      data: rankings
+      count: data.length,
+      data
     });
   } catch (error) {
     res.status(500).json({

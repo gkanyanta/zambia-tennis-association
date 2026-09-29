@@ -471,8 +471,7 @@ export function Rankings() {
                               <td className="px-6 py-4">
                                 <button
                                   className="text-left w-full"
-                                  onClick={() => isAdmin && !player.playerZpin ? startLinkPlayer(player) : toggleRow(player._id!)}
-                                  title={isAdmin && !player.playerZpin ? 'Link to a player account' : undefined}
+                                  onClick={() => toggleRow(player._id!)}
                                 >
                                   <div className="flex items-center gap-1">
                                     {isExpanded
@@ -481,10 +480,16 @@ export function Rankings() {
                                     }
                                     <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
                                   </div>
-                                  {isAdmin && !player.playerZpin && (
-                                    <span className="text-xs text-amber-600 dark:text-amber-400 underline decoration-dotted">No ZPIN linked — click to link</span>
-                                  )}
                                 </button>
+                                {isAdmin && !player.playerZpin && (
+                                  <button
+                                    className="ml-4 text-xs text-amber-600 dark:text-amber-400 underline decoration-dotted hover:text-amber-700"
+                                    onClick={() => startLinkPlayer(player)}
+                                    title="Find this player in Player Management and link them"
+                                  >
+                                    No ZPIN linked — link player
+                                  </button>
+                                )}
                               </td>
                               <td className="px-6 py-4">
                                 <span className="text-muted-foreground">{player.club || '-'}</span>
