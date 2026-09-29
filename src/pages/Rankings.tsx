@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CommentSection } from '@/components/CommentSection';
 import { Hero } from '@/components/Hero';
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,7 +40,14 @@ const toTitleCase = (name: string) =>
 export function Rankings() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [activeCategory, setActiveCategory] = useState<RankingCategory>('men_senior');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // ?category= keeps the tab when coming back from linking a player in Player Management
+  const [activeCategory, setActiveCategory] = useState<RankingCategory>(() => {
+    const fromUrl = searchParams.get('category');
+    return categories.some(c => c.id === fromUrl) ? (fromUrl as RankingCategory) : 'men_senior';
+  });
+  const [linkedNotice] = useState(() => searchParams.get('linked'));
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -51,10 +58,6 @@ export function Rankings() {
     totalPoints: 0,
     rankingPeriod: '2025'
   });
-  const [linkModal, setLinkModal] = useState<{ rankingId: string; playerName: string; currentZpin?: string } | null>(null);
-  const [linkZpin, setLinkZpin] = useState('');
-  const [linkLoading, setLinkLoading] = useState(false);
-  const [linkError, setLinkError] = useState('');
 
   // Expandable rows
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -83,6 +86,11 @@ export function Rankings() {
   useEffect(() => {
     fetchRankings();
   }, [activeCategory]);
+
+  // Drop the one-off ?category/&linked params so a refresh doesn't repeat the notice
+  useEffect(() => {
+    if (searchParams.has('linked') || searchParams.has('category')) setSearchParams({}, { replace: true });
+  }, []);
 
   const fetchRankings = async () => {
     try {
@@ -186,36 +194,16 @@ export function Rankings() {
     }
   };
 
-  const handleLinkPlayer = async (merge = false) => {
-    if (!linkModal || !linkZpin.trim()) return;
-    setLinkLoading(true);
-    setLinkError('');
-    try {
-      await rankingService.linkPlayer(linkModal.rankingId, linkZpin.trim(), merge);
-      setLinkModal(null);
-      setLinkZpin('');
-      await fetchRankings();
-    } catch (err: any) {
-      // The player already has a row in this category and period — the same
-      // person under two spellings. Offer to combine them.
-      if (err.code === 'RANKING_EXISTS' && !merge) {
-        const d = err.data || {};
-        const confirmed = confirm(
-          `${err.message}\n\nCombine "${d.conflictName}" (${d.conflictPoints} pts) into "${d.thisName}" (${d.thisPoints} pts)?\n\n` +
-          `The results of both are kept, duplicates of the same tournament are counted once, and the other row is archived rather than deleted.`
-        );
-        if (confirmed) {
-          setLinkLoading(false);
-          await handleLinkPlayer(true);
-          return;
-        }
-        setLinkError('Linking cancelled — the rows were left as they are.');
-      } else {
-        setLinkError(err.message || 'Player not found. Check the ZPIN and try again.');
-      }
-    } finally {
-      setLinkLoading(false);
-    }
+  // Linking happens in Player Management, where the admin can search for the
+  // player; it sends them back here (same category) once linked.
+  const startLinkPlayer = (player: Ranking) => {
+    const params = new URLSearchParams({
+      linkRanking: player._id!,
+      name: player.playerName,
+      category: activeCategory,
+      ...(player.playerZpin ? { current: player.playerZpin } : {})
+    });
+    navigate(`/admin/players?${params}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -231,38 +219,6 @@ export function Rankings() {
 
   return (
     <div className="flex flex-col">
-      {/* Link Player Modal */}
-      {linkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-background rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 className="font-semibold text-lg mb-1">{linkModal.currentZpin ? 'Change Linked Account' : 'Link Player Account'}</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              {linkModal.currentZpin
-                ? <>Currently <span className="font-mono text-foreground">{linkModal.currentZpin}</span> for <span className="font-medium text-foreground">{linkModal.playerName}</span>. Enter the correct ZPIN to replace it.</>
-                : <>Linking <span className="font-medium text-foreground">{linkModal.playerName}</span> to a registered ZPIN account.</>
-              }
-            </p>
-            <Input
-              placeholder="Enter ZPIN (e.g. ZTAS0021)"
-              value={linkZpin}
-              onChange={e => { setLinkZpin(e.target.value.toUpperCase()); setLinkError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleLinkPlayer()}
-              className="mb-2"
-              autoFocus
-            />
-            {linkError && <p className="text-sm text-destructive mb-2">{linkError}</p>}
-            <div className="flex gap-2 mt-4">
-              <Button className="flex-1" onClick={() => handleLinkPlayer()} disabled={linkLoading || !linkZpin.trim()}>
-                {linkLoading ? 'Linking...' : 'Link'}
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => { setLinkModal(null); setLinkZpin(''); setLinkError(''); }}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Edit Tournament Result Modal */}
       {editResultModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -392,6 +348,15 @@ export function Rankings() {
 
       <section className="py-16">
         <div className="container-custom">
+          {linkedNotice && !noticeDismissed && (
+            <div className="mb-6 flex items-center justify-between gap-3 rounded-md border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/30 dark:text-green-300">
+              <span>{linkedNotice}</span>
+              <button onClick={() => setNoticeDismissed(true)} aria-label="Dismiss" className="shrink-0">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* Category Tabs */}
           <div className="flex flex-wrap gap-2 mb-8">
             {categories.map((category) => (
@@ -506,7 +471,8 @@ export function Rankings() {
                               <td className="px-6 py-4">
                                 <button
                                   className="text-left w-full"
-                                  onClick={() => toggleRow(player._id!)}
+                                  onClick={() => isAdmin && !player.playerZpin ? startLinkPlayer(player) : toggleRow(player._id!)}
+                                  title={isAdmin && !player.playerZpin ? 'Link to a player account' : undefined}
                                 >
                                   <div className="flex items-center gap-1">
                                     {isExpanded
@@ -516,7 +482,7 @@ export function Rankings() {
                                     <span className="font-semibold text-foreground">{toTitleCase(player.playerName)}</span>
                                   </div>
                                   {isAdmin && !player.playerZpin && (
-                                    <span className="text-xs text-amber-600 dark:text-amber-400">No ZPIN linked</span>
+                                    <span className="text-xs text-amber-600 dark:text-amber-400 underline decoration-dotted">No ZPIN linked — click to link</span>
                                   )}
                                 </button>
                               </td>
@@ -532,7 +498,7 @@ export function Rankings() {
                                     <Button size="sm" variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50" title="Add tournament result" onClick={() => setAddResultModal({ rankingId: player._id!, playerName: player.playerName })}>
                                       <Globe className="h-4 w-4" />
                                     </Button>
-                                    <Button size="sm" variant="outline" className="text-amber-600 border-amber-400 hover:bg-amber-50" title={player.playerZpin ? `Change ZPIN (currently ${player.playerZpin})` : 'Link to ZPIN account'} onClick={() => setLinkModal({ rankingId: player._id!, playerName: player.playerName, currentZpin: player.playerZpin })}>
+                                    <Button size="sm" variant="outline" className="text-amber-600 border-amber-400 hover:bg-amber-50" title={player.playerZpin ? `Change linked player (currently ${player.playerZpin})` : 'Link to a player account'} onClick={() => startLinkPlayer(player)}>
                                       <Link className="h-4 w-4" />
                                     </Button>
                                     <Button size="sm" variant="outline" onClick={() => handleDelete(player._id!)}>

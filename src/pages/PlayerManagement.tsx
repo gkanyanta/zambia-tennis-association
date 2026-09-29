@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { Hero } from '@/components/Hero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Search, Edit, Trash2, Download, Plus, Eye, CheckCircle2, XCircle,
-  CreditCard, Loader2, FileText, ExternalLink, Zap
+  CreditCard, Loader2, FileText, ExternalLink, Zap, Link2, X
 } from 'lucide-react'
 import { userService, type User } from '@/services/userService'
 import { clubService, type Club } from '@/services/clubService'
@@ -21,15 +22,28 @@ import {
   type RegistrationsListResponse
 } from '@/services/playerRegistrationService'
 import { membershipService, type MembershipType } from '@/services/membershipService'
+import { rankingService } from '@/services/rankingService'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 export function PlayerManagement() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Opened from Rankings to link a ranking row to a player account
+  const linkTarget = searchParams.get('linkRanking')
+    ? {
+        rankingId: searchParams.get('linkRanking')!,
+        name: searchParams.get('name') || '',
+        category: searchParams.get('category') || '',
+        current: searchParams.get('current') || ''
+      }
+    : null
+  const [linkingPlayerId, setLinkingPlayerId] = useState<string | null>(null)
   const [players, setPlayers] = useState<User[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState(() => (searchParams.get('linkRanking') && searchParams.get('name')) || '')
   const [filterType, setFilterType] = useState<'all' | 'junior' | 'adult'>('all')
   const [showModal, setShowModal] = useState(false)
   const [mode, setMode] = useState<'create' | 'edit'>('edit')
@@ -498,6 +512,42 @@ export function PlayerManagement() {
     }
   }
 
+  const backToRankings = (linkedMessage?: string) => {
+    const params = new URLSearchParams({ category: linkTarget?.category || '' })
+    if (linkedMessage) params.set('linked', linkedMessage)
+    navigate(`/rankings?${params}`)
+  }
+
+  const handleLinkToRanking = async (player: User, merge = false) => {
+    if (!linkTarget || !player.zpin) return
+    const who = `${player.firstName} ${player.lastName} (${player.zpin})`
+    if (!merge && !confirm(`Link the ranking row "${linkTarget.name}" to ${who}?`)) return
+    setLinkingPlayerId(player._id)
+    try {
+      await rankingService.linkPlayer(linkTarget.rankingId, player.zpin, merge)
+      backToRankings(`Linked "${linkTarget.name}" to ${who}.`)
+    } catch (err: any) {
+      // The player already has a row in this category and period — the same
+      // person under two spellings. Offer to combine them.
+      if (err.code === 'RANKING_EXISTS' && !merge) {
+        const d = err.data || {}
+        const combine = confirm(
+          `${err.message}\n\nCombine "${d.conflictName}" (${d.conflictPoints} pts) into "${d.thisName}" (${d.thisPoints} pts)?\n\n` +
+          `The results of both are kept, duplicates of the same tournament are counted once, and the other row is archived rather than deleted.`
+        )
+        if (combine) {
+          setLinkingPlayerId(null)
+          await handleLinkToRanking(player, true)
+          return
+        }
+      } else {
+        alert(err.message || 'Could not link the player')
+      }
+    } finally {
+      setLinkingPlayerId(null)
+    }
+  }
+
   const filteredPlayers = players.filter(player => {
     const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean)
     const matchesSearch = tokens.length === 0 || tokens.every(t =>
@@ -808,6 +858,23 @@ export function PlayerManagement() {
 
             {/* ==================== PLAYERS TAB ==================== */}
             <TabsContent value="players">
+              {linkTarget && (
+                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                  <div className="flex items-start gap-2">
+                    <Link2 className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                      Linking the <strong>{rankingService.getCategoryLabel(linkTarget.category)}</strong> ranking row{' '}
+                      <strong>"{linkTarget.name}"</strong>
+                      {linkTarget.current && <> (currently <span className="font-mono">{linkTarget.current}</span>)</>}.
+                      {' '}Search for the player below and click <strong>Link</strong>.
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => backToRankings()}>
+                    <X className="h-4 w-4 mr-1" />
+                    Cancel
+                  </Button>
+                </div>
+              )}
               {/* Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <Card>
@@ -947,6 +1014,18 @@ export function PlayerManagement() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-center gap-2">
+                                {linkTarget && (
+                                  <Button
+                                    size="sm"
+                                    disabled={!player.zpin || linkingPlayerId !== null}
+                                    title={player.zpin ? `Link "${linkTarget.name}" to this player` : 'This player has no ZPIN yet, so cannot be linked'}
+                                    onClick={() => handleLinkToRanking(player)}
+                                  >
+                                    {linkingPlayerId === player._id
+                                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                                      : <><Link2 className="h-4 w-4 mr-1" />Link</>}
+                                  </Button>
+                                )}
                                 <Button
                                   size="sm"
                                   variant="outline"
