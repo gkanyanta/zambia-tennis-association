@@ -12,11 +12,12 @@ import {
   generateSingleEliminationDraw,
   generateRoundRobinDraw,
   generateFeedInDraw,
-  generateMixerDraw
+  generateMixerDraw,
+  maxItfSeeds
 } from '@/utils/drawGenerator'
 import { tournamentService } from '@/services/tournamentService'
 import type { TournamentCategory, Draw, Match, MixerRating, DrawType } from '@/types/tournament'
-import { DRAW_TYPE_LABELS, drawFormatLabel, hasLinkedConsolation } from '@/types/tournament'
+import { DRAW_TYPE_LABELS, drawFormatLabel, hasLinkedConsolation, getNextPowerOfTwo } from '@/types/tournament'
 
 interface DrawGenerationProps {
   category: TournamentCategory
@@ -43,6 +44,11 @@ export function DrawGeneration({ category, categories, tournamentId, categoryId,
   const acceptedEntries = category.entries.filter(e => e.status === 'accepted')
   const seededEntries = acceptedEntries.filter(e => e.seed).length
   const canGenerateDraw = acceptedEntries.length >= 4
+  // Seeds the ITF table can place for this draw size; higher seeds are drawn as unseeded
+  const itfSeedLimit = maxItfSeeds(getNextPowerOfTwo(Math.max(2, acceptedEntries.length)))
+  const seedNumbers = acceptedEntries.map(e => e.seed).filter((s): s is number => !!s)
+  const seedsOverLimit = seedNumbers.filter(s => s > itfSeedLimit).length
+  const duplicateSeeds = [...new Set(seedNumbers.filter((s, i) => seedNumbers.indexOf(s) !== i))]
 
   // Check if any matches have results — prevent accidental regeneration.
   // BYE auto-advances set `winner` without a real match being played, so they
@@ -504,6 +510,20 @@ export function DrawGeneration({ category, categories, tournamentId, categoryId,
               existingRatings={mixerRatings}
               onSave={handleSaveMixerRatings}
             />
+          )}
+
+          {category.drawType !== 'round_robin' && !isMixer && (seedsOverLimit > 0 || duplicateSeeds.length > 0) && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {duplicateSeeds.length > 0 && (
+                  <div>Seed number{duplicateSeeds.length > 1 ? 's' : ''} {duplicateSeeds.join(', ')} {duplicateSeeds.length > 1 ? 'are' : 'is'} used more than once. Fix the seeds before generating.</div>
+                )}
+                {seedsOverLimit > 0 && (
+                  <div>The ITF seeding table places at most {itfSeedLimit} seeds in a draw of {getNextPowerOfTwo(Math.max(2, acceptedEntries.length))}. {seedsOverLimit} player{seedsOverLimit > 1 ? 's' : ''} seeded above {itfSeedLimit} will be drawn as unseeded.</div>
+                )}
+              </AlertDescription>
+            </Alert>
           )}
 
           {!canGenerateDraw ? (

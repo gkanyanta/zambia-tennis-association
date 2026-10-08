@@ -49,6 +49,11 @@ const syncTournamentStatus = async (tournament) => {
 // the player entering this or another category again.
 const isLiveEntry = e => !['withdrawn', 'rejected'].includes(e.status);
 
+// True if the ZPIN appears on the entry as either the player or the doubles
+// partner. A partner is just as entered as the player who named them.
+const entryHasZpin = (e, zpin) =>
+  !!zpin && zpin !== 'PENDING' && (e.playerZpin === zpin || e.partnerZpin === zpin);
+
 // @desc    Get all tournaments
 // @route   GET /api/tournaments
 // @access  Public
@@ -410,7 +415,7 @@ export const submitEntry = async (req, res) => {
     }
 
     // Check if player already entered in this category
-    const existingEntry = category.entries.find(e => e.playerZpin === player.zpin && isLiveEntry(e));
+    const existingEntry = category.entries.find(e => entryHasZpin(e, player.zpin) && isLiveEntry(e));
     if (existingEntry) {
       return res.status(400).json({
         success: false,
@@ -427,7 +432,7 @@ export const submitEntry = async (req, res) => {
       const otherCategory = tournament.categories.find(cat =>
         cat._id.toString() !== categoryId &&
         cat.format === category.format &&
-        cat.entries.some(e => e.playerZpin === player.zpin && isLiveEntry(e))
+        cat.entries.some(e => entryHasZpin(e, player.zpin) && isLiveEntry(e))
       );
       if (otherCategory) {
         return res.status(400).json({
@@ -918,10 +923,15 @@ export const autoSeedCategory = async (req, res) => {
     // Sort by ranking (lower number = better player)
     acceptedEntries.sort((a, b) => a.ranking - b.ranking);
 
-    // Assign seeds to top players (typically top 8, 16, or 32 depending on draw size)
-    const maxSeeds = Math.min(32, Math.pow(2, Math.ceil(Math.log2(acceptedEntries.length))));
+    // ITF seed count by draw size: 8 → 2, 16 → 4, 32 → 8, 64 and 128 → 16.
+    // Draw size comes from all accepted entries, not just the ranked ones.
+    const allAccepted = category.entries.filter(e => e.status === 'accepted');
+    const drawSize = Math.pow(2, Math.ceil(Math.log2(Math.max(2, allAccepted.length))));
+    const maxSeeds = drawSize >= 64 ? 16 : Math.max(1, drawSize / 4);
     const numSeeds = Math.min(acceptedEntries.length, maxSeeds);
 
+    // Clear previous seeds so a re-run never leaves stale seed numbers behind
+    allAccepted.forEach(e => { e.seed = undefined; });
     for (let i = 0; i < numSeeds; i++) {
       acceptedEntries[i].seed = i + 1;
     }
@@ -2522,7 +2532,7 @@ export const getPlayerEligibleCategories = async (req, res) => {
     // If multiple categories not allowed, check if player is already entered in any category
     if (!tournament.allowMultipleCategories) {
       const enteredCategory = tournament.categories.find(cat =>
-        cat.entries.some(e => e.playerZpin === player.zpin && isLiveEntry(e))
+        cat.entries.some(e => entryHasZpin(e, player.zpin) && isLiveEntry(e))
       );
       if (enteredCategory) {
         return res.status(200).json({
@@ -2726,7 +2736,7 @@ export const publicRegister = async (req, res) => {
         }
 
         // Check if player already entered in this category
-        const existingEntry = category.entries.find(e => e.playerZpin === player.zpin && isLiveEntry(e));
+        const existingEntry = category.entries.find(e => entryHasZpin(e, player.zpin) && isLiveEntry(e));
         if (existingEntry) {
           errors.push({ playerId, playerName: `${player.firstName} ${player.lastName}`, error: 'Player already entered in this category' });
           continue;
@@ -2738,7 +2748,7 @@ export const publicRegister = async (req, res) => {
           const otherCategory = tournament.categories.find(cat =>
             cat._id.toString() !== categoryId &&
             cat.format === category.format &&
-            cat.entries.some(e => e.playerZpin === player.zpin && isLiveEntry(e))
+            cat.entries.some(e => entryHasZpin(e, player.zpin) && isLiveEntry(e))
           );
           if (otherCategory) {
             errors.push({
@@ -2852,6 +2862,35 @@ export const publicRegister = async (req, res) => {
             club: partner.club || 'Independent',
             zpin: partner.zpin
           };
+
+          const partnerName = `${partner.firstName} ${partner.lastName}`;
+          if ((playerData._id && partner._id.equals(playerData._id)) || (partner.zpin && partner.zpin === playerData.zpin)) {
+            errors.push({ playerId, playerName: `${playerData.firstName} ${playerData.lastName}`, error: 'A player cannot be their own doubles partner' });
+            continue;
+          }
+
+          // The partner must not already be in this category, either as a
+          // player or as someone else's partner.
+          if (category.entries.some(e => entryHasZpin(e, partner.zpin) && isLiveEntry(e))) {
+            errors.push({ playerId, playerName: `${playerData.firstName} ${playerData.lastName}`, error: `Doubles partner ${partnerName} is already entered in this category` });
+            continue;
+          }
+
+          if (!tournament.allowMultipleCategories) {
+            const otherCategory = tournament.categories.find(cat =>
+              cat._id.toString() !== categoryId &&
+              cat.format === category.format &&
+              cat.entries.some(e => entryHasZpin(e, partner.zpin) && isLiveEntry(e))
+            );
+            if (otherCategory) {
+              errors.push({
+                playerId,
+                playerName: `${playerData.firstName} ${playerData.lastName}`,
+                error: `Doubles partner ${partnerName} is already entered in category '${otherCategory.name}'. This tournament does not allow multiple entries of the same format.`
+              });
+              continue;
+            }
+          }
         }
 
         // Calculate partner fee with independent surcharge check

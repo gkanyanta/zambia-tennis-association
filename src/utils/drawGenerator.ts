@@ -12,86 +12,15 @@ import type {
 import { getNextPowerOfTwo, getRoundName } from '@/types/tournament'
 
 // Generate Single Elimination Draw
-// BYEs are assigned to top seeds first (seed 1 gets BYE, then seed 2, etc.)
+// Seeds, byes and unseeded players are placed per the ITF draw regulations
+// (see placeItfDraw below).
 export function generateSingleEliminationDraw(entries: TournamentEntry[]): Draw {
   const acceptedEntries = entries.filter(e => e.status === 'accepted')
   const numPlayers = acceptedEntries.length
   const bracketSize = getNextPowerOfTwo(numPlayers)
   const numberOfRounds = Math.log2(bracketSize)
-  const numByes = bracketSize - numPlayers
 
-  // Sort entries by seed (seeded players first, then unseeded)
-  const sortedEntries = [...acceptedEntries].sort((a, b) => {
-    if (a.seed && b.seed) return a.seed - b.seed
-    if (a.seed) return -1
-    if (b.seed) return 1
-    return 0
-  })
-
-  // Standard seeding positions for the bracket
-  const seedingPositions = getSeedingPositions(bracketSize)
-
-  // Initialize bracket positions
-  const players: (MatchPlayer | null)[] = new Array(bracketSize).fill(null)
-
-  // Place seeded players at their standard positions
-  const seededEntries = sortedEntries.filter(e => e.seed)
-  const unseededEntries = sortedEntries.filter(e => !e.seed)
-
-  seededEntries.forEach((entry) => {
-    const player: MatchPlayer = {
-      id: entry.playerId,
-      name: entry.playerName,
-      seed: entry.seed
-    }
-    if (entry.seed! <= seedingPositions.length) {
-      const position = seedingPositions[entry.seed! - 1]
-      players[position] = player
-    }
-  })
-
-  // Determine which positions get BYEs.
-  // BYEs should go to the top seeds first.
-  // In a standard bracket, seed 1 is at position 0 and faces position 1,
-  // seed 2 is at the opposite end, etc. The BYE goes opposite the seed.
-  const byePositions = new Set<number>()
-
-  if (numByes > 0) {
-    // For each BYE, assign it opposite the highest seeds first
-    for (let i = 0; i < numByes && i < seedingPositions.length; i++) {
-      const seedPos = seedingPositions[i]
-      // The opponent position is the other half of the same first-round match
-      const opponentPos = seedPos % 2 === 0 ? seedPos + 1 : seedPos - 1
-      byePositions.add(opponentPos)
-    }
-
-    // If we have more BYEs than seeds, assign remaining BYEs to unfilled positions
-    if (byePositions.size < numByes) {
-      for (let i = 0; i < bracketSize && byePositions.size < numByes; i++) {
-        if (!players[i] && !byePositions.has(i)) {
-          byePositions.add(i)
-        }
-      }
-    }
-  }
-
-  // Place unseeded players in remaining non-BYE positions
-  const availablePositions: number[] = []
-  for (let i = 0; i < bracketSize; i++) {
-    if (!players[i] && !byePositions.has(i)) {
-      availablePositions.push(i)
-    }
-  }
-
-  unseededEntries.forEach((entry, idx) => {
-    if (idx < availablePositions.length) {
-      players[availablePositions[idx]] = {
-        id: entry.playerId,
-        name: entry.playerName,
-        seed: entry.seed
-      }
-    }
-  })
+  const { players, byePositions } = placeItfDraw(acceptedEntries, bracketSize)
 
   // Generate first round matches
   const matches: Match[] = []
@@ -277,7 +206,7 @@ export function generateFeedInDraw(entries: TournamentEntry[]): Draw {
   }
 }
 
-// Shuffle an array in place using Fisher-Yates
+// Shuffle an array using Fisher-Yates (used for every "drawn by lot" step)
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -287,62 +216,146 @@ function shuffleArray<T>(arr: T[]): T[] {
   return a
 }
 
-// Randomize positions within ITF seed groups
-// Seeds 1-2 are fixed; seeds 3-4, 5-8, 9-16, 17-32 are shuffled within their designated positions
-function randomizeSeedGroups(positions: number[]): number[] {
-  const result = [...positions]
-  const len = result.length
+// ITF seed lines for a 64 draw (ITF WTT Juniors Regulations, Reg. 49 b i),
+// 1-based, one array per seed group: 1 | 2 | 3-4 | 5-8 | 9-12 | 13-16.
+// Seeds within a group are drawn by lot onto that group's lines.
+const ITF_SEED_LINES_64: number[][] = [
+  [1], [64], [17, 48], [16, 32, 33, 49], [9, 25, 40, 56], [8, 24, 41, 57]
+]
+const SEED_GROUP_UPPER = [1, 2, 4, 8, 12, 16] // highest seed number in each group
 
-  // Seed groups: [3,4], [5,8], [9,16], [17,32], [33,64], [65,128]
-  // Index ranges (0-based): [2,3], [4,7], [8,15], [16,31], [32,63], [64,127]
-  const groups: [number, number][] = [
-    [2, 3], [4, 7], [8, 15], [16, 31], [32, 63], [64, 127]
-  ]
+/**
+ * ITF seed lines for any power-of-two draw. The ITF tables for 16/32/64/128
+ * are the same pattern scaled: halving a draw maps line L to ceil(L/2), and
+ * doubling maps L to 2L-1 (odd) or 2L (even). Groups that would need more
+ * seeds than the draw has lines are dropped.
+ */
+export function getItfSeedLines(drawSize: number): number[][] {
+  let groups = ITF_SEED_LINES_64.map(g => [...g])
+  for (let size = 64; size > drawSize; size /= 2) {
+    groups = groups.map(g => g.map(l => Math.ceil(l / 2)))
+  }
+  for (let size = 64; size < drawSize; size *= 2) {
+    groups = groups.map(g => g.map(l => (l % 2 ? 2 * l - 1 : 2 * l)))
+  }
+  return groups.filter((_, i) => SEED_GROUP_UPPER[i] <= drawSize)
+}
 
-  for (const [start, end] of groups) {
-    if (start >= len) break
-    const groupEnd = Math.min(end, len - 1)
-    const slice = result.slice(start, groupEnd + 1)
-    const shuffled = shuffleArray(slice)
-    for (let i = 0; i < shuffled.length; i++) {
-      result[start + i] = shuffled[i]
+/** Maximum number of seeds the ITF table supports for a draw size. */
+export function maxItfSeeds(drawSize: number): number {
+  return Math.min(16, drawSize)
+}
+
+function seedGroupIndex(seed: number): number {
+  return SEED_GROUP_UPPER.findIndex(upper => seed <= upper)
+}
+
+/**
+ * Place entries into a bracket following the ITF regulations:
+ *  1. Seed 1 on line 1, seed 2 on the last line; seeds 3-4, 5-8, 9-12 and
+ *     13-16 drawn by lot onto their group's lines.
+ *  2. Byes go to the highest seeds first; any remaining byes are drawn by
+ *     lot, spread as evenly as possible across the sections of the draw.
+ *  3. Unseeded players are drawn by lot into the remaining lines.
+ * Seeds above the table's limit for the draw size are placed as unseeded.
+ * Returns 0-based bracket positions.
+ */
+export function placeItfDraw(
+  entries: TournamentEntry[],
+  bracketSize: number
+): { players: (MatchPlayer | null)[]; byePositions: Set<number> } {
+  const players: (MatchPlayer | null)[] = new Array(bracketSize).fill(null)
+  const byePositions = new Set<number>()
+  const toPlayer = (e: TournamentEntry): MatchPlayer => ({ id: e.playerId, name: e.playerName, seed: e.seed })
+
+  // 1. Seeds
+  const groupLines = getItfSeedLines(bracketSize).map(g => shuffleArray(g))
+  const maxSeed = maxItfSeeds(bracketSize)
+  const bySeed = [...entries]
+    .filter(e => e.seed && e.seed > 0 && e.seed <= maxSeed)
+    .sort((a, b) => a.seed! - b.seed!)
+  const placedSeeds: number[] = [] // 0-based positions, in seed order
+  const placedIds = new Set<TournamentEntry>()
+  for (const entry of bySeed) {
+    const line = groupLines[seedGroupIndex(entry.seed!)]?.shift()
+    if (line === undefined) continue // e.g. duplicate seed number: draw as unseeded
+    players[line - 1] = toPlayer(entry)
+    placedSeeds.push(line - 1)
+    placedIds.add(entry)
+  }
+
+  // 2. Byes: highest seeds first, then by lot spread evenly across sections
+  let byesLeft = bracketSize - entries.length
+  const partner = (pos: number) => (pos % 2 === 0 ? pos + 1 : pos - 1)
+  for (const pos of placedSeeds) {
+    if (byesLeft === 0) break
+    if (players[partner(pos)]) continue // two seeds in one pair: no bye to give
+    byePositions.add(partner(pos))
+    byesLeft--
+  }
+  if (byesLeft > 0) {
+    const numPairs = bracketSize / 2
+    const pairHasBye = (p: number) => byePositions.has(2 * p) || byePositions.has(2 * p + 1)
+    const eligible = (p: number) => !pairHasBye(p) && !players[2 * p] && !players[2 * p + 1]
+    for (const p of allocateByePairs(0, numPairs, byesLeft, eligible, pairHasBye)) {
+      byePositions.add(2 * p + (Math.random() < 0.5 ? 0 : 1))
     }
   }
 
-  return result
-}
-
-// Standard seeding positions for different draw sizes
-function getSeedingPositions(drawSize: number): number[] {
-  // ITF standard seeding positions (base template)
-  const positions: Record<number, number[]> = {
-    4: [0, 3, 1, 2],
-    8: [0, 7, 3, 4, 1, 6, 2, 5],
-    16: [0, 15, 7, 8, 3, 12, 4, 11, 1, 14, 6, 9, 2, 13, 5, 10],
-    32: [0, 31, 15, 16, 7, 24, 8, 23, 3, 28, 12, 19, 4, 27, 11, 20,
-         1, 30, 14, 17, 6, 25, 9, 22, 2, 29, 13, 18, 5, 26, 10, 21],
-    64: generateSeedingPositions64(),
-    128: generateSeedingPositions128()
+  // 3. Unseeded players (and any seed beyond the table) drawn by lot
+  const open: number[] = []
+  for (let i = 0; i < bracketSize; i++) {
+    if (!players[i] && !byePositions.has(i)) open.push(i)
   }
+  const rest = shuffleArray(entries.filter(e => !placedIds.has(e)))
+  rest.forEach((entry, i) => {
+    if (i < open.length) players[open[i]] = toPlayer(entry)
+  })
 
-  const base = positions[drawSize] || []
-  return base.length > 0 ? randomizeSeedGroups(base) : base
+  return { players, byePositions }
 }
 
-function generateSeedingPositions64(): number[] {
-  // Standard 64-draw seeding
-  const base = [0, 63, 31, 32, 15, 48, 16, 47, 7, 56, 24, 39, 8, 55, 23, 40,
-                3, 60, 28, 35, 12, 51, 19, 44, 4, 59, 27, 36, 11, 52, 20, 43]
-  return [...base, ...base.map(n => 63 - n)]
-}
+/**
+ * Choose `count` first-round pairs in [lo, hi) to receive a bye, splitting
+ * recursively so each half of every section ends up with as equal a share
+ * of the total byes as possible. Ties are broken by lot.
+ */
+function allocateByePairs(
+  lo: number,
+  hi: number,
+  count: number,
+  eligible: (p: number) => boolean,
+  hasBye: (p: number) => boolean
+): number[] {
+  if (count <= 0) return []
+  const candidates: number[] = []
+  for (let p = lo; p < hi; p++) if (eligible(p)) candidates.push(p)
+  if (count >= candidates.length) return candidates
+  if (hi - lo === 1) return candidates.slice(0, count)
 
-function generateSeedingPositions128(): number[] {
-  // Standard 128-draw seeding (simplified)
-  const positions: number[] = []
-  for (let i = 0; i < 128; i++) {
-    positions.push(i)
+  const mid = (lo + hi) / 2
+  const countIn = (a: number, b: number, f: (p: number) => boolean) => {
+    let n = 0
+    for (let p = a; p < b; p++) if (f(p)) n++
+    return n
   }
-  return positions
+  const existL = countIn(lo, mid, hasBye)
+  const existR = countIn(mid, hi, hasBye)
+  const capL = countIn(lo, mid, eligible)
+  const capR = countIn(mid, hi, eligible)
+
+  const total = existL + existR + count
+  const targetL = Math.floor(total / 2) + (total % 2 && Math.random() < 0.5 ? 1 : 0)
+  let needL = Math.min(capL, Math.max(0, targetL - existL), count)
+  let needR = count - needL
+  if (needR > capR) {
+    needR = capR
+    needL = count - needR
+  }
+  return [
+    ...allocateByePairs(lo, mid, needL, eligible, hasBye),
+    ...allocateByePairs(mid, hi, needR, eligible, hasBye)
+  ]
 }
 
 // Generate Mixer Draw (for madalas social doubles)
