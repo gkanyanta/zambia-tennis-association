@@ -12,6 +12,10 @@ const PAGE_HEIGHT = 842;
 const MARGIN = 40;
 const CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN;
 
+// Header: space kept for the ZTA logo on the left, partner logo tiles on the right
+const ZTA_LOGO_SPACE = 92;
+const PARTNER_LOGO_W = 64;
+
 const COLORS = {
   primary: '#1F2937',
   secondary: '#6B7280',
@@ -46,81 +50,66 @@ function formatDateRange(start, end) {
  */
 function renderPageHeader(doc, tournament) {
   const logoPath = path.join(__dirname, '../assets/zta-logo.png');
+  const HEADER_H = 55;
 
   // Header background
   doc.save();
-  doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, 55).fill(COLORS.headerBg);
+  doc.rect(MARGIN, MARGIN, CONTENT_WIDTH, HEADER_H).fill(COLORS.headerBg);
   doc.restore();
 
-  // Logo
+  // ZTA logo on the left
   try {
     doc.image(logoPath, MARGIN + 8, MARGIN + 8, { height: 40 });
   } catch (e) {
     // Logo not available
   }
 
-  // Tournament name
-  doc.save();
-  doc
-    .fontSize(14)
-    .fillColor(COLORS.headerText)
-    .font('Helvetica-Bold')
-    .text(tournament.name, MARGIN, MARGIN + 6, {
-      width: CONTENT_WIDTH,
-      align: 'center',
-      lineBreak: false,
-    });
-  doc.restore();
+  // Co-organiser / sponsor logos on the right, in white tiles on the same line
+  // as the ZTA logo (same layout as the draw PDF header)
+  const logos = doc._partnerLogos || [];
+  let rightSpace = 0;
+  for (let i = 0; i < logos.length; i++) {
+    const x = MARGIN + CONTENT_WIDTH - 8 - (logos.length - i) * (PARTNER_LOGO_W + 6) + 6;
+    doc.save();
+    doc.rect(x, MARGIN + 6, PARTNER_LOGO_W, HEADER_H - 12).fill('#FFFFFF');
+    try {
+      doc.image(logos[i].buffer, x + 2, MARGIN + 8, { fit: [PARTNER_LOGO_W - 4, HEADER_H - 16], align: 'center', valign: 'center' });
+    } catch (e) {
+      // Unreadable image — leave the tile blank
+    }
+    doc.restore();
+    rightSpace += PARTNER_LOGO_W + 6;
+  }
+  if (logos.length) rightSpace += 8;
 
-  // Subtitle
-  doc.save();
-  doc
-    .fontSize(10)
-    .font('Helvetica')
-    .fillColor(COLORS.headerText)
-    .text('Order of Play', MARGIN, MARGIN + 24, {
-      width: CONTENT_WIDTH,
-      align: 'center',
-      lineBreak: false,
-    });
-  doc.restore();
+  // Text sits between the logos: centred on the page when that leaves enough
+  // room, otherwise in the space left between the two logo areas
+  const side = Math.max(ZTA_LOGO_SPACE, rightSpace);
+  let textX = MARGIN + side;
+  let textW = CONTENT_WIDTH - 2 * side;
+  if (textW < 260) {
+    textX = MARGIN + ZTA_LOGO_SPACE;
+    textW = CONTENT_WIDTH - ZTA_LOGO_SPACE - rightSpace;
+  }
+  // Shrink a line's font until it fits on one line
+  const fitText = (text, font, size, minSize, y) => {
+    doc.font(font);
+    let fs = size;
+    while (fs > minSize && doc.fontSize(fs).widthOfString(text) > textW) fs -= 0.5;
+    // Still too wide at the smallest size: cut it short with an ellipsis rather than wrap
+    const fits = doc.fontSize(fs).widthOfString(text) <= textW;
+    doc.fillColor(COLORS.headerText).text(text, textX, y, fits
+      ? { width: textW, align: 'center', lineBreak: false }
+      : { width: textW, align: 'center', height: fs + 1, ellipsis: true });
+  };
 
-  // Venue, dates
   const dateStr = formatDateRange(tournament.startDate, tournament.endDate);
   const venue = [tournament.venue, tournament.city].filter(Boolean).join(', ');
   doc.save();
-  doc
-    .fontSize(7)
-    .fillColor(COLORS.headerText)
-    .text(`${venue}  |  ${dateStr}  |  Zambia Tennis Association`, MARGIN, MARGIN + 40, {
-      width: CONTENT_WIDTH,
-      align: 'center',
-      lineBreak: false,
-    });
+  fitText(tournament.name, 'Helvetica-Bold', 14, 8, MARGIN + 6);
+  fitText('Order of Play', 'Helvetica', 10, 8, MARGIN + 24);
+  fitText(`${venue}  |  ${dateStr}  |  Zambia Tennis Association`, 'Helvetica', 7, 5, MARGIN + 40);
   doc.restore();
-
-  // Co-organiser / sponsor logos: a centred strip under the header (a portrait
-  // header has no room for them beside the tournament name)
-  const logos = doc._partnerLogos || [];
-  if (logos.length) {
-    const tileW = 90, tileH = 38, gap = 14, top = MARGIN + 62;
-    doc.save();
-    doc.fontSize(6.5).font('Helvetica').fillColor(COLORS.secondary)
-      .text('In collaboration with', MARGIN, top, { width: CONTENT_WIDTH, align: 'center', lineBreak: false });
-    const rowW = logos.length * tileW + (logos.length - 1) * gap;
-    let x = MARGIN + (CONTENT_WIDTH - rowW) / 2;
-    for (const logo of logos) {
-      doc.rect(x, top + 10, tileW, tileH).lineWidth(0.5).strokeColor(COLORS.border).stroke();
-      try {
-        doc.image(logo.buffer, x + 3, top + 12, { fit: [tileW - 6, tileH - 4], align: 'center', valign: 'center' });
-      } catch (e) {
-        // Unreadable image — leave the tile blank
-      }
-      x += tileW + gap;
-    }
-    doc.restore();
-    return top + 10 + tileH + 6;
-  }
 
   return MARGIN + 65;
 }
