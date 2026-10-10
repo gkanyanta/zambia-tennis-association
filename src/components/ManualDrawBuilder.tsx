@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, ClipboardEdit, Eye, Trash2 } from 'lucide-react'
 import { DrawBracket } from '@/components/DrawBracket'
+import { withPartnerNames } from '@/utils/doublesNames'
 import { tournamentService } from '@/services/tournamentService'
 import type { Draw, Match, MatchPlayer, TournamentCategory, TournamentEntry } from '@/types/tournament'
 import { getRoundName } from '@/types/tournament'
@@ -652,7 +653,7 @@ export function ManualDrawBuilder({
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <DrawBracket draw={preview} />
+            <DrawBracket draw={withPartnerNames(preview, category.format, category.entries)} />
           </CardContent>
         </Card>
       </div>

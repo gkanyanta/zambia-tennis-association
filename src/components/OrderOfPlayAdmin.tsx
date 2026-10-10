@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, X, Save, CalendarClock, ChevronUp, ChevronDown, FileDown, Trash2 } from 'lucide-react'
 import { tournamentService, Tournament, OrderOfPlayEntry, OrderOfPlaySlot } from '@/services/tournamentService'
 import { iterDrawMatches } from '@/utils/iterMatches'
+import { withPartnerNames } from '@/utils/doublesNames'
 
 interface Props {
   tournament: Tournament
@@ -59,7 +60,8 @@ export function OrderOfPlayAdmin({ tournament, onRefresh }: Props) {
     const matches: SchedulableMatch[] = []
 
     for (const category of tournament.categories) {
-      const draw = (category as any).draw
+      // Doubles teams show as "Player / Partner"
+      const draw = withPartnerNames((category as any).draw, (category as any).format, (category as any).entries)
       if (!draw) continue
 
       for (const { match: m } of iterDrawMatches<any>(draw)) {

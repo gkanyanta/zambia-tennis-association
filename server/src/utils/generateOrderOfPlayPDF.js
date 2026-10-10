@@ -163,8 +163,23 @@ function getMatchLabel(tournament, categoryId, matchId) {
 
   if (!match) return `${category.name}: Match TBD`;
 
-  const p1 = match.player1?.name || 'TBD';
-  const p2 = match.player2?.name || 'TBD';
+  // Doubles draws store one player per team; show the team as "Player / Partner"
+  const partnerOf = {};
+  if (category.format === 'doubles' || category.format === 'mixed_doubles') {
+    // Withdrawn/rejected entries first so a live entry for the same player wins
+    const dead = (e) => e.status === 'withdrawn' || e.status === 'rejected';
+    const ordered = [...(category.entries || [])].sort((a, b) => dead(b) - dead(a));
+    for (const e of ordered) {
+      if (e.partnerName && e.playerId) partnerOf[String(e.playerId)] = e.partnerName;
+    }
+  }
+  const teamName = (p) => {
+    if (!p?.name) return 'TBD';
+    const partner = p.id && partnerOf[String(p.id)];
+    return partner && !p.name.endsWith(` / ${partner}`) ? `${p.name} / ${partner}` : p.name;
+  };
+  const p1 = teamName(match.player1);
+  const p2 = teamName(match.player2);
   const round = isQualifying
     ? (category.draw.qualifyingStage.label || 'Qualifying')
     : match.roundName || `R${match.round}`;

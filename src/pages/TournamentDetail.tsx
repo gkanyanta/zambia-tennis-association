@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DrawBracket } from '@/components/DrawBracket'
+import { withPartnerNames } from '@/utils/doublesNames'
 import {
   Calendar,
   MapPin,
@@ -1045,7 +1046,7 @@ function PublicDrawsView({ tournament }: { tournament: Tournament }) {
               </p>
             </CardHeader>
             <CardContent>
-              <DrawBracket draw={linked.draw} />
+              <DrawBracket draw={withPartnerNames(linked.draw, (activeCategory as any)?.format, (activeCategory as any)?.entries)} />
             </CardContent>
           </Card>
         )
